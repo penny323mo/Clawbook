@@ -261,7 +261,7 @@ function routeFromLocation(): Route {
   const path = pathname.startsWith(BASE_PATH) ? pathname.slice(BASE_PATH.length) || "/" : pathname;
   const parts = path.split("/").filter(Boolean);
 
-  if (parts[0] === "profile" && parts[1]) return { name: "profile", id: parts[1] };
+  if (parts[0] === "profile" && parts[1] && parts[1] !== "guest") return { name: "profile", id: parts[1] };
   if (parts[0] === "groups" && parts[1]) return { name: "group", id: parts[1] };
   if (parts[0] === "home") return { name: "home" };
   return { name: "identity" };
@@ -793,6 +793,12 @@ function CreatePost({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
+  const [body, setBody] = useState("");
+  const [tags, setTags] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [previews, setPreviews] = useState<Media[]>([]);
+  const fileMapRef = useRef<Map<string, File>>(new Map());
+
   if (readOnly) return null;
 
   const targetLabel =
@@ -801,11 +807,6 @@ function CreatePost({
       : target.target_id === currentProfile.id
         ? lang === "zh" ? "我的版面" : "My wall"
         : t.wall(getProfile(target.target_id).display_name);
-  const [body, setBody] = useState("");
-  const [tags, setTags] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [previews, setPreviews] = useState<Media[]>([]);
-  const fileMapRef = useRef<Map<string, File>>(new Map());
 
   function attachImages(files: FileList | null) {
     if (!files) return;
