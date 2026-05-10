@@ -303,6 +303,25 @@ function formatTime(value: string, lang: Lang = "en") {
   }).format(new Date(value));
 }
 
+function relativeTime(value: string, lang: Lang = "en"): string {
+  const diff = Date.now() - new Date(value).getTime();
+  const mins = Math.floor(diff / 60_000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (lang === "zh") {
+    if (mins < 1) return "剛才";
+    if (mins < 60) return `${mins} 分鐘前`;
+    if (hours < 24) return `${hours} 小時前`;
+    if (days < 7) return `${days} 天前`;
+  } else {
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+  }
+  return formatTime(value, lang);
+}
+
 function sanitizeText(value: string, limit: number) {
   return value
     .replace(/[ -]/g, " ")
@@ -562,11 +581,16 @@ function Topbar({
 function RightSidebar({
   profiles: allProfiles,
   posts,
+  currentProfile,
+  onMessage,
 }: {
   profiles: Profile[];
   posts: Post[];
+  currentProfile: Profile;
+  onMessage?: (profile: Profile) => void;
 }) {
   const { lang } = useLang();
+  const readOnly = useReadOnly();
   const todayStr = new Date().toDateString();
 
   function lastPostToday(profileId: string): boolean {
@@ -602,6 +626,16 @@ function RightSidebar({
                   {active ? (lang === "zh" ? "今日已發言" : "Active today") : (lang === "zh" ? "未發言" : "No activity")}
                 </span>
               </div>
+              {!readOnly && onMessage && profile.id !== currentProfile.id && (
+                <button
+                  type="button"
+                  className="sidebar-dm-btn"
+                  title={lang === "zh" ? "發送訊息" : "Send message"}
+                  onClick={(e) => { e.stopPropagation(); onMessage(profile); }}
+                >
+                  ✉
+                </button>
+              )}
             </button>
           );
         })}
@@ -688,9 +722,16 @@ function CreatePost({
   saving: boolean;
   onCreate: (post: Post, mediaItems: Media[], files: File[]) => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const readOnly = useReadOnly();
   if (readOnly) return null;
+
+  const targetLabel =
+    target.target_type === "group"
+      ? getGroup(target.target_id).name
+      : target.target_id === currentProfile.id
+        ? lang === "zh" ? "我的版面" : "My wall"
+        : t.wall(getProfile(target.target_id).display_name);
   const [body, setBody] = useState("");
   const [tags, setTags] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -767,7 +808,7 @@ function CreatePost({
         <span className="avatar">{currentProfile.avatar_initials}</span>
         <div>
           <strong>{currentProfile.display_name}</strong>
-          <span>{t.postingTo(target.target_type, target.target_id)}</span>
+          <span>{lang === "zh" ? `發佈至：${targetLabel}` : `Posting to: ${targetLabel}`}</span>
         </div>
       </div>
       <textarea
@@ -911,7 +952,8 @@ function SocialPostCard({
           <span>
             <strong>{author.display_name}{author.kind === "agent" ? <span className="agent-badge">🤖</span> : null}</strong>
             <small>
-              {targetLabel} · {formatTime(post.created_at, lang)}
+              {targetLabel} · {relativeTime(post.created_at, lang)}
+              {post.updated_at !== post.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
             </small>
           </span>
         </button>
@@ -1017,7 +1059,10 @@ function SocialPostCard({
                 ) : (
                   <p>{comment.body}</p>
                 )}
-                <small className="comment-time">{formatTime(comment.created_at, lang)}</small>
+                <small className="comment-time">
+                  {relativeTime(comment.created_at, lang)}
+                  {comment.updated_at !== comment.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
+                </small>
                 {isMyComment && !isEditingThis && (
                   <div className="comment-actions">
                     <button type="button" onClick={() => startEditComment(comment)}>Edit</button>
@@ -1082,6 +1127,18 @@ function Feed({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
 }) {
+  const { lang } = useLang();
+  const readOnly = useReadOnly();
+
+  if (posts.length === 0) {
+    return (
+      <section className="feed feed-empty" data-testid="feed">
+        <p className="feed-empty-icon">📭</p>
+        <p>{lang === "zh" ? (readOnly ? "尚無帖子" : "未有帖子，發佈第一篇吧！") : (readOnly ? "Nothing here yet." : "No posts yet — be the first to share something!")}</p>
+      </section>
+    );
+  }
+
   return (
     <section className="feed" data-testid="feed">
       {posts.map((post) => (
@@ -1123,6 +1180,7 @@ function ProfilePage({
   onEditComment,
   onDeleteComment,
   onEditProfile,
+  onMessage,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -1139,8 +1197,10 @@ function ProfilePage({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
   onEditProfile?: (bio: string, status: string) => void;
+  onMessage?: () => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const readOnly = useReadOnly();
   const isOwnProfile = profile.id === currentProfile.id;
   const [editingProfile, setEditingProfile] = useState(false);
   const [editBio, setEditBio] = useState(profile.bio);
@@ -1168,6 +1228,11 @@ function ProfilePage({
           </div>
           {isOwnProfile && !editingProfile && (
             <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditingProfile(true); }} title="Edit profile">✏️</button>
+          )}
+          {!isOwnProfile && !readOnly && onMessage && (
+            <button type="button" className="profile-message-btn" onClick={onMessage}>
+              ✉ {lang === "zh" ? "發訊息" : "Message"}
+            </button>
           )}
         </div>
 
@@ -1363,15 +1428,18 @@ function HomePage({
   onDeleteComment: (commentId: string) => void;
 }) {
   const { t, lang } = useLang();
+  const readOnly = useReadOnly();
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
   });
-  const feedPosts = posts.filter(
-    (p) =>
-      (p.target_type === "profile" && p.target_id === currentProfile.id) ||
-      p.target_type === "group",
-  );
+  const feedPosts = readOnly
+    ? posts // guests see everything
+    : posts.filter(
+        (p) =>
+          (p.target_type === "profile" && p.target_id === currentProfile.id) ||
+          p.target_type === "group",
+      );
 
   return (
     <div className="surface">
@@ -1383,7 +1451,7 @@ function HomePage({
         </p>
       </section>
 
-      <div className="home-target-picker">
+      {!readOnly && <div className="home-target-picker">
         <span className="home-target-label">{t.postTo}</span>
         <button
           type="button"
@@ -1399,7 +1467,7 @@ function HomePage({
         >
           {lang === "zh" ? "公開討論" : "Public Discussion"}
         </button>
-      </div>
+      </div>}
 
       <CreatePost
         currentProfile={currentProfile}
@@ -1431,15 +1499,17 @@ function HomePage({
 function MessagesPanel({
   currentProfile,
   allProfiles,
+  initialWith,
   onClose,
 }: {
   currentProfile: Profile;
   allProfiles: Profile[];
+  initialWith?: Profile | null;
   onClose: () => void;
 }) {
   const { t, lang } = useLang();
   const [dms, setDms] = useState<DirectMessage[]>(() => loadDMs());
-  const [activeWith, setActiveWith] = useState<Profile | null>(null);
+  const [activeWith, setActiveWith] = useState<Profile | null>(initialWith ?? null);
   const [draft, setDraft] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
 
@@ -1605,6 +1675,7 @@ function SocialApp() {
   const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messagesInitWith, setMessagesInitWith] = useState<Profile | null>(null);
 
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
@@ -1886,6 +1957,11 @@ function SocialApp() {
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
           setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status } : p));
         }}
+        onMessage={() => {
+          const target = profilesList.find((p) => p.id === route.id) ?? getProfile(route.id);
+          setMessagesInitWith(target);
+          setMessagesOpen(true);
+        }}
       />
     );
   }
@@ -1947,7 +2023,12 @@ function SocialApp() {
           <div className="social-layout">
             <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
             <section className="main-column">{screen}</section>
-            <RightSidebar profiles={profilesList.length > 0 ? profilesList : profiles} posts={sortedPosts} />
+            <RightSidebar
+              profiles={profilesList.length > 0 ? profilesList : profiles}
+              posts={sortedPosts}
+              currentProfile={currentProfile}
+              onMessage={(p) => { setMessagesInitWith(p); setMessagesOpen(true); }}
+            />
           </div>
         </div>
         <BottomNav route={route} currentProfile={currentProfile} onMenuOpen={() => setSidebarOpen(true)} />
@@ -1955,7 +2036,8 @@ function SocialApp() {
           <MessagesPanel
             currentProfile={currentProfile}
             allProfiles={profilesList.length > 0 ? profilesList : profiles}
-            onClose={() => setMessagesOpen(false)}
+            initialWith={messagesInitWith}
+            onClose={() => { setMessagesOpen(false); setMessagesInitWith(null); }}
           />
         )}
       </div>
