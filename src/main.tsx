@@ -318,8 +318,9 @@ function relativeTime(value: string, lang: Lang = "en"): string {
 
 function sanitizeText(value: string, limit: number) {
   return value
-    .replace(/[ -]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim()
     .slice(0, limit);
 }
