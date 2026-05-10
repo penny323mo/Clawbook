@@ -385,6 +385,12 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
+  // pre-highlight the profile requested via ?as= URL param
+  const asParam = new URLSearchParams(window.location.search).get("as")?.toLowerCase() ?? null;
+  const hintedProfile = asParam
+    ? SESSION_PROFILES.find((pr) => matchProfileSlug(pr, asParam)) ?? null
+    : null;
+
   function attemptEnter(profile: Profile) {
     const input = codes[profile.id] ?? "";
     if (checkPasscode(profile.id, input)) {
@@ -406,7 +412,12 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
 
         <section className="identity-grid" aria-label="Choose Clawbook identity">
           {SESSION_PROFILES.map((profile) => (
-            <article className="identity-card" data-testid="identity-card" key={profile.id} style={profileAccent(profile)}>
+            <article
+              className={`identity-card${hintedProfile?.id === profile.id ? " is-hinted" : ""}`}
+              data-testid="identity-card"
+              key={profile.id}
+              style={profileAccent(profile)}
+            >
               <div className="identity-cover" style={buildCover(profile)}>
                 <span className="avatar identity-avatar">{profile.avatar_initials}</span>
               </div>
@@ -423,6 +434,7 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
                   type="password"
                   value={codes[profile.id] ?? ""}
                   placeholder="Access code"
+                  autoFocus={hintedProfile?.id === profile.id}
                   className={errors[profile.id] ? "passcode-input is-error" : "passcode-input"}
                   onChange={(e) => {
                     setCodes((c) => ({ ...c, [profile.id]: e.target.value }));
@@ -529,6 +541,7 @@ function Topbar({
   currentProfile,
   syncing,
   guestMode,
+  unreadDms,
   onMenu,
   onLogout,
   onMessages,
@@ -536,6 +549,7 @@ function Topbar({
   currentProfile: Profile;
   syncing: boolean;
   guestMode?: boolean;
+  unreadDms?: number;
   onMenu: () => void;
   onLogout: () => void;
   onMessages?: () => void;
@@ -560,8 +574,9 @@ function Topbar({
           {lang === "en" ? "中文" : "EN"}
         </button>
         {!guestMode && onMessages && (
-          <button className="icon-button" type="button" onClick={onMessages} aria-label="Messages" title={t.messages}>
+          <button className="icon-button dm-icon-btn" type="button" onClick={onMessages} aria-label="Messages" title={t.messages}>
             💬
+            {unreadDms ? <span className="dm-unread-dot">{unreadDms > 9 ? "9+" : unreadDms}</span> : null}
           </button>
         )}
         {guestMode && <span className="guest-badge">{t.guestLabel}</span>}
@@ -647,13 +662,18 @@ function RightSidebar({
           {trendingPosts.map((post, idx) => {
             const author = getProfile(post.author_id);
             return (
-              <div key={post.id} className="trending-item">
+              <button
+                key={post.id}
+                type="button"
+                className="trending-item"
+                onClick={() => navigate({ name: "profile", id: author.id })}
+              >
                 <span className="trending-rank">{idx + 1}</span>
                 <div className="trending-text">
                   <strong>{post.body ? post.body.slice(0, 60) + (post.body.length > 60 ? "…" : "") : "[media]"}</strong>
-                  <span>{author.display_name} · {formatTime(post.created_at, lang)}</span>
+                  <span>{author.display_name} · {relativeTime(post.created_at, lang)}</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -1026,7 +1046,7 @@ function SocialPostCard({
             onClick={() => !readOnly && onReaction(post.id, r.emoji)}
           >
             <span>{r.emoji}</span>
-            <strong>{r.count}</strong>
+            {r.count > 0 && <strong>{r.count}</strong>}
           </button>
         ))}
       </div>
@@ -1634,8 +1654,13 @@ function MessagesPanel({
                     value={draft}
                     maxLength={500}
                     placeholder={t.messagePlaceholder}
-                    rows={2}
+                    rows={1}
                     onChange={(e) => setDraft(e.target.value)}
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = "auto";
+                      el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
+                    }}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                   />
                   <button type="button" disabled={!draft.trim()} onClick={send}>
@@ -1676,6 +1701,12 @@ function SocialApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messagesInitWith, setMessagesInitWith] = useState<Profile | null>(null);
+
+  const countUnreadDms = useCallback(() => {
+    if (guestMode || !session) return 0;
+    return loadDMs().filter((m) => m.to_id === session.profileId && !m.read).length;
+  }, [guestMode, session]);
+  const [unreadDms, setUnreadDms] = useState(() => countUnreadDms());
 
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
@@ -1994,8 +2025,9 @@ function SocialApp() {
           currentProfile={currentProfile}
           syncing={isSyncing}
           guestMode={guestMode}
+          unreadDms={unreadDms}
           onMenu={() => setSidebarOpen(true)}
-          onMessages={() => setMessagesOpen(true)}
+          onMessages={() => { setUnreadDms(0); setMessagesOpen(true); }}
           onLogout={() => {
             if (guestMode) {
               localStorage.removeItem("clawbook:guest");
@@ -2037,7 +2069,7 @@ function SocialApp() {
             currentProfile={currentProfile}
             allProfiles={profilesList.length > 0 ? profilesList : profiles}
             initialWith={messagesInitWith}
-            onClose={() => { setMessagesOpen(false); setMessagesInitWith(null); }}
+            onClose={() => { setMessagesOpen(false); setMessagesInitWith(null); setUnreadDms(countUnreadDms()); }}
           />
         )}
       </div>
