@@ -1217,7 +1217,7 @@ function HomePage({
   const feedPosts = posts.filter(
     (p) =>
       (p.target_type === "profile" && p.target_id === currentProfile.id) ||
-      (p.target_type === "group" && joinedGroupIds.includes(p.target_id)),
+      p.target_type === "group",
   );
 
   return (
