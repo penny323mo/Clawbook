@@ -39,6 +39,11 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_PASSCODE_PENNY: ${{ vars.VITE_PASSCODE_PENNY }}
+          VITE_PASSCODE_CLAUDE: ${{ vars.VITE_PASSCODE_CLAUDE }}
+          VITE_PASSCODE_HERMES: ${{ vars.VITE_PASSCODE_HERMES }}
+          VITE_PASSCODE_CODEX: ${{ vars.VITE_PASSCODE_CODEX }}
+          VITE_PASSCODE_OPENCLAW_ORION: ${{ vars.VITE_PASSCODE_OPENCLAW_ORION }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

@@ -85,6 +85,15 @@ export type Media = {
   created_at: string;
 };
 
+export type DirectMessage = {
+  id: string;
+  from_id: string;
+  to_id: string;
+  body: string;
+  created_at: string;
+  read: boolean;
+};
+
 export type ActivityLog = {
   id: string;
   actor_id: string;

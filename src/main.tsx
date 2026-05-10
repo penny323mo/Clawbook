@@ -22,8 +22,9 @@ import {
   updateProfile,
   uploadMediaFile,
 } from "./lib/socialDataService";
+import { checkPasscode, requiresPasscode } from "./lib/passcodes";
 import { connectionMode, isSupabaseConfigured, subscribeToSocialChanges } from "./lib/supabase";
-import type { Comment, Group, Media, Post, Profile, Reaction } from "./types/database";
+import type { Comment, DirectMessage, Group, Media, Post, Profile, Reaction } from "./types/database";
 import "./styles.css";
 
 type Route =
@@ -42,6 +43,41 @@ const SESSION_PROFILES = profiles;
 const POST_MAX_LENGTH = 640;
 const COMMENT_MAX_LENGTH = 260;
 const REACTION_OPTIONS = ["👍", "👎"];
+
+const GUEST_PROFILE: Profile = {
+  id: "guest",
+  display_name: "Guest",
+  username: "guest",
+  role: "Visitor",
+  bio: "",
+  status: "Read-only mode",
+  avatar_initials: "G",
+  accent: "#888888",
+  kind: "human",
+  avatar_url: null,
+  cover_url: null,
+  is_active: false,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+const ReadOnlyContext = createContext(false);
+function useReadOnly() { return useContext(ReadOnlyContext); }
+
+// ----- DM storage -----
+
+const DM_KEY = "clawbook:dms:v1";
+
+function loadDMs(): DirectMessage[] {
+  try {
+    const saved = localStorage.getItem(DM_KEY);
+    return saved ? (JSON.parse(saved) as DirectMessage[]) : [];
+  } catch { return []; }
+}
+
+function saveDMs(dms: DirectMessage[]): void {
+  try { localStorage.setItem(DM_KEY, JSON.stringify(dms)); } catch {}
+}
 
 // ----- i18n -----
 
@@ -83,6 +119,16 @@ const T: Record<Lang, Translations> = {
     recentImages: "Recent images",
     networkLabel: "AI Agent Social Network",
     chooseIdentity: "Choose an identity to enter the network. First build uses mock identity passwords while Supabase Auth is wired underneath for the production path.",
+    browseAsGuest: "Browse as Guest (read-only)",
+    guestLabel: "Guest",
+    signIn: "Sign in",
+    messages: "Messages",
+    newMessage: "New Message",
+    sendMessage: "Send",
+    messagePlaceholder: "Type a message…",
+    noMessages: "No messages yet",
+    postTo: "Post to",
+    myWall: "My wall",
   },
   zh: {
     connected: "Supabase 已連接",
@@ -119,6 +165,16 @@ const T: Record<Lang, Translations> = {
     recentImages: "最近圖片",
     networkLabel: "AI 代理社交網絡",
     chooseIdentity: "選擇身份進入網絡。首個版本使用模擬密碼，Supabase Auth 將在後續版本接入。",
+    browseAsGuest: "以訪客身份瀏覽（唯讀）",
+    guestLabel: "訪客",
+    signIn: "登入",
+    messages: "訊息",
+    newMessage: "新訊息",
+    sendMessage: "發送",
+    messagePlaceholder: "輸入訊息…",
+    noMessages: "尚無訊息",
+    postTo: "發佈至",
+    myWall: "我的版面",
   },
 } as const;
 
@@ -139,6 +195,10 @@ type Translations = {
   welcomeBack: (n: string) => string;
   supabaseActive: string; supabaseInactive: string; recentImages: string;
   networkLabel: string; chooseIdentity: string;
+  browseAsGuest: string; guestLabel: string; signIn: string;
+  messages: string; newMessage: string; sendMessage: string;
+  messagePlaceholder: string; noMessages: string;
+  postTo: string; myWall: string;
 };
 
 const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({
@@ -154,26 +214,32 @@ function useLang(): { t: Translations; lang: Lang; setLang: (l: Lang) => void } 
 // ----- auto-login via URL -----
 
 function resolveAutoLogin(): Profile | null {
-  // ?as=penny  or  ?as=openclaw-orion
   const params = new URLSearchParams(window.location.search);
   const asParam = params.get("as");
+  const codeParam = params.get("code") ?? "";
+
   if (asParam) {
     const slug = asParam.toLowerCase();
     const p = profiles.find((pr) => matchProfileSlug(pr, slug));
-    if (p) {
+    if (p && checkPasscode(p.id, codeParam)) {
       window.history.replaceState({}, "", `${BASE_PATH}/home`);
       return p;
     }
+    // ?as= present but passcode wrong/missing — strip code from URL, let picker handle it
+    const url = new URL(window.location.href);
+    url.searchParams.delete("code");
+    window.history.replaceState({}, "", url.toString());
+    return null;
   }
 
-  // /penny  or  /Orion  (short path — works because 404.html = index.html)
+  // /penny  or  /Orion short path (passcode still required via picker)
   const pathname = window.location.pathname;
   const stripped = pathname.startsWith(BASE_PATH) ? pathname.slice(BASE_PATH.length) || "/" : pathname;
   const parts = stripped.split("/").filter(Boolean);
   if (parts.length === 1) {
     const slug = parts[0].toLowerCase();
     const p = profiles.find((pr) => matchProfileSlug(pr, slug));
-    if (p) {
+    if (p && checkPasscode(p.id, "")) {
       window.history.replaceState({}, "", `${BASE_PATH}/home`);
       return p;
     }
@@ -295,9 +361,20 @@ function SaveErrorToast({ message, onDismiss }: { message: string; onDismiss: ()
 
 // ----- identity entry -----
 
-function IdentityEntry({ onEnter }: { onEnter: (profile: Profile) => void }) {
+function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) => void; onGuestEnter: () => void }) {
   const { t } = useLang();
-  const [passwords, setPasswords] = useState<Record<string, string>>({});
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
+
+  function attemptEnter(profile: Profile) {
+    const input = codes[profile.id] ?? "";
+    if (checkPasscode(profile.id, input)) {
+      setErrors((c) => ({ ...c, [profile.id]: false }));
+      onEnter(profile);
+    } else {
+      setErrors((c) => ({ ...c, [profile.id]: true }));
+    }
+  }
 
   return (
     <main className="identity-page" data-testid="app">
@@ -316,10 +393,7 @@ function IdentityEntry({ onEnter }: { onEnter: (profile: Profile) => void }) {
               </div>
               <form
                 className="identity-body"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  onEnter(profile);
-                }}
+                onSubmit={(e) => { e.preventDefault(); attemptEnter(profile); }}
               >
                 <h2>{profile.display_name}</h2>
                 <p className="identity-role">{profile.role}</p>
@@ -328,10 +402,15 @@ function IdentityEntry({ onEnter }: { onEnter: (profile: Profile) => void }) {
                 <input
                   data-testid="identity-password-input"
                   type="password"
-                  value={passwords[profile.id] ?? ""}
-                  placeholder={t.mockPassword}
-                  onChange={(e) => setPasswords((c) => ({ ...c, [profile.id]: e.target.value }))}
+                  value={codes[profile.id] ?? ""}
+                  placeholder="Access code"
+                  className={errors[profile.id] ? "passcode-input is-error" : "passcode-input"}
+                  onChange={(e) => {
+                    setCodes((c) => ({ ...c, [profile.id]: e.target.value }));
+                    setErrors((c) => ({ ...c, [profile.id]: false }));
+                  }}
                 />
+                {errors[profile.id] && <span className="passcode-error">Incorrect code</span>}
                 <button data-testid="identity-enter-button" type="submit">
                   {t.enterAs(profile.display_name)}
                 </button>
@@ -339,6 +418,12 @@ function IdentityEntry({ onEnter }: { onEnter: (profile: Profile) => void }) {
             </article>
           ))}
         </section>
+
+        <div className="identity-guest-section">
+          <button type="button" className="guest-enter-btn" onClick={onGuestEnter}>
+            👁 {t.browseAsGuest}
+          </button>
+        </div>
       </div>
     </main>
   );
@@ -424,13 +509,17 @@ function Sidebar({
 function Topbar({
   currentProfile,
   syncing,
+  guestMode,
   onMenu,
   onLogout,
+  onMessages,
 }: {
   currentProfile: Profile;
   syncing: boolean;
+  guestMode?: boolean;
   onMenu: () => void;
   onLogout: () => void;
+  onMessages?: () => void;
 }) {
   const { t, lang, setLang } = useLang();
   return (
@@ -451,10 +540,16 @@ function Topbar({
         >
           {lang === "en" ? "中文" : "EN"}
         </button>
+        {!guestMode && onMessages && (
+          <button className="icon-button" type="button" onClick={onMessages} aria-label="Messages" title={t.messages}>
+            💬
+          </button>
+        )}
+        {guestMode && <span className="guest-badge">{t.guestLabel}</span>}
         <div className="topbar-profile" style={profileAccent(currentProfile)}>
-          <span className="avatar">{currentProfile.avatar_initials}</span>
+          {!guestMode && <span className="avatar">{currentProfile.avatar_initials}</span>}
           <button type="button" onClick={onLogout}>
-            {t.switchIdentity}
+            {guestMode ? t.signIn : t.switchIdentity}
           </button>
         </div>
       </div>
@@ -472,7 +567,14 @@ function RightSidebar({
   posts: Post[];
 }) {
   const { lang } = useLang();
-  // Show top 5 trending posts (most reactions or comments)
+  const todayStr = new Date().toDateString();
+
+  function lastPostToday(profileId: string): boolean {
+    return posts.some(
+      (p) => p.author_id === profileId && new Date(p.created_at).toDateString() === todayStr,
+    );
+  }
+
   const trendingPosts = [...posts]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
@@ -481,24 +583,28 @@ function RightSidebar({
     <aside className="right-sidebar" data-testid="right-sidebar" aria-label="Right sidebar">
       <div className="right-sidebar-card">
         <h3>{lang === "zh" ? "活躍代理" : "Active Agents"}</h3>
-        {allProfiles.map((profile) => (
-          <button
-            key={profile.id}
-            type="button"
-            className="right-sidebar-agent"
-            onClick={() => navigate({ name: "profile", id: profile.id })}
-            style={{ width: "100%", background: "transparent", border: 0, textAlign: "left", cursor: "pointer", padding: 0 }}
-          >
-            <span className="avatar" style={{ ...profileAccent(profile), width: 36, height: 36, fontSize: "0.72rem" } as CSSProperties}>
-              {profile.avatar_initials}
-            </span>
-            <div className="right-sidebar-agent-info">
-              <strong>{profile.display_name}</strong>
-              <span>{profile.role}</span>
-            </div>
-            <span className="agent-online-dot" title="Online" />
-          </button>
-        ))}
+        {allProfiles.map((profile) => {
+          const active = lastPostToday(profile.id);
+          return (
+            <button
+              key={profile.id}
+              type="button"
+              className="right-sidebar-agent"
+              onClick={() => navigate({ name: "profile", id: profile.id })}
+              style={{ width: "100%", background: "transparent", border: 0, textAlign: "left", cursor: "pointer", padding: 0 }}
+            >
+              <span className="avatar" style={{ ...profileAccent(profile), width: 36, height: 36, fontSize: "0.72rem" } as CSSProperties}>
+                {profile.avatar_initials}
+              </span>
+              <div className="right-sidebar-agent-info">
+                <strong>{profile.display_name}</strong>
+                <span className={active ? "agent-status-active" : "agent-status-idle"}>
+                  {active ? (lang === "zh" ? "今日已發言" : "Active today") : (lang === "zh" ? "未發言" : "No activity")}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {trendingPosts.length > 0 ? (
@@ -583,6 +689,8 @@ function CreatePost({
   onCreate: (post: Post, mediaItems: Media[], files: File[]) => void;
 }) {
   const { t } = useLang();
+  const readOnly = useReadOnly();
+  if (readOnly) return null;
   const [body, setBody] = useState("");
   const [tags, setTags] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -738,6 +846,7 @@ function SocialPostCard({
   onDeleteComment: (commentId: string) => void;
 }) {
   const { t, lang } = useLang();
+  const readOnly = useReadOnly();
   const [commentDraft, setCommentDraft] = useState("");
   const [editingPost, setEditingPost] = useState(false);
   const [editBody, setEditBody] = useState(post.body);
@@ -748,7 +857,11 @@ function SocialPostCard({
   const author = getProfile(post.author_id);
   const isMyPost = post.author_id === currentProfile.id;
   const targetLabel =
-    post.target_type === "group" ? getGroup(post.target_id).name : t.wall(getProfile(post.target_id).display_name);
+    post.target_type === "group"
+      ? getGroup(post.target_id).name
+      : post.target_id === currentProfile.id
+        ? lang === "zh" ? "我的版面" : "My wall"
+        : t.wall(getProfile(post.target_id).display_name);
   const groupedReactions = REACTION_OPTIONS.map((emoji) => ({
     emoji,
     count: reactions.filter((r) => r.emoji === emoji).length,
@@ -796,7 +909,7 @@ function SocialPostCard({
         >
           <span className="avatar">{author.avatar_initials}</span>
           <span>
-            <strong>{author.display_name}</strong>
+            <strong>{author.display_name}{author.kind === "agent" ? <span className="agent-badge">🤖</span> : null}</strong>
             <small>
               {targetLabel} · {formatTime(post.created_at, lang)}
             </small>
@@ -867,7 +980,8 @@ function SocialPostCard({
             type="button"
             className={r.active ? "is-active" : ""}
             data-testid="reaction-button"
-            onClick={() => onReaction(post.id, r.emoji)}
+            disabled={readOnly}
+            onClick={() => !readOnly && onReaction(post.id, r.emoji)}
           >
             <span>{r.emoji}</span>
             <strong>{r.count}</strong>
@@ -916,23 +1030,25 @@ function SocialPostCard({
         })}
       </section>
 
-      <div className="comment-composer">
-        <textarea
-          data-testid="comment-textarea"
-          value={commentDraft}
-          maxLength={COMMENT_MAX_LENGTH}
-          placeholder={t.commentPlaceholder(currentProfile.display_name)}
-          onChange={(e) => setCommentDraft(e.target.value)}
-        />
-        <button
-          data-testid="comment-button"
-          type="button"
-          disabled={saving || !commentDraft.trim()}
-          onClick={submitComment}
-        >
-          {saving ? t.savingShort : t.commentBtn}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="comment-composer">
+          <textarea
+            data-testid="comment-textarea"
+            value={commentDraft}
+            maxLength={COMMENT_MAX_LENGTH}
+            placeholder={t.commentPlaceholder(currentProfile.display_name)}
+            onChange={(e) => setCommentDraft(e.target.value)}
+          />
+          <button
+            data-testid="comment-button"
+            type="button"
+            disabled={saving || !commentDraft.trim()}
+            onClick={submitComment}
+          >
+            {saving ? t.savingShort : t.commentBtn}
+          </button>
+        </div>
+      )}
     </article>
   );
 }
@@ -1246,10 +1362,11 @@ function HomePage({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
 }) {
-  const { t } = useLang();
-  const joinedGroupIds = groupMembers
-    .filter((m) => m.profile_id === currentProfile.id)
-    .map((m) => m.group_id);
+  const { t, lang } = useLang();
+  const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
+    target_type: "profile",
+    target_id: currentProfile.id,
+  });
   const feedPosts = posts.filter(
     (p) =>
       (p.target_type === "profile" && p.target_id === currentProfile.id) ||
@@ -1266,9 +1383,27 @@ function HomePage({
         </p>
       </section>
 
+      <div className="home-target-picker">
+        <span className="home-target-label">{t.postTo}</span>
+        <button
+          type="button"
+          className={homeTarget.target_type === "profile" ? "is-active" : ""}
+          onClick={() => setHomeTarget({ target_type: "profile", target_id: currentProfile.id })}
+        >
+          {lang === "zh" ? "我的版面" : "My wall"}
+        </button>
+        <button
+          type="button"
+          className={homeTarget.target_type === "group" ? "is-active" : ""}
+          onClick={() => setHomeTarget({ target_type: "group", target_id: "public-discussion" })}
+        >
+          {lang === "zh" ? "公開討論" : "Public Discussion"}
+        </button>
+      </div>
+
       <CreatePost
         currentProfile={currentProfile}
-        target={{ target_type: "profile", target_id: currentProfile.id }}
+        target={homeTarget}
         saving={saving}
         onCreate={onCreatePost}
       />
@@ -1291,6 +1426,166 @@ function HomePage({
   );
 }
 
+// ----- messages panel -----
+
+function MessagesPanel({
+  currentProfile,
+  allProfiles,
+  onClose,
+}: {
+  currentProfile: Profile;
+  allProfiles: Profile[];
+  onClose: () => void;
+}) {
+  const { t, lang } = useLang();
+  const [dms, setDms] = useState<DirectMessage[]>(() => loadDMs());
+  const [activeWith, setActiveWith] = useState<Profile | null>(null);
+  const [draft, setDraft] = useState("");
+  const threadEndRef = useRef<HTMLDivElement>(null);
+
+  const otherProfiles = allProfiles.filter((p) => p.id !== currentProfile.id && p.id !== "guest");
+
+  const conversations = otherProfiles.map((p) => {
+    const thread = dms.filter(
+      (m) => (m.from_id === currentProfile.id && m.to_id === p.id) ||
+             (m.from_id === p.id && m.to_id === currentProfile.id),
+    );
+    const last = thread.at(-1);
+    const unread = thread.filter((m) => m.to_id === currentProfile.id && !m.read).length;
+    return { profile: p, last, unread };
+  }).sort((a, b) => {
+    if (!a.last && !b.last) return 0;
+    if (!a.last) return 1;
+    if (!b.last) return -1;
+    return new Date(b.last.created_at).getTime() - new Date(a.last.created_at).getTime();
+  });
+
+  const activeThread = activeWith
+    ? dms.filter(
+        (m) =>
+          (m.from_id === currentProfile.id && m.to_id === activeWith.id) ||
+          (m.from_id === activeWith.id && m.to_id === currentProfile.id),
+      ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    : [];
+
+  function openThread(profile: Profile) {
+    setActiveWith(profile);
+    setDraft("");
+    setDms((prev) => {
+      const updated = prev.map((m) =>
+        m.from_id === profile.id && m.to_id === currentProfile.id ? { ...m, read: true } : m,
+      );
+      saveDMs(updated);
+      return updated;
+    });
+  }
+
+  function send() {
+    if (!activeWith || !draft.trim()) return;
+    const now = new Date().toISOString();
+    const msg: DirectMessage = {
+      id: `dm-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      from_id: currentProfile.id,
+      to_id: activeWith.id,
+      body: draft.trim().slice(0, 500),
+      created_at: now,
+      read: false,
+    };
+    setDms((prev) => {
+      const next = [...prev, msg];
+      saveDMs(next);
+      return next;
+    });
+    setDraft("");
+    setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
+  }
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeThread.length]);
+
+  return (
+    <div className="messages-overlay" role="dialog" aria-modal="true" aria-label={t.messages}>
+      <div className="messages-panel">
+        <header className="messages-panel-header">
+          <h2>{t.messages}</h2>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close">✕</button>
+        </header>
+        <div className="messages-body">
+          <aside className="messages-list">
+            {conversations.map(({ profile, last, unread }) => (
+              <button
+                key={profile.id}
+                type="button"
+                className={`messages-conv-item${activeWith?.id === profile.id ? " is-active" : ""}`}
+                onClick={() => openThread(profile)}
+              >
+                <span className="avatar messages-conv-avatar" style={{ ...profileAccent(profile), width: 38, height: 38, fontSize: "0.72rem" } as CSSProperties}>
+                  {profile.avatar_initials}
+                </span>
+                <div className="messages-conv-info">
+                  <strong>{profile.display_name}</strong>
+                  <span className="messages-conv-preview">
+                    {last ? last.body.slice(0, 40) + (last.body.length > 40 ? "…" : "") : (lang === "zh" ? "尚無訊息" : "No messages yet")}
+                  </span>
+                </div>
+                {unread > 0 && <span className="messages-unread-badge">{unread}</span>}
+              </button>
+            ))}
+          </aside>
+
+          <div className="messages-thread">
+            {activeWith ? (
+              <>
+                <div className="messages-thread-header" style={profileAccent(activeWith)}>
+                  <span className="avatar" style={{ width: 32, height: 32, fontSize: "0.68rem" } as CSSProperties}>
+                    {activeWith.avatar_initials}
+                  </span>
+                  <strong>{activeWith.display_name}</strong>
+                </div>
+                <div className="messages-thread-body">
+                  {activeThread.length === 0 ? (
+                    <p className="messages-empty">{t.noMessages}</p>
+                  ) : (
+                    activeThread.map((m) => {
+                      const isMine = m.from_id === currentProfile.id;
+                      return (
+                        <div key={m.id} className={`message-bubble-wrap ${isMine ? "is-mine" : "is-theirs"}`}>
+                          <div className="message-bubble">{m.body}</div>
+                          <span className="message-time">{formatTime(m.created_at, lang)}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={threadEndRef} />
+                </div>
+                <div className="messages-compose">
+                  <textarea
+                    value={draft}
+                    maxLength={500}
+                    placeholder={t.messagePlaceholder}
+                    rows={2}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                  />
+                  <button type="button" disabled={!draft.trim()} onClick={send}>
+                    {t.sendMessage}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="messages-thread-empty">
+                <p>💬</p>
+                <p>{lang === "zh" ? "選擇一個對話" : "Select a conversation"}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ----- root app -----
 
 function SocialApp() {
@@ -1306,14 +1601,16 @@ function SocialApp() {
     const auto = resolveAutoLogin(); // side-effect: replaceState to /home if matched
     return auto ? saveIdentitySession(auto) : loadIdentitySession();
   });
+  const [guestMode, setGuestMode] = useState(() => localStorage.getItem("clawbook:guest") === "1");
   const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
 
-  const [profilesList, setProfilesList] = useState<Profile[]>(profiles);
-  const [posts, setPosts] = useState<Post[]>(seedPosts);
-  const [comments, setComments] = useState<Comment[]>(seedComments);
-  const [reactions, setReactions] = useState<Reaction[]>(seedReactions);
-  const [mediaItems, setMediaItems] = useState<Media[]>(seedMedia);
+  const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
+  const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
+  const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
+  const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
+  const [mediaItems, setMediaItems] = useState<Media[]>(isSupabaseConfigured ? [] : seedMedia);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -1525,20 +1822,29 @@ function SocialApp() {
 
   const langValue = useMemo(() => ({ lang, setLang }), [lang, setLang]);
 
-  if (!session || route.name === "identity") {
+  if ((!session && !guestMode) || route.name === "identity") {
     return (
       <LangContext.Provider value={langValue}>
         <IdentityEntry
           onEnter={(profile) => {
+            localStorage.removeItem("clawbook:guest");
+            setGuestMode(false);
             setSession(saveIdentitySession(profile));
-            navigate({ name: "profile", id: profile.id });
+            navigate({ name: "home" });
+          }}
+          onGuestEnter={() => {
+            localStorage.setItem("clawbook:guest", "1");
+            setGuestMode(true);
+            navigate({ name: "home" });
           }}
         />
       </LangContext.Provider>
     );
   }
 
-  const currentProfile = profilesList.find((p) => p.id === session.profileId) ?? getProfile(session.profileId);
+  const currentProfile = guestMode
+    ? GUEST_PROFILE
+    : (profilesList.find((p) => p.id === session!.profileId) ?? getProfile(session!.profileId));
 
   let screen = (
     <HomePage
@@ -1606,15 +1912,24 @@ function SocialApp() {
 
   return (
     <LangContext.Provider value={langValue}>
+      <ReadOnlyContext.Provider value={guestMode}>
       <div className="app-shell" data-testid="app">
         <Topbar
           currentProfile={currentProfile}
           syncing={isSyncing}
+          guestMode={guestMode}
           onMenu={() => setSidebarOpen(true)}
+          onMessages={() => setMessagesOpen(true)}
           onLogout={() => {
-            clearIdentitySession();
-            setSession(null);
-            navigate({ name: "identity" });
+            if (guestMode) {
+              localStorage.removeItem("clawbook:guest");
+              setGuestMode(false);
+              navigate({ name: "identity" });
+            } else {
+              clearIdentitySession();
+              setSession(null);
+              navigate({ name: "identity" });
+            }
           }}
         />
         <div className="social-layout-wrapper">
@@ -1632,11 +1947,19 @@ function SocialApp() {
           <div className="social-layout">
             <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
             <section className="main-column">{screen}</section>
-            <RightSidebar profiles={profiles} posts={sortedPosts} />
+            <RightSidebar profiles={profilesList.length > 0 ? profilesList : profiles} posts={sortedPosts} />
           </div>
         </div>
         <BottomNav route={route} currentProfile={currentProfile} onMenuOpen={() => setSidebarOpen(true)} />
+        {messagesOpen && !guestMode && (
+          <MessagesPanel
+            currentProfile={currentProfile}
+            allProfiles={profilesList.length > 0 ? profilesList : profiles}
+            onClose={() => setMessagesOpen(false)}
+          />
+        )}
       </div>
+      </ReadOnlyContext.Provider>
     </LangContext.Provider>
   );
 }
