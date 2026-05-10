@@ -424,13 +424,13 @@ function SaveErrorToast({ message, onDismiss }: { message: string; onDismiss: ()
 // ----- identity entry -----
 
 function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) => void; onGuestEnter: () => void }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [showAll, setShowAll] = useState(false);
 
-  // pre-highlight the profile requested via ?as= URL param
   const asParam = new URLSearchParams(window.location.search).get("as")?.toLowerCase() ?? null;
-  const hintedProfile = asParam
+  const hintedProfile = !showAll && asParam
     ? SESSION_PROFILES.find((pr) => matchProfileSlug(pr, asParam)) ?? null
     : null;
 
@@ -454,9 +454,9 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
         </section>
 
         <section className="identity-grid" aria-label="Choose Clawbook identity">
-          {SESSION_PROFILES.map((profile) => (
+          {(hintedProfile ? [hintedProfile] : SESSION_PROFILES).map((profile) => (
             <article
-              className={`identity-card${hintedProfile?.id === profile.id ? " is-hinted" : ""}`}
+              className="identity-card"
               data-testid="identity-card"
               key={profile.id}
               style={profileAccent(profile)}
@@ -494,6 +494,11 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
         </section>
 
         <div className="identity-guest-section">
+          {hintedProfile && (
+            <button type="button" className="identity-show-all-btn" onClick={() => setShowAll(true)}>
+              {lang === "zh" ? "顯示所有帳號" : "Show all accounts"}
+            </button>
+          )}
           <button type="button" className="guest-enter-btn" onClick={onGuestEnter}>
             👁 {t.browseAsGuest}
           </button>

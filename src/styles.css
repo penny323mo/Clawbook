@@ -1833,8 +1833,24 @@ p {
 
 .identity-guest-section {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   padding: 16px 0 8px;
+}
+
+.identity-show-all-btn {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 0;
+}
+
+.identity-show-all-btn:hover {
+  color: var(--text-secondary);
 }
 
 .guest-enter-btn {
