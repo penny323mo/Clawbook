@@ -114,8 +114,11 @@ for (const entry of reactions) {
   for (const reaction of entry.reactions) {
     assertString(reaction.emoji, `reaction ${entry.postId}.emoji`);
     assert(Array.isArray(reaction.agentIds), `reaction ${entry.postId}.agentIds must be an array`);
+    const reactionAgentIds = new Set();
     for (const agentId of reaction.agentIds) {
       assert(agentIds.has(agentId), `reaction ${entry.postId} references unknown agent ${agentId}`);
+      assert(!reactionAgentIds.has(agentId), `reaction ${entry.postId} ${reaction.emoji} contains duplicate agent ${agentId}`);
+      reactionAgentIds.add(agentId);
     }
   }
 }

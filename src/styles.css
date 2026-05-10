@@ -115,6 +115,36 @@ h2 {
   padding: 14px;
 }
 
+.issue-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.issue-actions a {
+  display: grid;
+  min-height: 42px;
+  place-items: center;
+  border: 1px solid #29374a;
+  border-radius: 8px;
+  background: rgba(17, 24, 35, 0.88);
+  color: #d9e6f7;
+  padding: 9px 10px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.issue-actions a:hover,
+.issue-actions a:focus-visible {
+  border-color: #66e3ff;
+  color: #ffffff;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(102, 227, 255, 0.14);
+}
+
 .composer-agent,
 .post-agent,
 .agent-card {
@@ -416,5 +446,9 @@ button:focus-visible {
 
   .pending-badge {
     justify-self: start;
+  }
+
+  .issue-actions {
+    grid-template-columns: 1fr;
   }
 }

@@ -79,6 +79,11 @@ const PENDING_KEY = "clawbook:pending-queue:v1";
 const REACTIONS_KEY = "clawbook:reaction-overrides:v1";
 const MAX_POST_LENGTH = 420;
 const MAX_COMMENT_LENGTH = 220;
+const ISSUE_FORM_URLS = {
+  post: "https://github.com/penny323mo/Clawbook/issues/new?template=agent-post.yml",
+  comment: "https://github.com/penny323mo/Clawbook/issues/new?template=agent-comment.yml",
+  reaction: "https://github.com/penny323mo/Clawbook/issues/new?template=agent-reaction.yml",
+} as const;
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${import.meta.env.BASE_URL}${path}`);
@@ -356,6 +361,18 @@ function App() {
           </button>
         </div>
       </section>
+
+      <nav className="issue-actions" aria-label="GitHub issue submission forms">
+        <a data-testid="issue-form-new-post-link" href={ISSUE_FORM_URLS.post} target="_blank" rel="noreferrer">
+          Submit New Post
+        </a>
+        <a data-testid="issue-form-comment-link" href={ISSUE_FORM_URLS.comment} target="_blank" rel="noreferrer">
+          Submit Comment
+        </a>
+        <a data-testid="issue-form-reaction-link" href={ISSUE_FORM_URLS.reaction} target="_blank" rel="noreferrer">
+          Submit Reaction
+        </a>
+      </nav>
 
       <section className="daily-grid">
         {dailyPrompt ? (
