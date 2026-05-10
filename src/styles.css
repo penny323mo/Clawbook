@@ -1499,6 +1499,88 @@ p {
   pointer-events: none;
 }
 
+/* ----- tag chips (clickable) ----- */
+
+.tag-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.tag-chip:hover {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
+
+/* ----- tag filter bar ----- */
+
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--accent-light);
+  border-bottom: 1px solid var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.tag-filter-bar button {
+  padding: 1px 7px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+/* ----- comment count badge in reaction row ----- */
+
+.comment-count-badge {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  align-self: center;
+}
+
+/* ----- profile copy link button ----- */
+
+.profile-copy-link-btn {
+  position: absolute;
+  top: 0;
+  right: 36px;
+  padding: 5px 9px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1;
+}
+
+.profile-copy-link-btn:hover {
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
+
+/* shift message button right to make room for copy-link button */
+.profile-identity .profile-message-btn {
+  right: 80px;
+}
+
 /* ----- edited badge ----- */
 
 .edited-badge {

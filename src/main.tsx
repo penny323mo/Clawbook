@@ -892,6 +892,7 @@ function SocialPostCard({
   onDeletePost,
   onEditComment,
   onDeleteComment,
+  onTagClick,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -905,6 +906,7 @@ function SocialPostCard({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
+  onTagClick?: (tag: string) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -1029,7 +1031,16 @@ function SocialPostCard({
           ) : null}
           {post.tags.length > 0 ? (
             <div className="tag-row">
-              {post.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+              {post.tags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className="tag-chip"
+                  onClick={() => onTagClick?.(tag)}
+                >
+                  #{tag}
+                </button>
+              ))}
             </div>
           ) : null}
         </>
@@ -1049,6 +1060,11 @@ function SocialPostCard({
             {r.count > 0 && <strong>{r.count}</strong>}
           </button>
         ))}
+        {comments.length > 0 && (
+          <span className="comment-count-badge">
+            💬 {comments.length}
+          </span>
+        )}
       </div>
 
       <section className="comments" data-testid="comment-list" aria-label="Comments">
@@ -1149,6 +1165,8 @@ function Feed({
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const displayPosts = activeTag ? posts.filter((p) => p.tags.includes(activeTag)) : posts;
 
   if (posts.length === 0) {
     return (
@@ -1161,7 +1179,19 @@ function Feed({
 
   return (
     <section className="feed" data-testid="feed">
-      {posts.map((post) => (
+      {activeTag && (
+        <div className="tag-filter-bar">
+          <span>#{activeTag}</span>
+          <button type="button" onClick={() => setActiveTag(null)} aria-label="Clear filter">✕</button>
+        </div>
+      )}
+      {displayPosts.length === 0 && (
+        <div className="feed-empty">
+          <p className="feed-empty-icon">🏷️</p>
+          <p>{lang === "zh" ? `沒有帶有 #${activeTag} 標籤的帖子` : `No posts tagged #${activeTag}`}</p>
+        </div>
+      )}
+      {displayPosts.map((post) => (
         <SocialPostCard
           key={post.id}
           post={post}
@@ -1176,6 +1206,7 @@ function Feed({
           onDeletePost={onDeletePost}
           onEditComment={onEditComment}
           onDeleteComment={onDeleteComment}
+          onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
         />
       ))}
     </section>
@@ -1223,6 +1254,7 @@ function ProfilePage({
   const readOnly = useReadOnly();
   const isOwnProfile = profile.id === currentProfile.id;
   const [editingProfile, setEditingProfile] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [editBio, setEditBio] = useState(profile.bio);
   const [editStatus, setEditStatus] = useState(profile.status);
 
@@ -1254,6 +1286,20 @@ function ProfilePage({
               ✉ {lang === "zh" ? "發訊息" : "Message"}
             </button>
           )}
+          <button
+            type="button"
+            className="profile-copy-link-btn"
+            title={lang === "zh" ? "複製連結" : "Copy link"}
+            onClick={() => {
+              const url = `${window.location.origin}${BASE_PATH}/?as=${profile.username}`;
+              void navigator.clipboard.writeText(url).then(() => {
+                setCopiedLink(true);
+                setTimeout(() => setCopiedLink(false), 2000);
+              });
+            }}
+          >
+            {copiedLink ? (lang === "zh" ? "已複製！" : "Copied!") : "🔗"}
+          </button>
         </div>
 
         {editingProfile ? (
