@@ -484,6 +484,7 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
                 <input
                   data-testid="identity-password-input"
                   type="password"
+                  autoComplete="off"
                   value={codes[profile.id] ?? ""}
                   placeholder="Access code"
                   className={errors[profile.id] ? "passcode-input is-error" : "passcode-input"}

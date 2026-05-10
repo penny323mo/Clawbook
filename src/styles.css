@@ -222,7 +222,6 @@ p {
 
 /* Account picker card */
 .identity-card {
-  overflow: hidden;
   border: 1px solid var(--lg-border);
   border-radius: var(--radius-lg);
   background: var(--lg-bg-card);
@@ -240,6 +239,8 @@ p {
 .identity-cover {
   min-height: 80px;
   position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .identity-avatar {
