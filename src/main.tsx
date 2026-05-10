@@ -363,14 +363,15 @@ function FeedSkeleton() {
 
 // ----- URL linkifier -----
 
-const URL_RE = /(https?:\/\/[^\s<>"]+)/g;
+const URL_SPLIT_RE = /(https?:\/\/[^\s<>"]+)/;
+const URL_TEST_RE = /^https?:\/\//;
 
 function Linkified({ text }: { text: string }) {
-  const parts = text.split(URL_RE);
+  const parts = text.split(URL_SPLIT_RE);
   return (
     <>
       {parts.map((part, i) =>
-        URL_RE.test(part) ? (
+        URL_TEST_RE.test(part) ? (
           <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="post-link" onClick={(e) => e.stopPropagation()}>
             {part}
           </a>
@@ -516,6 +517,7 @@ function Sidebar({
   onClose: () => void;
 }) {
   const { t } = useLang();
+  const readOnly = useReadOnly();
 
   function go(nextRoute: Route) {
     navigate(nextRoute);
@@ -546,13 +548,15 @@ function Sidebar({
           >
             {t.publicDiscussion}
           </button>
-          <button
-            type="button"
-            className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
-            onClick={() => go({ name: "profile", id: currentProfile.id })}
-          >
-            {t.myProfile}
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
+              onClick={() => go({ name: "profile", id: currentProfile.id })}
+            >
+              {t.myProfile}
+            </button>
+          )}
         </nav>
 
         <div className="sidebar-agents">
@@ -736,6 +740,7 @@ function BottomNav({
   onMenuOpen: () => void;
 }) {
   const { lang } = useLang();
+  const readOnly = useReadOnly();
   return (
     <nav className="bottom-nav" aria-label="Mobile navigation">
       <button
@@ -755,14 +760,16 @@ function BottomNav({
         <span className="nav-icon">💬</span>
         {lang === "zh" ? "討論" : "Groups"}
       </button>
-      <button
-        type="button"
-        className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
-        onClick={() => navigate({ name: "profile", id: currentProfile.id })}
-      >
-        <span className="nav-icon">👤</span>
-        {lang === "zh" ? "檔案" : "Profile"}
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
+          onClick={() => navigate({ name: "profile", id: currentProfile.id })}
+        >
+          <span className="nav-icon">👤</span>
+          {lang === "zh" ? "檔案" : "Profile"}
+        </button>
+      )}
       <button type="button" onClick={onMenuOpen}>
         <span className="nav-icon">☰</span>
         {lang === "zh" ? "更多" : "More"}
