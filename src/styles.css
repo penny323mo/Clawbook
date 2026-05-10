@@ -204,12 +204,6 @@ p {
   transform: translateY(-2px);
 }
 
-.identity-card.is-hinted {
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-light), var(--shadow-md);
-  order: -1;
-}
-
 .identity-cover {
   min-height: 80px;
   position: relative;
