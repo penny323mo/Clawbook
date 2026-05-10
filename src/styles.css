@@ -1,0 +1,420 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #07090d;
+  color: #f4f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(102, 227, 255, 0.13), transparent 34rem),
+    linear-gradient(180deg, #0b1018 0%, #07090d 58%, #050609 100%);
+}
+
+button,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.app-shell {
+  width: min(1120px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0 16px;
+}
+
+.network-label,
+.section-kicker {
+  margin: 0 0 4px;
+  color: #8ea0b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 8vw, 4rem);
+  line-height: 0.92;
+}
+
+h2 {
+  margin-bottom: 10px;
+  font-size: 1.08rem;
+  line-height: 1.22;
+}
+
+.agent-select {
+  display: grid;
+  gap: 6px;
+  min-width: 155px;
+  color: #9aabc1;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.agent-select select {
+  width: 100%;
+  border: 1px solid #29374a;
+  border-radius: 8px;
+  background: #111823;
+  color: #f4f7fb;
+  padding: 10px 12px;
+}
+
+.composer,
+.daily-panel,
+.post-card,
+.agents-panel,
+.state-panel {
+  border: 1px solid rgba(143, 166, 196, 0.18);
+  border-radius: 8px;
+  background: rgba(13, 18, 27, 0.88);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.composer {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.composer-agent,
+.post-agent,
+.agent-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--agent-accent, #66e3ff), #111823 24%), #111823);
+  color: #071018;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.composer-agent strong,
+.post-agent strong,
+.agent-card strong {
+  display: block;
+  color: #ffffff;
+  font-size: 0.96rem;
+}
+
+.composer-agent span:not(.avatar),
+.post-agent span,
+.agent-card p,
+.agent-card small {
+  color: #9aabc1;
+  font-size: 0.82rem;
+}
+
+textarea {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  border: 1px solid #263247;
+  border-radius: 8px;
+  outline: none;
+  background: #080d14;
+  color: #f4f7fb;
+  padding: 12px;
+  line-height: 1.45;
+}
+
+textarea:focus,
+select:focus,
+button:focus-visible {
+  border-color: #66e3ff;
+  box-shadow: 0 0 0 3px rgba(102, 227, 255, 0.14);
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #718197;
+  font-size: 0.78rem;
+}
+
+.composer-actions button,
+.comment-composer button {
+  border: 0;
+  border-radius: 8px;
+  background: #66e3ff;
+  color: #061017;
+  padding: 10px 14px;
+  font-weight: 900;
+}
+
+.daily-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.daily-panel {
+  padding: 14px;
+}
+
+.daily-panel p {
+  margin-bottom: 0;
+  color: #b7c4d6;
+  line-height: 1.5;
+}
+
+.daily-panel.summary ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #cfdae8;
+}
+
+.daily-panel.summary li + li {
+  margin-top: 6px;
+}
+
+.content-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.feed {
+  display: grid;
+  gap: 12px;
+}
+
+.post-card {
+  padding: 14px;
+}
+
+.post-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pending-badge {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 179, 107, 0.34);
+  border-radius: 999px;
+  color: #ffd0a0;
+  padding: 5px 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.post-content {
+  margin: 14px 0 12px;
+  color: #eef4fc;
+  font-size: 1rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.tag-row,
+.reaction-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-row span {
+  color: #8ea0b8;
+  font-size: 0.78rem;
+}
+
+.reaction-row {
+  margin: 14px 0;
+}
+
+.reaction-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid #273247;
+  border-radius: 999px;
+  background: #0a1019;
+  color: #eef4fc;
+  padding: 7px 11px;
+}
+
+.reaction-row strong {
+  font-size: 0.78rem;
+}
+
+.comments {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(143, 166, 196, 0.16);
+}
+
+.comment {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 9px;
+}
+
+.comment-avatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: #061017;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+
+.comment strong {
+  margin-right: 8px;
+  font-size: 0.82rem;
+}
+
+.comment em {
+  color: #ffd0a0;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.comment p {
+  margin: 3px 0 0;
+  color: #c9d5e5;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.comment-composer {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.comment-composer textarea {
+  min-height: 72px;
+}
+
+.comment-composer button {
+  justify-self: end;
+}
+
+.agents-panel {
+  display: grid;
+  gap: 12px;
+  align-self: start;
+  padding: 14px;
+}
+
+.agents-panel h2 {
+  margin-bottom: 0;
+}
+
+.agent-card {
+  align-items: flex-start;
+  border-top: 1px solid rgba(143, 166, 196, 0.14);
+  padding-top: 12px;
+}
+
+.agent-card p {
+  margin: 2px 0 4px;
+}
+
+.agent-card small {
+  display: block;
+  line-height: 1.4;
+}
+
+.state-panel {
+  margin: 18vh auto 0;
+  padding: 24px;
+  text-align: center;
+}
+
+@media (min-width: 760px) {
+  .app-shell {
+    padding: 28px;
+  }
+
+  .daily-grid {
+    grid-template-columns: 0.95fr 1.05fr;
+  }
+
+  .content-grid {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+  }
+
+  .agents-panel {
+    position: sticky;
+    top: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .agent-select {
+    width: 100%;
+  }
+
+  .post-header {
+    display: grid;
+  }
+
+  .pending-badge {
+    justify-self: start;
+  }
+}
