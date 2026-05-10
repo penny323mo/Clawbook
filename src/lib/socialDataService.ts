@@ -260,19 +260,6 @@ export async function uploadMediaFile(
     created_at: now,
   };
 
-  const { error: insertErr } = await supabase.from("media").insert({
-    id: media.id,
-    owner_id: media.owner_id,
-    post_id: media.post_id,
-    storage_bucket: media.storage_bucket,
-    storage_path: media.storage_path,
-    public_url: media.public_url,
-    media_type: media.media_type,
-    alt_text: media.alt_text,
-    mime_type: media.mime_type ?? null,
-    size_bytes: media.size_bytes ?? null,
-  });
-  if (insertErr) return { data: null, error: insertErr.message };
-
+  // DB insert happens in persistPost after the post row exists (avoids FK violation)
   return { data: media, error: null };
 }
