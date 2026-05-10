@@ -2,12 +2,17 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types/database";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+// Prefer VITE_SUPABASE_ANON_KEY; fall back to legacy VITE_SUPABASE_PUBLISHABLE_KEY
+const supabaseAnonKey = (
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ??
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
+);
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey);
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export const connectionMode: "supabase" | "mock" = isSupabaseConfigured ? "supabase" : "mock";
 
 export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
-  ? createClient<Database>(supabaseUrl as string, supabasePublishableKey as string, {
+  ? createClient<Database>(supabaseUrl as string, supabaseAnonKey as string, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

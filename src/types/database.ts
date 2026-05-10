@@ -44,6 +44,7 @@ export type Post = {
   target_type: PostTargetType;
   target_id: string;
   body: string;
+  image_url?: string | null;
   tags: string[];
   visibility: "public" | "agents" | "private";
   created_at: string;
@@ -77,6 +78,8 @@ export type Media = {
   public_url: string;
   media_type: MediaKind;
   alt_text: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
   width: number | null;
   height: number | null;
   created_at: string;
@@ -92,49 +95,134 @@ export type ActivityLog = {
   created_at: string;
 };
 
+// Explicit Insert shapes avoid complex intersections that break supabase-js generics.
+export type ProfileInsert = {
+  id: string;
+  username: string;
+  display_name: string;
+  kind: IdentityKind;
+  role?: string;
+  avatar_url?: string | null;
+  avatar_initials?: string;
+  cover_url?: string | null;
+  bio?: string;
+  status?: string;
+  accent?: string;
+  is_active?: boolean;
+};
+
+export type GroupInsert = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string;
+  cover_url?: string | null;
+  is_public?: boolean;
+};
+
+export type PostInsert = {
+  id: string;
+  author_id: string;
+  target_type: PostTargetType;
+  target_id: string;
+  body?: string;
+  image_url?: string | null;
+  tags?: string[];
+  visibility?: "public" | "agents" | "private";
+};
+
+export type CommentInsert = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+};
+
+export type ReactionInsert = {
+  id: string;
+  post_id: string;
+  comment_id?: string | null;
+  author_id: string;
+  emoji: string;
+};
+
+export type MediaInsert = {
+  id: string;
+  owner_id: string;
+  post_id?: string | null;
+  storage_bucket: string;
+  storage_path: string;
+  public_url?: string;
+  media_type?: MediaKind;
+  alt_text?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  width?: number | null;
+  height?: number | null;
+};
+
+export type ActivityLogInsert = {
+  id: string;
+  actor_id: string;
+  action: string;
+  target_type: string;
+  target_id: string;
+  metadata?: Json;
+};
+
 export type Database = {
   public: {
     Tables: {
       profiles: {
         Row: Profile;
-        Insert: Partial<Profile> & Pick<Profile, "id" | "username" | "display_name" | "kind">;
+        Insert: ProfileInsert;
         Update: Partial<Profile>;
+        Relationships: [];
       };
       groups: {
         Row: Group;
-        Insert: Partial<Group> & Pick<Group, "id" | "slug" | "name">;
+        Insert: GroupInsert;
         Update: Partial<Group>;
+        Relationships: [];
       };
       group_members: {
         Row: GroupMember;
         Insert: GroupMember;
         Update: Partial<GroupMember>;
+        Relationships: [];
       };
       posts: {
         Row: Post;
-        Insert: Partial<Post> & Pick<Post, "id" | "author_id" | "target_type" | "target_id" | "body">;
+        Insert: PostInsert;
         Update: Partial<Post>;
+        Relationships: [];
       };
       comments: {
         Row: Comment;
-        Insert: Partial<Comment> & Pick<Comment, "id" | "post_id" | "author_id" | "body">;
+        Insert: CommentInsert;
         Update: Partial<Comment>;
+        Relationships: [];
       };
       reactions: {
         Row: Reaction;
-        Insert: Partial<Reaction> & Pick<Reaction, "id" | "post_id" | "author_id" | "emoji">;
+        Insert: ReactionInsert;
         Update: Partial<Reaction>;
+        Relationships: [];
       };
       media: {
         Row: Media;
-        Insert: Partial<Media> & Pick<Media, "id" | "owner_id" | "storage_bucket" | "storage_path" | "public_url">;
+        Insert: MediaInsert;
         Update: Partial<Media>;
+        Relationships: [];
       };
       activity_logs: {
         Row: ActivityLog;
-        Insert: Partial<ActivityLog> & Pick<ActivityLog, "id" | "actor_id" | "action" | "target_type" | "target_id">;
+        Insert: ActivityLogInsert;
         Update: Partial<ActivityLog>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
   };
 };

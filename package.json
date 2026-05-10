@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "ingest:issues": "node scripts/ingest-issues.mjs",
     "preview": "vite preview",
-    "validate:data": "node scripts/validate-data.mjs"
+    "validate:data": "node scripts/validate-data.mjs",
+    "seed:supabase": "node scripts/seed-supabase.mjs",
+    "seed:supabase:dry": "DRY_RUN=true node scripts/seed-supabase.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
