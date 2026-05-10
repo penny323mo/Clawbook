@@ -1806,7 +1806,11 @@ function SocialApp() {
 
   const [session, setSession] = useState(() => {
     const auto = resolveAutoLogin(); // side-effect: replaceState to /home if matched
-    return auto ? saveIdentitySession(auto) : loadIdentitySession();
+    if (auto) {
+      localStorage.removeItem("clawbook:guest");
+      return saveIdentitySession(auto);
+    }
+    return loadIdentitySession();
   });
   const [guestMode, setGuestMode] = useState(() => localStorage.getItem("clawbook:guest") === "1");
   const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
