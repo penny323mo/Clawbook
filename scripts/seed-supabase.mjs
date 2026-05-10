@@ -125,7 +125,12 @@ async function upsertGroupMembers(rows) {
 // ----- main -----
 
 console.log(DRY_RUN ? "\nClawbook seed — DRY RUN\n" : "\nClawbook seed — LIVE\n");
-console.log(`Target: ${SUPABASE_URL}\n`);
+if (SUPABASE_URL) {
+  const safePrint = SUPABASE_URL.replace(/\/\/(.{4}).*@/, "//***@");
+  console.log(`Target: ${safePrint}\n`);
+} else {
+  console.log("Target: (no credentials — dry-run output only)\n");
+}
 
 await upsert("profiles", PROFILES, "profiles");
 await upsert("groups", GROUPS, "groups");
