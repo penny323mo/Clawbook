@@ -169,6 +169,8 @@ p {
 
 .identity-page {
   min-height: 100vh;
+  display: flex;
+  align-items: center;
   background: var(--bg);
   padding: 0;
   background-image:
@@ -181,12 +183,12 @@ p {
 .identity-page-inner {
   width: min(1100px, 100%);
   margin: 0 auto;
-  padding: 32px 16px 60px;
+  padding: 24px 16px 48px;
 }
 
 .identity-hero {
   text-align: center;
-  padding: 40px 0 36px;
+  padding: 24px 0 28px;
 }
 
 .identity-hero h1 {
@@ -222,6 +224,7 @@ p {
 
 /* Account picker card */
 .identity-card {
+  overflow: hidden;
   border: 1px solid var(--lg-border);
   border-radius: var(--radius-lg);
   background: var(--lg-bg-card);
@@ -239,8 +242,6 @@ p {
 .identity-cover {
   min-height: 80px;
   position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .identity-avatar {
