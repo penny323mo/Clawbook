@@ -11,10 +11,14 @@ import {
 } from "./data/socialSeed";
 import { clearIdentitySession, loadIdentitySession, saveIdentitySession } from "./lib/mockAuth";
 import {
+  deleteComment,
+  deletePost,
   loadAllSocialData,
   persistComment,
   persistPost,
   toggleReaction,
+  updateComment,
+  updatePost,
   uploadMediaFile,
 } from "./lib/socialDataService";
 import { connectionMode, isSupabaseConfigured, subscribeToSocialChanges } from "./lib/supabase";
@@ -674,6 +678,10 @@ function SocialPostCard({
   saving,
   onComment,
   onReaction,
+  onEditPost,
+  onDeletePost,
+  onEditComment,
+  onDeleteComment,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -683,10 +691,21 @@ function SocialPostCard({
   saving: boolean;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onEditPost: (postId: string, body: string, tags: string[]) => void;
+  onDeletePost: (postId: string) => void;
+  onEditComment: (commentId: string, body: string) => void;
+  onDeleteComment: (commentId: string) => void;
 }) {
   const { t, lang } = useLang();
   const [commentDraft, setCommentDraft] = useState("");
+  const [editingPost, setEditingPost] = useState(false);
+  const [editBody, setEditBody] = useState(post.body);
+  const [editTags, setEditTags] = useState(post.tags.join(", "));
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentBody, setEditCommentBody] = useState("");
+
   const author = getProfile(post.author_id);
+  const isMyPost = post.author_id === currentProfile.id;
   const targetLabel =
     post.target_type === "group" ? getGroup(post.target_id).name : t.wall(getProfile(post.target_id).display_name);
   const groupedReactions = REACTION_OPTIONS.map((emoji) => ({
@@ -700,6 +719,29 @@ function SocialPostCard({
     if (!safe) return;
     onComment(post.id, safe);
     setCommentDraft("");
+  }
+
+  function savePostEdit() {
+    const safeBody = sanitizeText(editBody, POST_MAX_LENGTH);
+    const tags = editTags
+      .split(/[,\s]+/)
+      .map((tg) => tg.replace(/^#/, "").trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 5);
+    onEditPost(post.id, safeBody, tags);
+    setEditingPost(false);
+  }
+
+  function startEditComment(comment: Comment) {
+    setEditingCommentId(comment.id);
+    setEditCommentBody(comment.body);
+  }
+
+  function saveCommentEdit(commentId: string) {
+    const safe = sanitizeText(editCommentBody, COMMENT_MAX_LENGTH);
+    if (!safe) return;
+    onEditComment(commentId, safe);
+    setEditingCommentId(null);
   }
 
   return (
@@ -719,38 +761,63 @@ function SocialPostCard({
             </small>
           </span>
         </button>
+        {isMyPost && !editingPost && (
+          <div className="post-actions">
+            <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title="Edit">✏️</button>
+            <button type="button" className="post-action-btn post-action-delete" onClick={() => onDeletePost(post.id)} title="Delete">🗑</button>
+          </div>
+        )}
       </header>
 
-      {post.body ? <p className="post-body">{post.body}</p> : null}
-
-      {post.image_url ? (
-        <div className="post-media-grid">
-          <img src={post.image_url} alt="Post image" />
+      {editingPost ? (
+        <div className="post-edit-form">
+          <textarea
+            value={editBody}
+            maxLength={POST_MAX_LENGTH}
+            onChange={(e) => setEditBody(e.target.value)}
+            rows={3}
+          />
+          <input
+            className="tag-input"
+            value={editTags}
+            placeholder="Tags"
+            onChange={(e) => setEditTags(e.target.value)}
+          />
+          <div className="post-edit-actions">
+            <button type="button" className="btn-save" onClick={savePostEdit} disabled={saving}>
+              {saving ? t.savingShort : "Save"}
+            </button>
+            <button type="button" className="btn-cancel" onClick={() => { setEditingPost(false); setEditBody(post.body); setEditTags(post.tags.join(", ")); }}>
+              Cancel
+            </button>
+          </div>
         </div>
-      ) : null}
-
-      {mediaItems.length > 0 ? (
-        <div className="post-media-grid">
-          {mediaItems.map((item) =>
-            item.public_url ? (
-              <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Post media"} />
-            ) : (
-              <div key={item.id} className="mock-media">
-                <span>Image</span>
-                <small>{item.storage_path}</small>
-              </div>
-            ),
-          )}
-        </div>
-      ) : null}
-
-      {post.tags.length > 0 ? (
-        <div className="tag-row">
-          {post.tags.map((tag) => (
-            <span key={tag}>#{tag}</span>
-          ))}
-        </div>
-      ) : null}
+      ) : (
+        <>
+          {post.body ? <p className="post-body">{post.body}</p> : null}
+          {post.image_url ? (
+            <div className="post-media-grid"><img src={post.image_url} alt="Post image" /></div>
+          ) : null}
+          {mediaItems.length > 0 ? (
+            <div className="post-media-grid">
+              {mediaItems.map((item) =>
+                item.public_url ? (
+                  <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Post media"} />
+                ) : (
+                  <div key={item.id} className="mock-media">
+                    <span>Image</span><small>{item.storage_path}</small>
+                  </div>
+                ),
+              )}
+            </div>
+          ) : null}
+          {post.tags.length > 0 ? (
+            <div className="tag-row">
+              {post.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+            </div>
+          ) : null}
+        </>
+      )}
 
       <div className="reaction-row">
         {groupedReactions.map((r) => (
@@ -770,14 +837,38 @@ function SocialPostCard({
       <section className="comments" data-testid="comment-list" aria-label="Comments">
         {comments.map((comment) => {
           const cAuthor = getProfile(comment.author_id);
+          const isMyComment = comment.author_id === currentProfile.id;
+          const isEditingThis = editingCommentId === comment.id;
           return (
             <article className="comment" key={comment.id}>
               <span className="comment-avatar" style={{ backgroundColor: cAuthor.accent }}>
                 {cAuthor.avatar_initials}
               </span>
-              <div>
+              <div className="comment-body-wrap">
                 <strong>{cAuthor.display_name}</strong>
-                <p>{comment.body}</p>
+                {isEditingThis ? (
+                  <div className="comment-edit-form">
+                    <textarea
+                      value={editCommentBody}
+                      maxLength={COMMENT_MAX_LENGTH}
+                      rows={2}
+                      onChange={(e) => setEditCommentBody(e.target.value)}
+                    />
+                    <div className="post-edit-actions">
+                      <button type="button" className="btn-save" onClick={() => saveCommentEdit(comment.id)}>Save</button>
+                      <button type="button" className="btn-cancel" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p>{comment.body}</p>
+                )}
+                <small className="comment-time">{formatTime(comment.created_at, lang)}</small>
+                {isMyComment && !isEditingThis && (
+                  <div className="comment-actions">
+                    <button type="button" onClick={() => startEditComment(comment)}>Edit</button>
+                    <button type="button" onClick={() => onDeleteComment(comment.id)}>Delete</button>
+                  </div>
+                )}
               </div>
             </article>
           );
@@ -816,6 +907,10 @@ function Feed({
   saving,
   onComment,
   onReaction,
+  onEditPost,
+  onDeletePost,
+  onEditComment,
+  onDeleteComment,
 }: {
   posts: Post[];
   currentProfile: Profile;
@@ -825,6 +920,10 @@ function Feed({
   saving: boolean;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onEditPost: (postId: string, body: string, tags: string[]) => void;
+  onDeletePost: (postId: string) => void;
+  onEditComment: (commentId: string, body: string) => void;
+  onDeleteComment: (commentId: string) => void;
 }) {
   return (
     <section className="feed" data-testid="feed">
@@ -839,6 +938,10 @@ function Feed({
           saving={saving}
           onComment={onComment}
           onReaction={onReaction}
+          onEditPost={onEditPost}
+          onDeletePost={onDeletePost}
+          onEditComment={onEditComment}
+          onDeleteComment={onDeleteComment}
         />
       ))}
     </section>
@@ -858,6 +961,10 @@ function ProfilePage({
   onCreatePost,
   onComment,
   onReaction,
+  onEditPost,
+  onDeletePost,
+  onEditComment,
+  onDeleteComment,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -869,6 +976,10 @@ function ProfilePage({
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onEditPost: (postId: string, body: string, tags: string[]) => void;
+  onDeletePost: (postId: string) => void;
+  onEditComment: (commentId: string, body: string) => void;
+  onDeleteComment: (commentId: string) => void;
 }) {
   const { t } = useLang();
   const profilePosts = posts.filter(
@@ -940,6 +1051,10 @@ function ProfilePage({
         saving={saving}
         onComment={onComment}
         onReaction={onReaction}
+        onEditPost={onEditPost}
+        onDeletePost={onDeletePost}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
       />
     </div>
   );
@@ -957,6 +1072,10 @@ function PublicGroupPage({
   onCreatePost,
   onComment,
   onReaction,
+  onEditPost,
+  onDeletePost,
+  onEditComment,
+  onDeleteComment,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -967,6 +1086,10 @@ function PublicGroupPage({
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onEditPost: (postId: string, body: string, tags: string[]) => void;
+  onDeletePost: (postId: string) => void;
+  onEditComment: (commentId: string, body: string) => void;
+  onDeleteComment: (commentId: string) => void;
 }) {
   const { t } = useLang();
   const group = getGroup("public-discussion");
@@ -1007,6 +1130,10 @@ function PublicGroupPage({
         saving={saving}
         onComment={onComment}
         onReaction={onReaction}
+        onEditPost={onEditPost}
+        onDeletePost={onDeletePost}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
       />
     </div>
   );
@@ -1024,6 +1151,10 @@ function HomePage({
   onCreatePost,
   onComment,
   onReaction,
+  onEditPost,
+  onDeletePost,
+  onEditComment,
+  onDeleteComment,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -1034,6 +1165,10 @@ function HomePage({
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onEditPost: (postId: string, body: string, tags: string[]) => void;
+  onDeletePost: (postId: string) => void;
+  onEditComment: (commentId: string, body: string) => void;
+  onDeleteComment: (commentId: string) => void;
 }) {
   const { t } = useLang();
   const joinedGroupIds = groupMembers
@@ -1072,6 +1207,10 @@ function HomePage({
         saving={saving}
         onComment={onComment}
         onReaction={onReaction}
+        onEditPost={onEditPost}
+        onDeletePost={onDeletePost}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
       />
     </div>
   );
@@ -1240,6 +1379,70 @@ function SocialApp() {
     }
   }
 
+  async function editPost(postId: string, body: string, tags: string[]) {
+    const prev = posts.find((p) => p.id === postId);
+    if (!prev) return;
+    setPosts((c) => c.map((p) => (p.id === postId ? { ...p, body, tags } : p)));
+    setIsSaving(true);
+    try {
+      const result = await updatePost(postId, { body, tags });
+      if (result.error) {
+        setSaveError(`Failed to update post: ${result.error}`);
+        setPosts((c) => c.map((p) => (p.id === postId ? prev : p)));
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function removePost(postId: string) {
+    const prev = posts.find((p) => p.id === postId);
+    if (!prev) return;
+    setPosts((c) => c.filter((p) => p.id !== postId));
+    setIsSaving(true);
+    try {
+      const result = await deletePost(postId);
+      if (result.error) {
+        setSaveError(`Failed to delete post: ${result.error}`);
+        setPosts((c) => [prev, ...c]);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function editComment(commentId: string, body: string) {
+    const prev = comments.find((c) => c.id === commentId);
+    if (!prev) return;
+    setComments((c) => c.map((cm) => (cm.id === commentId ? { ...cm, body } : cm)));
+    setIsSaving(true);
+    try {
+      const result = await updateComment(commentId, body);
+      if (result.error) {
+        setSaveError(`Failed to update comment: ${result.error}`);
+        setComments((c) => c.map((cm) => (cm.id === commentId ? prev : cm)));
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function removeComment(commentId: string) {
+    const prev = comments.find((c) => c.id === commentId);
+    if (!prev) return;
+    setComments((c) => c.filter((cm) => cm.id !== commentId));
+    setIsSaving(true);
+    try {
+      const result = await deleteComment(commentId);
+      if (result.error) {
+        setSaveError(`Failed to delete comment: ${result.error}`);
+        setComments((c) => [...c, prev]);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const langValue = useMemo(() => ({ lang, setLang }), [lang, setLang]);
 
   if (!session || route.name === "identity") {
@@ -1268,6 +1471,10 @@ function SocialApp() {
       onCreatePost={createPost}
       onComment={addComment}
       onReaction={react}
+      onEditPost={editPost}
+      onDeletePost={removePost}
+      onEditComment={editComment}
+      onDeleteComment={removeComment}
     />
   );
 
@@ -1284,6 +1491,10 @@ function SocialApp() {
         onCreatePost={createPost}
         onComment={addComment}
         onReaction={react}
+        onEditPost={editPost}
+        onDeletePost={removePost}
+        onEditComment={editComment}
+        onDeleteComment={removeComment}
       />
     );
   }
@@ -1300,6 +1511,10 @@ function SocialApp() {
         onCreatePost={createPost}
         onComment={addComment}
         onReaction={react}
+        onEditPost={editPost}
+        onDeletePost={removePost}
+        onEditComment={editComment}
+        onDeleteComment={removeComment}
       />
     );
   }
