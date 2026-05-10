@@ -19,6 +19,7 @@ import {
   toggleReaction,
   updateComment,
   updatePost,
+  updateProfile,
   uploadMediaFile,
 } from "./lib/socialDataService";
 import { connectionMode, isSupabaseConfigured, subscribeToSocialChanges } from "./lib/supabase";
@@ -40,7 +41,7 @@ const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
 const SESSION_PROFILES = profiles;
 const POST_MAX_LENGTH = 640;
 const COMMENT_MAX_LENGTH = 260;
-const REACTION_OPTIONS = ["👍", "💬", "🔎", "🛠️", "✨"];
+const REACTION_OPTIONS = ["👍", "👎"];
 
 // ----- i18n -----
 
@@ -1005,6 +1006,7 @@ function ProfilePage({
   onDeletePost,
   onEditComment,
   onDeleteComment,
+  onEditProfile,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -1020,8 +1022,14 @@ function ProfilePage({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
+  onEditProfile?: (bio: string, status: string) => void;
 }) {
   const { t } = useLang();
+  const isOwnProfile = profile.id === currentProfile.id;
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editBio, setEditBio] = useState(profile.bio);
+  const [editStatus, setEditStatus] = useState(profile.status);
+
   const profilePosts = posts.filter(
     (p) => p.author_id === profile.id || (p.target_type === "profile" && p.target_id === profile.id),
   );
@@ -1040,10 +1048,38 @@ function ProfilePage({
           <div>
             <h1>{profile.display_name}</h1>
             <p>{profile.role}</p>
-            <span>{profile.status}</span>
+            {!editingProfile && <span>{profile.status}</span>}
           </div>
+          {isOwnProfile && !editingProfile && (
+            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditingProfile(true); }} title="Edit profile">✏️</button>
+          )}
         </div>
-        <p className="profile-bio">{profile.bio}</p>
+
+        {editingProfile ? (
+          <div className="profile-edit-form">
+            <input
+              className="profile-edit-status"
+              value={editStatus}
+              maxLength={120}
+              placeholder="Status"
+              onChange={(e) => setEditStatus(e.target.value)}
+            />
+            <textarea
+              className="profile-edit-bio"
+              value={editBio}
+              maxLength={400}
+              rows={3}
+              placeholder="Bio"
+              onChange={(e) => setEditBio(e.target.value)}
+            />
+            <div className="post-edit-actions">
+              <button type="button" className="btn-save" onClick={() => { onEditProfile?.(editBio, editStatus); setEditingProfile(false); }}>Save</button>
+              <button type="button" className="btn-cancel" onClick={() => setEditingProfile(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <p className="profile-bio">{profile.bio}</p>
+        )}
         <div className="profile-stats">
           <span>
             <strong>{authoredPosts.length}</strong> {t.postsLabel}
@@ -1273,6 +1309,7 @@ function SocialApp() {
   const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const [profilesList, setProfilesList] = useState<Profile[]>(profiles);
   const [posts, setPosts] = useState<Post[]>(seedPosts);
   const [comments, setComments] = useState<Comment[]>(seedComments);
   const [reactions, setReactions] = useState<Reaction[]>(seedReactions);
@@ -1292,6 +1329,7 @@ function SocialApp() {
       return;
     }
     setSyncError(null);
+    setProfilesList(result.data.profiles);
     setPosts(result.data.posts);
     setComments(result.data.comments);
     setReactions(result.data.reactions);
@@ -1500,7 +1538,7 @@ function SocialApp() {
     );
   }
 
-  const currentProfile = getProfile(session.profileId);
+  const currentProfile = profilesList.find((p) => p.id === session.profileId) ?? getProfile(session.profileId);
 
   let screen = (
     <HomePage
@@ -1523,7 +1561,7 @@ function SocialApp() {
   if (route.name === "profile") {
     screen = (
       <ProfilePage
-        profile={getProfile(route.id)}
+        profile={profilesList.find((p) => p.id === route.id) ?? getProfile(route.id)}
         currentProfile={currentProfile}
         posts={sortedPosts}
         comments={comments}
@@ -1537,6 +1575,11 @@ function SocialApp() {
         onDeletePost={removePost}
         onEditComment={editComment}
         onDeleteComment={removeComment}
+        onEditProfile={async (bio, status) => {
+          const result = await updateProfile(currentProfile.id, { bio, status });
+          if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
+          setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status } : p));
+        }}
       />
     );
   }

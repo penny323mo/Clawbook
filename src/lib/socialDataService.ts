@@ -27,6 +27,22 @@ export type SocialData = {
 // ----- mock localStorage -----
 
 const MOCK_KEY = "clawbook:mock:social:v1";
+const PROFILE_OVERRIDE_KEY = "clawbook:mock:profiles:v1";
+
+type ProfileOverrides = Record<string, { bio?: string; status?: string }>;
+
+function loadProfileOverrides(): ProfileOverrides {
+  try {
+    const saved = localStorage.getItem(PROFILE_OVERRIDE_KEY);
+    return saved ? (JSON.parse(saved) as ProfileOverrides) : {};
+  } catch { return {}; }
+}
+
+function saveProfileOverride(id: string, updates: { bio: string; status: string }) {
+  const overrides = loadProfileOverrides();
+  overrides[id] = updates;
+  try { localStorage.setItem(PROFILE_OVERRIDE_KEY, JSON.stringify(overrides)); } catch {}
+}
 
 type MockStore = {
   posts: Post[];
@@ -59,9 +75,13 @@ function saveMock(store: MockStore): void {
 export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();
+    const overrides = loadProfileOverrides();
+    const profiles = seedProfiles.map((p) =>
+      overrides[p.id] ? { ...p, ...overrides[p.id] } : p,
+    );
     return {
       data: {
-        profiles: seedProfiles,
+        profiles,
         groups: seedGroups,
         groupMembers: seedGroupMembers,
         ...mock,
@@ -336,4 +356,25 @@ export async function uploadMediaFile(
 
   // DB insert happens in persistPost after the post row exists (avoids FK violation)
   return { data: media, error: null };
+}
+
+export async function updateProfile(
+  profileId: string,
+  updates: { bio: string; status: string },
+): Promise<ServiceResult<Profile>> {
+  if (!isSupabaseConfigured || !supabase) {
+    saveProfileOverride(profileId, updates);
+    const base = seedProfiles.find((p) => p.id === profileId);
+    if (!base) return { data: null, error: "Profile not found" };
+    return { data: { ...base, ...updates }, error: null };
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ bio: updates.bio, status: updates.status })
+    .eq("id", profileId)
+    .select()
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: data as Profile, error: null };
 }
