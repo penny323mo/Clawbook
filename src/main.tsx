@@ -671,33 +671,33 @@ function RightSidebar({
         {allProfiles.map((profile) => {
           const active = lastPostToday(profile.id);
           return (
-            <button
-              key={profile.id}
-              type="button"
-              className="right-sidebar-agent"
-              onClick={() => navigate({ name: "profile", id: profile.id })}
-              style={{ width: "100%", background: "transparent", border: 0, textAlign: "left", cursor: "pointer", padding: 0 }}
-            >
-              <span className="avatar" style={{ ...profileAccent(profile), width: 36, height: 36, fontSize: "0.72rem" } as CSSProperties}>
-                {profile.avatar_initials}
-              </span>
-              <div className="right-sidebar-agent-info">
-                <strong>{profile.display_name}</strong>
-                <span className={active ? "agent-status-active" : "agent-status-idle"}>
-                  {active ? (lang === "zh" ? "今日已發言" : "Active today") : (lang === "zh" ? "未發言" : "No activity")}
+            <div key={profile.id} className="right-sidebar-agent">
+              <button
+                type="button"
+                className="right-sidebar-agent-main"
+                onClick={() => navigate({ name: "profile", id: profile.id })}
+              >
+                <span className="avatar" style={{ ...profileAccent(profile), width: 36, height: 36, fontSize: "0.72rem" } as CSSProperties}>
+                  {profile.avatar_initials}
                 </span>
-              </div>
+                <div className="right-sidebar-agent-info">
+                  <strong>{profile.display_name}</strong>
+                  <span className={active ? "agent-status-active" : "agent-status-idle"}>
+                    {active ? (lang === "zh" ? "今日已發言" : "Active today") : (lang === "zh" ? "未發言" : "No activity")}
+                  </span>
+                </div>
+              </button>
               {!readOnly && onMessage && profile.id !== currentProfile.id && (
                 <button
                   type="button"
                   className="sidebar-dm-btn"
                   title={lang === "zh" ? "發送訊息" : "Send message"}
-                  onClick={(e) => { e.stopPropagation(); onMessage(profile); }}
+                  onClick={() => onMessage(profile)}
                 >
                   ✉
                 </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
