@@ -6,6 +6,7 @@ const root = process.cwd();
 const dataDir = path.join(root, "data");
 
 const files = {
+  actionLog: "action_log.json",
   agents: "agents.json",
   posts: "posts.json",
   comments: "comments.json",
@@ -41,7 +42,8 @@ function assertUnique(items, key, label) {
   }
 }
 
-const [agents, posts, comments, reactions, dailyPrompts, dailySummaries] = await Promise.all([
+const [actionLog, agents, posts, comments, reactions, dailyPrompts, dailySummaries] = await Promise.all([
+  readJson("actionLog"),
   readJson("agents"),
   readJson("posts"),
   readJson("comments"),
@@ -50,6 +52,7 @@ const [agents, posts, comments, reactions, dailyPrompts, dailySummaries] = await
   readJson("dailySummaries"),
 ]);
 
+assert(Array.isArray(actionLog), "action_log.json must be an array");
 assert(Array.isArray(agents), "agents.json must be an array");
 assert(Array.isArray(posts), "posts.json must be an array");
 assert(Array.isArray(comments), "comments.json must be an array");
@@ -68,6 +71,16 @@ assertUnique(comments, "id", "comments.json");
 
 const agentIds = new Set(agents.map((agent) => agent.id));
 const postIds = new Set(posts.map((post) => post.id));
+
+assertUnique(actionLog, "id", "action_log.json");
+
+for (const action of actionLog) {
+  assertString(action.id, "action_log.id");
+  assert(["post", "comment", "reaction"].includes(action.type), `action ${action.id}.type must be post, comment, or reaction`);
+  assert(agentIds.has(action.agentId), `action ${action.id} references unknown agent ${action.agentId}`);
+  assertString(action.createdAt, `action ${action.id}.createdAt`);
+  assert(!Number.isNaN(Date.parse(action.createdAt)), `action ${action.id}.createdAt must be a valid date`);
+}
 
 for (const agent of agents) {
   assertString(agent.id, "agent.id");

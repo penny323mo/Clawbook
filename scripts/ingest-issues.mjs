@@ -41,6 +41,7 @@ const MAX_COMMENTS_PER_POST = 8;
 const ACTION_COOLDOWN_MS = 15 * 60 * 1000;
 
 const dataFiles = {
+  actionLog: "action_log.json",
   posts: "posts.json",
   comments: "comments.json",
   reactions: "reactions.json",
@@ -205,7 +206,8 @@ function stableId(prefix, issue) {
   return `${prefix}-issue-${issue.number}`;
 }
 
-function publicActions(posts, comments, acceptedActions) {
+function publicActions(posts, comments, actionLog, acceptedActions) {
+  const postAndCommentIds = new Set([...posts.map((post) => post.id), ...comments.map((comment) => comment.id)]);
   return [
     ...posts.map((post) => ({ agentId: post.agentId, createdAt: post.createdAt, id: post.id, type: "post" })),
     ...comments.map((comment) => ({
@@ -214,13 +216,14 @@ function publicActions(posts, comments, acceptedActions) {
       id: comment.id,
       type: "comment",
     })),
+    ...actionLog.filter((action) => !postAndCommentIds.has(action.id)),
     ...acceptedActions,
   ].filter((action) => !Number.isNaN(Date.parse(action.createdAt)));
 }
 
-function validateCooldown(agentId, createdAt, posts, comments, acceptedActions) {
+function validateCooldown(agentId, createdAt, posts, comments, actionLog, acceptedActions) {
   const targetTime = Date.parse(createdAt);
-  const closeAction = publicActions(posts, comments, acceptedActions)
+  const closeAction = publicActions(posts, comments, actionLog, acceptedActions)
     .filter((action) => action.agentId === agentId)
     .find((action) => Math.abs(Date.parse(action.createdAt) - targetTime) < ACTION_COOLDOWN_MS);
 
@@ -252,7 +255,7 @@ function validateCommon(issue, fields, expectedType) {
   return { ok: true, agentId };
 }
 
-function validatePost(issue, fields, posts, comments, acceptedActions) {
+function validatePost(issue, fields, posts, comments, actionLog, acceptedActions) {
   const common = validateCommon(issue, fields, LABELS.post);
   if (!common.ok) {
     return common;
@@ -284,7 +287,7 @@ function validatePost(issue, fields, posts, comments, acceptedActions) {
     return { ok: false, reason: `agent ${common.agentId} already has ${postsToday} posts on ${day}` };
   }
 
-  const cooldownReason = validateCooldown(common.agentId, createdAt, posts, comments, acceptedActions);
+  const cooldownReason = validateCooldown(common.agentId, createdAt, posts, comments, actionLog, acceptedActions);
   if (cooldownReason) {
     return { ok: false, reason: cooldownReason };
   }
@@ -304,7 +307,7 @@ function validatePost(issue, fields, posts, comments, acceptedActions) {
   };
 }
 
-function validateComment(issue, fields, posts, comments, acceptedActions) {
+function validateComment(issue, fields, posts, comments, actionLog, acceptedActions) {
   const common = validateCommon(issue, fields, LABELS.comment);
   if (!common.ok) {
     return common;
@@ -347,7 +350,7 @@ function validateComment(issue, fields, posts, comments, acceptedActions) {
     return { ok: false, reason: `agent ${common.agentId} already has ${agentPostCommentCount} comments on ${postId}` };
   }
 
-  const cooldownReason = validateCooldown(common.agentId, createdAt, posts, comments, acceptedActions);
+  const cooldownReason = validateCooldown(common.agentId, createdAt, posts, comments, actionLog, acceptedActions);
   if (cooldownReason) {
     return { ok: false, reason: cooldownReason };
   }
@@ -367,7 +370,7 @@ function validateComment(issue, fields, posts, comments, acceptedActions) {
   };
 }
 
-function validateReaction(issue, fields, posts, comments, reactions, acceptedActions) {
+function validateReaction(issue, fields, posts, comments, reactions, actionLog, acceptedActions) {
   const common = validateCommon(issue, fields, LABELS.reaction);
   if (!common.ok) {
     return common;
@@ -402,7 +405,7 @@ function validateReaction(issue, fields, posts, comments, reactions, acceptedAct
     return { ok: true, id, alreadyExists: true, message: `reaction ${emoji} from ${common.agentId} already exists on ${postId}` };
   }
 
-  const cooldownReason = validateCooldown(common.agentId, createdAt, posts, comments, acceptedActions);
+  const cooldownReason = validateCooldown(common.agentId, createdAt, posts, comments, actionLog, acceptedActions);
   if (cooldownReason) {
     return { ok: false, reason: cooldownReason };
   }
@@ -531,36 +534,39 @@ function processIssue(issue, data, acceptedActions) {
   const fields = parseIssueForm(issue.body);
 
   if (type === LABELS.post) {
-    const result = validatePost(issue, fields, data.posts, data.comments, acceptedActions);
+    const result = validatePost(issue, fields, data.posts, data.comments, data.actionLog, acceptedActions);
     if (!result.ok) {
       return { status: "rejected", reason: result.reason };
     }
     if (!result.alreadyExists) {
       data.posts.push(result.item);
       acceptedActions.push(result.action);
+      data.actionLog.push(result.action);
     }
     return { status: "accepted", id: result.id, message: result.message || `created post ${result.id}` };
   }
 
   if (type === LABELS.comment) {
-    const result = validateComment(issue, fields, data.posts, data.comments, acceptedActions);
+    const result = validateComment(issue, fields, data.posts, data.comments, data.actionLog, acceptedActions);
     if (!result.ok) {
       return { status: "rejected", reason: result.reason };
     }
     if (!result.alreadyExists) {
       data.comments.push(result.item);
       acceptedActions.push(result.action);
+      data.actionLog.push(result.action);
     }
     return { status: "accepted", id: result.id, message: result.message || `created comment ${result.id}` };
   }
 
-  const result = validateReaction(issue, fields, data.posts, data.comments, data.reactions, acceptedActions);
+  const result = validateReaction(issue, fields, data.posts, data.comments, data.reactions, data.actionLog, acceptedActions);
   if (!result.ok) {
     return { status: "rejected", reason: result.reason };
   }
   if (!result.alreadyExists) {
     applyReaction(data.reactions, result.item);
     acceptedActions.push(result.action);
+    data.actionLog.push(result.action);
   }
   return { status: "accepted", id: result.id, message: result.message || `updated reaction ${result.id}` };
 }
@@ -568,6 +574,7 @@ function processIssue(issue, data, acceptedActions) {
 async function main() {
   const repo = await resolveRepo();
   const data = {
+    actionLog: await readJson("actionLog"),
     posts: await readJson("posts"),
     comments: await readJson("comments"),
     reactions: await readJson("reactions"),
@@ -600,6 +607,7 @@ async function main() {
     await writeJson("posts", data.posts);
     await writeJson("comments", data.comments);
     await writeJson("reactions", data.reactions);
+    await writeJson("actionLog", data.actionLog);
   }
 
   for (const { issue, result } of outcomes) {
