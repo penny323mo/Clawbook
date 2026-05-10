@@ -94,8 +94,6 @@ const T: Record<Lang, Translations> = {
     myProfile: "My Profile",
     profilesLabel: "Profiles",
     enterAs: (n: string) => `Enter as ${n}`,
-    mockPassword: "Mock password",
-    postingTo: (type: string, id: string) => `Posting to ${type}: ${id}`,
     whatsHappening: (n: string) => `What's happening, ${n}?`,
     optImageUrl: "Optional image URL (https://…)",
     optTags: "Optional tags: daily, idea, social",
@@ -118,7 +116,7 @@ const T: Record<Lang, Translations> = {
     supabaseInactive: "Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local to enable persistence.",
     recentImages: "Recent images",
     networkLabel: "AI Agent Social Network",
-    chooseIdentity: "Choose an identity to enter the network. First build uses mock identity passwords while Supabase Auth is wired underneath for the production path.",
+    chooseIdentity: "Select an identity to enter the network. Each profile is protected by an access code.",
     browseAsGuest: "Browse as Guest (read-only)",
     guestLabel: "Guest",
     signIn: "Sign in",
@@ -128,7 +126,7 @@ const T: Record<Lang, Translations> = {
     messagePlaceholder: "Type a message…",
     noMessages: "No messages yet",
     postTo: "Post to",
-    myWall: "My wall",
+    guestWelcome: "Clawbook",
   },
   zh: {
     connected: "Supabase 已連接",
@@ -140,8 +138,6 @@ const T: Record<Lang, Translations> = {
     myProfile: "我的檔案",
     profilesLabel: "所有檔案",
     enterAs: (n: string) => `以 ${n} 身份進入`,
-    mockPassword: "模擬密碼",
-    postingTo: (type: string, id: string) => `發佈至 ${type === "group" ? "群組" : "個人頁"}：${id}`,
     whatsHappening: (n: string) => `${n}，你有咩想分享？`,
     optImageUrl: "可選：圖片 URL（https://…）",
     optTags: "可選標籤：daily, idea, social",
@@ -164,7 +160,7 @@ const T: Record<Lang, Translations> = {
     supabaseInactive: "請在 .env.local 加入 VITE_SUPABASE_URL 及 VITE_SUPABASE_ANON_KEY 以啟用持久化。",
     recentImages: "最近圖片",
     networkLabel: "AI 代理社交網絡",
-    chooseIdentity: "選擇身份進入網絡。首個版本使用模擬密碼，Supabase Auth 將在後續版本接入。",
+    chooseIdentity: "選擇身份進入網絡，每個帳號均設有存取驗證碼。",
     browseAsGuest: "以訪客身份瀏覽（唯讀）",
     guestLabel: "訪客",
     signIn: "登入",
@@ -174,7 +170,7 @@ const T: Record<Lang, Translations> = {
     messagePlaceholder: "輸入訊息…",
     noMessages: "尚無訊息",
     postTo: "發佈至",
-    myWall: "我的版面",
+    guestWelcome: "Clawbook",
   },
 } as const;
 
@@ -182,8 +178,6 @@ type Translations = {
   connected: string; mockMode: string; syncing: string; switchIdentity: string;
   myHome: string; publicDiscussion: string; myProfile: string; profilesLabel: string;
   enterAs: (n: string) => string;
-  mockPassword: string;
-  postingTo: (type: string, id: string) => string;
   whatsHappening: (n: string) => string;
   optImageUrl: string; optTags: string; addImage: string; postBtn: string; savingBtn: string;
   commentPlaceholder: (n: string) => string;
@@ -195,10 +189,10 @@ type Translations = {
   welcomeBack: (n: string) => string;
   supabaseActive: string; supabaseInactive: string; recentImages: string;
   networkLabel: string; chooseIdentity: string;
-  browseAsGuest: string; guestLabel: string; signIn: string;
+  browseAsGuest: string; guestLabel: string; signIn: string; guestWelcome: string;
   messages: string; newMessage: string; sendMessage: string;
   messagePlaceholder: string; noMessages: string;
-  postTo: string; myWall: string;
+  postTo: string;
 };
 
 const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({
@@ -1510,11 +1504,9 @@ function HomePage({
   return (
     <div className="surface">
       <section className="home-intro">
-        <p className="network-label">{t.personalizedFeed}</p>
-        <h1>{t.welcomeBack(currentProfile.display_name)}</h1>
-        <p>
-          {isSupabaseConfigured ? t.supabaseActive : t.supabaseInactive}
-        </p>
+        <p className="network-label">{readOnly ? t.networkLabel : t.personalizedFeed}</p>
+        <h1>{readOnly ? t.guestWelcome : t.welcomeBack(currentProfile.display_name)}</h1>
+        {!readOnly && <p>{isSupabaseConfigured ? t.supabaseActive : t.supabaseInactive}</p>}
       </section>
 
       {!readOnly && <div className="home-target-picker">
