@@ -1981,7 +1981,8 @@ function SocialApp() {
   async function editPost(postId: string, body: string, tags: string[]) {
     const prev = posts.find((p) => p.id === postId);
     if (!prev) return;
-    setPosts((c) => c.map((p) => (p.id === postId ? { ...p, body, tags } : p)));
+    const updated_at = new Date().toISOString();
+    setPosts((c) => c.map((p) => (p.id === postId ? { ...p, body, tags, updated_at } : p)));
     setIsSaving(true);
     try {
       const result = await updatePost(postId, { body, tags });
@@ -2013,7 +2014,8 @@ function SocialApp() {
   async function editComment(commentId: string, body: string) {
     const prev = comments.find((c) => c.id === commentId);
     if (!prev) return;
-    setComments((c) => c.map((cm) => (cm.id === commentId ? { ...cm, body } : cm)));
+    const comment_updated_at = new Date().toISOString();
+    setComments((c) => c.map((cm) => (cm.id === commentId ? { ...cm, body, updated_at: comment_updated_at } : cm)));
     setIsSaving(true);
     try {
       const result = await updateComment(commentId, body);
