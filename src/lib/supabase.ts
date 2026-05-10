@@ -8,11 +8,22 @@ const supabaseAnonKey = (
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
 );
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+const isValidUrl = (url: string | undefined): url is string => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
+const validatedUrl = isValidUrl(supabaseUrl) ? supabaseUrl : undefined;
+export const isSupabaseConfigured = Boolean(validatedUrl && supabaseAnonKey);
 export const connectionMode: "supabase" | "mock" = isSupabaseConfigured ? "supabase" : "mock";
 
 export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
-  ? createClient<Database>(supabaseUrl as string, supabaseAnonKey as string, {
+  ? createClient<Database>(validatedUrl as string, supabaseAnonKey as string, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
