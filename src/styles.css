@@ -872,11 +872,6 @@ p {
   margin-top: 10px;
 }
 
-.tag-row span {
-  color: var(--accent);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
 
 .reaction-row {
   margin: 10px 0;
@@ -1576,10 +1571,6 @@ p {
   border-color: var(--accent);
 }
 
-/* shift message button right to make room for copy-link button */
-.profile-identity .profile-message-btn {
-  right: 80px;
-}
 
 /* ----- edited badge ----- */
 
@@ -1637,7 +1628,7 @@ p {
 .profile-message-btn {
   position: absolute;
   top: 0;
-  right: 0;
+  right: 80px;
   padding: 6px 14px;
   border-radius: 20px;
   border: 1.5px solid var(--accent);
