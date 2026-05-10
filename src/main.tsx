@@ -453,7 +453,7 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
           <p>{t.chooseIdentity}</p>
         </section>
 
-        <section className="identity-grid" aria-label="Choose Clawbook identity">
+        <section className={`identity-grid${hintedProfile ? " identity-grid-single" : ""}`} aria-label="Choose Clawbook identity">
           {(hintedProfile ? [hintedProfile] : SESSION_PROFILES).map((profile) => (
             <article
               className="identity-card"
