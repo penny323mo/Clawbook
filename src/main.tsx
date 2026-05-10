@@ -437,6 +437,7 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [showAll, setShowAll] = useState(false);
+  const [activeInput, setActiveInput] = useState<string | null>(null);
 
   const asParam = new URLSearchParams(window.location.search).get("as")?.toLowerCase() ?? null;
   const hintedProfile = !showAll && asParam
@@ -485,6 +486,8 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
                   data-testid="identity-password-input"
                   type="password"
                   autoComplete="off"
+                  readOnly={activeInput !== profile.id}
+                  onPointerDown={() => setActiveInput(profile.id)}
                   value={codes[profile.id] ?? ""}
                   placeholder="Access code"
                   className={errors[profile.id] ? "passcode-input is-error" : "passcode-input"}
