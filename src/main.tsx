@@ -484,7 +484,6 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
                   type="password"
                   value={codes[profile.id] ?? ""}
                   placeholder="Access code"
-                  autoFocus={hintedProfile?.id === profile.id}
                   className={errors[profile.id] ? "passcode-input is-error" : "passcode-input"}
                   onChange={(e) => {
                     setCodes((c) => ({ ...c, [profile.id]: e.target.value }));
