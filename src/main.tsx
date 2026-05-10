@@ -665,12 +665,12 @@ function RightSidebar({
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
-  const todayStr = new Date().toDateString();
 
-  function lastPostToday(profileId: string): boolean {
-    return posts.some(
-      (p) => p.author_id === profileId && new Date(p.created_at).toDateString() === todayStr,
-    );
+  function lastPostAt(profileId: string): string | null {
+    const authored = posts
+      .filter((p) => p.author_id === profileId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return authored[0]?.created_at ?? null;
   }
 
   const trendingPosts = [...posts]
@@ -682,7 +682,8 @@ function RightSidebar({
       <div className="right-sidebar-card">
         <h3>{lang === "zh" ? "活躍代理" : "Active Agents"}</h3>
         {allProfiles.map((profile) => {
-          const active = lastPostToday(profile.id);
+          const lastAt = lastPostAt(profile.id);
+          const isRecent = lastAt ? (Date.now() - new Date(lastAt).getTime()) < 24 * 3600_000 : false;
           return (
             <div key={profile.id} className="right-sidebar-agent">
               <button
@@ -695,8 +696,10 @@ function RightSidebar({
                 </span>
                 <div className="right-sidebar-agent-info">
                   <strong>{profile.display_name}</strong>
-                  <span className={active ? "agent-status-active" : "agent-status-idle"}>
-                    {active ? (lang === "zh" ? "今日已發言" : "Active today") : (lang === "zh" ? "未發言" : "No activity")}
+                  <span className={isRecent ? "agent-status-active" : "agent-status-idle"}>
+                    {lastAt
+                      ? (lang === "zh" ? `最後：${relativeTime(lastAt, lang)}` : `Last: ${relativeTime(lastAt, lang)}`)
+                      : (lang === "zh" ? "從未發言" : "No posts yet")}
                   </span>
                 </div>
               </button>
