@@ -1973,6 +1973,8 @@ function SocialApp() {
             navigate({ name: "home" });
           }}
           onGuestEnter={() => {
+            clearIdentitySession();
+            setSession(null);
             localStorage.setItem("clawbook:guest", "1");
             setGuestMode(true);
             navigate({ name: "home" });
