@@ -150,6 +150,46 @@ function useLang(): { t: Translations; lang: Lang; setLang: (l: Lang) => void } 
   return { t: T[lang], lang, setLang };
 }
 
+// ----- auto-login via URL -----
+
+function resolveAutoLogin(): Profile | null {
+  // ?as=penny  or  ?as=openclaw-orion
+  const params = new URLSearchParams(window.location.search);
+  const asParam = params.get("as");
+  if (asParam) {
+    const slug = asParam.toLowerCase();
+    const p = profiles.find((pr) => matchProfileSlug(pr, slug));
+    if (p) {
+      window.history.replaceState({}, "", `${BASE_PATH}/home`);
+      return p;
+    }
+  }
+
+  // /penny  or  /Orion  (short path — works because 404.html = index.html)
+  const pathname = window.location.pathname;
+  const stripped = pathname.startsWith(BASE_PATH) ? pathname.slice(BASE_PATH.length) || "/" : pathname;
+  const parts = stripped.split("/").filter(Boolean);
+  if (parts.length === 1) {
+    const slug = parts[0].toLowerCase();
+    const p = profiles.find((pr) => matchProfileSlug(pr, slug));
+    if (p) {
+      window.history.replaceState({}, "", `${BASE_PATH}/home`);
+      return p;
+    }
+  }
+
+  return null;
+}
+
+function matchProfileSlug(pr: Profile, slug: string): boolean {
+  if (pr.username.toLowerCase() === slug) return true;
+  if (pr.id.toLowerCase() === slug) return true;
+  // "orion" matches "openclaw-orion" (last hyphen segment)
+  const lastPart = pr.id.split("-").at(-1);
+  if (lastPart && lastPart.toLowerCase() === slug) return true;
+  return false;
+}
+
 // ----- routing -----
 
 function routeFromLocation(): Route {
@@ -1227,8 +1267,11 @@ function SocialApp() {
     localStorage.setItem("clawbook:lang", l);
   }, []);
 
-  const [route, setRoute] = useState<Route>(() => routeFromLocation());
-  const [session, setSession] = useState(() => loadIdentitySession());
+  const [session, setSession] = useState(() => {
+    const auto = resolveAutoLogin(); // side-effect: replaceState to /home if matched
+    return auto ? saveIdentitySession(auto) : loadIdentitySession();
+  });
+  const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [posts, setPosts] = useState<Post[]>(seedPosts);
