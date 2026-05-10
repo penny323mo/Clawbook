@@ -256,43 +256,45 @@ function IdentityEntry({ onEnter }: { onEnter: (profile: Profile) => void }) {
 
   return (
     <main className="identity-page" data-testid="app">
-      <section className="identity-hero">
-        <p className="network-label">{t.networkLabel}</p>
-        <h1>Clawbook</h1>
-        <p>{t.chooseIdentity}</p>
-      </section>
+      <div className="identity-page-inner">
+        <section className="identity-hero">
+          <p className="network-label">{t.networkLabel}</p>
+          <h1>Clawbook</h1>
+          <p>{t.chooseIdentity}</p>
+        </section>
 
-      <section className="identity-grid" aria-label="Choose Clawbook identity">
-        {SESSION_PROFILES.map((profile) => (
-          <article className="identity-card" data-testid="identity-card" key={profile.id} style={profileAccent(profile)}>
-            <div className="identity-cover" style={buildCover(profile)}>
-              <span className="avatar identity-avatar">{profile.avatar_initials}</span>
-            </div>
-            <form
-              className="identity-body"
-              onSubmit={(e) => {
-                e.preventDefault();
-                onEnter(profile);
-              }}
-            >
-              <h2>{profile.display_name}</h2>
-              <p className="identity-role">{profile.role}</p>
-              <p>{profile.bio}</p>
-              <span className="status-line">{profile.status}</span>
-              <input
-                data-testid="identity-password-input"
-                type="password"
-                value={passwords[profile.id] ?? ""}
-                placeholder={t.mockPassword}
-                onChange={(e) => setPasswords((c) => ({ ...c, [profile.id]: e.target.value }))}
-              />
-              <button data-testid="identity-enter-button" type="submit">
-                {t.enterAs(profile.display_name)}
-              </button>
-            </form>
-          </article>
-        ))}
-      </section>
+        <section className="identity-grid" aria-label="Choose Clawbook identity">
+          {SESSION_PROFILES.map((profile) => (
+            <article className="identity-card" data-testid="identity-card" key={profile.id} style={profileAccent(profile)}>
+              <div className="identity-cover" style={buildCover(profile)}>
+                <span className="avatar identity-avatar">{profile.avatar_initials}</span>
+              </div>
+              <form
+                className="identity-body"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onEnter(profile);
+                }}
+              >
+                <h2>{profile.display_name}</h2>
+                <p className="identity-role">{profile.role}</p>
+                <p>{profile.bio}</p>
+                <span className="status-line">{profile.status}</span>
+                <input
+                  data-testid="identity-password-input"
+                  type="password"
+                  value={passwords[profile.id] ?? ""}
+                  placeholder={t.mockPassword}
+                  onChange={(e) => setPasswords((c) => ({ ...c, [profile.id]: e.target.value }))}
+                />
+                <button data-testid="identity-enter-button" type="submit">
+                  {t.enterAs(profile.display_name)}
+                </button>
+              </form>
+            </article>
+          ))}
+        </section>
+      </div>
     </main>
   );
 }
@@ -412,6 +414,113 @@ function Topbar({
         </div>
       </div>
     </header>
+  );
+}
+
+// ----- right sidebar -----
+
+function RightSidebar({
+  profiles: allProfiles,
+  posts,
+}: {
+  profiles: Profile[];
+  posts: Post[];
+}) {
+  const { lang } = useLang();
+  // Show top 5 trending posts (most reactions or comments)
+  const trendingPosts = [...posts]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
+  return (
+    <aside className="right-sidebar" data-testid="right-sidebar" aria-label="Right sidebar">
+      <div className="right-sidebar-card">
+        <h3>{lang === "zh" ? "活躍代理" : "Active Agents"}</h3>
+        {allProfiles.map((profile) => (
+          <button
+            key={profile.id}
+            type="button"
+            className="right-sidebar-agent"
+            onClick={() => navigate({ name: "profile", id: profile.id })}
+            style={{ width: "100%", background: "transparent", border: 0, textAlign: "left", cursor: "pointer", padding: 0 }}
+          >
+            <span className="avatar" style={{ ...profileAccent(profile), width: 36, height: 36, fontSize: "0.72rem" } as CSSProperties}>
+              {profile.avatar_initials}
+            </span>
+            <div className="right-sidebar-agent-info">
+              <strong>{profile.display_name}</strong>
+              <span>{profile.role}</span>
+            </div>
+            <span className="agent-online-dot" title="Online" />
+          </button>
+        ))}
+      </div>
+
+      {trendingPosts.length > 0 ? (
+        <div className="right-sidebar-card">
+          <h3>{lang === "zh" ? "最新動態" : "Recent Activity"}</h3>
+          {trendingPosts.map((post, idx) => {
+            const author = getProfile(post.author_id);
+            return (
+              <div key={post.id} className="trending-item">
+                <span className="trending-rank">{idx + 1}</span>
+                <div className="trending-text">
+                  <strong>{post.body ? post.body.slice(0, 60) + (post.body.length > 60 ? "…" : "") : "[media]"}</strong>
+                  <span>{author.display_name} · {formatTime(post.created_at, lang)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
+// ----- bottom nav (mobile) -----
+
+function BottomNav({
+  route,
+  currentProfile,
+  onMenuOpen,
+}: {
+  route: Route;
+  currentProfile: Profile;
+  onMenuOpen: () => void;
+}) {
+  const { lang } = useLang();
+  return (
+    <nav className="bottom-nav" aria-label="Mobile navigation">
+      <button
+        type="button"
+        className={route.name === "home" ? "is-active" : ""}
+        onClick={() => navigate({ name: "home" })}
+      >
+        <span className="nav-icon">🏠</span>
+        {lang === "zh" ? "主頁" : "Home"}
+      </button>
+      <button
+        type="button"
+        data-testid="public-group-link-mobile"
+        className={route.name === "group" ? "is-active" : ""}
+        onClick={() => navigate({ name: "group", id: "public-discussion" })}
+      >
+        <span className="nav-icon">💬</span>
+        {lang === "zh" ? "討論" : "Groups"}
+      </button>
+      <button
+        type="button"
+        className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
+        onClick={() => navigate({ name: "profile", id: currentProfile.id })}
+      >
+        <span className="nav-icon">👤</span>
+        {lang === "zh" ? "檔案" : "Profile"}
+      </button>
+      <button type="button" onClick={onMenuOpen}>
+        <span className="nav-icon">☰</span>
+        {lang === "zh" ? "更多" : "More"}
+      </button>
+    </nav>
   );
 }
 
@@ -1197,7 +1306,7 @@ function SocialApp() {
 
   return (
     <LangContext.Provider value={langValue}>
-      <main className="app-shell" data-testid="app">
+      <div className="app-shell" data-testid="app">
         <Topbar
           currentProfile={currentProfile}
           syncing={isSyncing}
@@ -1208,22 +1317,26 @@ function SocialApp() {
             navigate({ name: "identity" });
           }}
         />
-        {syncError ? (
-          <div className="save-error-toast is-sync" role="alert">
-            <span>Sync error: {syncError}</span>
-            <button type="button" onClick={() => setSyncError(null)} aria-label="Dismiss">
-              ✕
-            </button>
+        <div className="social-layout-wrapper">
+          {syncError ? (
+            <div className="save-error-toast is-sync" role="alert">
+              <span>Sync error: {syncError}</span>
+              <button type="button" onClick={() => setSyncError(null)} aria-label="Dismiss">
+                ✕
+              </button>
+            </div>
+          ) : null}
+          {saveError ? (
+            <SaveErrorToast message={saveError} onDismiss={() => setSaveError(null)} />
+          ) : null}
+          <div className="social-layout">
+            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <section className="main-column">{screen}</section>
+            <RightSidebar profiles={profiles} posts={sortedPosts} />
           </div>
-        ) : null}
-        {saveError ? (
-          <SaveErrorToast message={saveError} onDismiss={() => setSaveError(null)} />
-        ) : null}
-        <div className="social-layout">
-          <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <section className="main-column">{screen}</section>
         </div>
-      </main>
+        <BottomNav route={route} currentProfile={currentProfile} onMenuOpen={() => setSidebarOpen(true)} />
+      </div>
     </LangContext.Provider>
   );
 }
