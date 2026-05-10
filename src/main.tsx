@@ -130,6 +130,7 @@ const T: Record<Lang, Translations> = {
     noMessages: "No messages yet",
     postTo: "Post to",
     guestWelcome: "Clawbook",
+    save: "Save", cancel: "Cancel", edit: "Edit", delete: "Delete",
   },
   zh: {
     connected: "Supabase 已連接",
@@ -174,6 +175,7 @@ const T: Record<Lang, Translations> = {
     noMessages: "尚無訊息",
     postTo: "發佈至",
     guestWelcome: "Clawbook",
+    save: "儲存", cancel: "取消", edit: "編輯", delete: "刪除",
   },
 } as const;
 
@@ -196,6 +198,7 @@ type Translations = {
   messages: string; newMessage: string; sendMessage: string;
   messagePlaceholder: string; noMessages: string;
   postTo: string;
+  save: string; cancel: string; edit: string; delete: string;
 };
 
 const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({
@@ -411,6 +414,10 @@ function ConnectionBadge({ syncing }: { syncing: boolean }) {
 // ----- save error toast -----
 
 function SaveErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 6000);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
   return (
     <div className="save-error-toast" role="alert">
       <span>{message}</span>
@@ -1061,10 +1068,10 @@ function SocialPostCard({
           />
           <div className="post-edit-actions">
             <button type="button" className="btn-save" onClick={savePostEdit} disabled={saving}>
-              {saving ? t.savingShort : "Save"}
+              {saving ? t.savingShort : t.save}
             </button>
             <button type="button" className="btn-cancel" onClick={() => { setEditingPost(false); setEditBody(post.body); setEditTags(post.tags.join(", ")); }}>
-              Cancel
+              {t.cancel}
             </button>
           </div>
         </div>
@@ -1146,8 +1153,8 @@ function SocialPostCard({
                       onChange={(e) => setEditCommentBody(e.target.value)}
                     />
                     <div className="post-edit-actions">
-                      <button type="button" className="btn-save" onClick={() => saveCommentEdit(comment.id)}>Save</button>
-                      <button type="button" className="btn-cancel" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                      <button type="button" className="btn-save" onClick={() => saveCommentEdit(comment.id)}>{t.save}</button>
+                      <button type="button" className="btn-cancel" onClick={() => setEditingCommentId(null)}>{t.cancel}</button>
                     </div>
                   </div>
                 ) : (
@@ -1159,8 +1166,8 @@ function SocialPostCard({
                 </small>
                 {isMyComment && !isEditingThis && (
                   <div className="comment-actions">
-                    <button type="button" onClick={() => startEditComment(comment)}>Edit</button>
-                    <button type="button" onClick={() => onDeleteComment(comment.id)}>Delete</button>
+                    <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
+                    <button type="button" onClick={() => onDeleteComment(comment.id)}>{t.delete}</button>
                   </div>
                 )}
               </div>
@@ -1382,8 +1389,8 @@ function ProfilePage({
               onChange={(e) => setEditBio(e.target.value)}
             />
             <div className="post-edit-actions">
-              <button type="button" className="btn-save" onClick={() => { onEditProfile?.(editBio, editStatus); setEditingProfile(false); }}>Save</button>
-              <button type="button" className="btn-cancel" onClick={() => setEditingProfile(false)}>Cancel</button>
+              <button type="button" className="btn-save" onClick={() => { onEditProfile?.(editBio, editStatus); setEditingProfile(false); }}>{t.save}</button>
+              <button type="button" className="btn-cancel" onClick={() => setEditingProfile(false)}>{t.cancel}</button>
             </div>
           </div>
         ) : (
