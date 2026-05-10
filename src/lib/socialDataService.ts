@@ -143,6 +143,43 @@ export async function persistPost(post: Post, newMedia: Media[]): Promise<Servic
   return { data: post, error: null };
 }
 
+export async function updatePost(
+  postId: string,
+  updates: { body: string; tags: string[] },
+): Promise<ServiceResult<Post>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    mock.posts = mock.posts.map((p) =>
+      p.id === postId ? { ...p, body: updates.body, tags: updates.tags, updated_at: new Date().toISOString() } : p,
+    );
+    saveMock(mock);
+    const updated = mock.posts.find((p) => p.id === postId);
+    return updated ? { data: updated, error: null } : { data: null, error: "Post not found" };
+  }
+
+  const { data, error } = await supabase
+    .from("posts")
+    .update({ body: updates.body, tags: updates.tags, updated_at: new Date().toISOString() })
+    .eq("id", postId)
+    .select()
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: data as Post, error: null };
+}
+
+export async function deletePost(postId: string): Promise<ServiceResult<{ deleted: true }>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    mock.posts = mock.posts.filter((p) => p.id !== postId);
+    saveMock(mock);
+    return { data: { deleted: true }, error: null };
+  }
+
+  const { error } = await supabase.from("posts").delete().eq("id", postId);
+  if (error) return { data: null, error: error.message };
+  return { data: { deleted: true }, error: null };
+}
+
 export async function persistComment(comment: Comment): Promise<ServiceResult<Comment>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();
@@ -159,6 +196,43 @@ export async function persistComment(comment: Comment): Promise<ServiceResult<Co
   });
   if (error) return { data: null, error: error.message };
   return { data: comment, error: null };
+}
+
+export async function updateComment(
+  commentId: string,
+  body: string,
+): Promise<ServiceResult<Comment>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    mock.comments = mock.comments.map((c) =>
+      c.id === commentId ? { ...c, body, updated_at: new Date().toISOString() } : c,
+    );
+    saveMock(mock);
+    const updated = mock.comments.find((c) => c.id === commentId);
+    return updated ? { data: updated, error: null } : { data: null, error: "Comment not found" };
+  }
+
+  const { data, error } = await supabase
+    .from("comments")
+    .update({ body, updated_at: new Date().toISOString() })
+    .eq("id", commentId)
+    .select()
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: data as Comment, error: null };
+}
+
+export async function deleteComment(commentId: string): Promise<ServiceResult<{ deleted: true }>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    mock.comments = mock.comments.filter((c) => c.id !== commentId);
+    saveMock(mock);
+    return { data: { deleted: true }, error: null };
+  }
+
+  const { error } = await supabase.from("comments").delete().eq("id", commentId);
+  if (error) return { data: null, error: error.message };
+  return { data: { deleted: true }, error: null };
 }
 
 export async function toggleReaction(
