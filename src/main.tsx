@@ -64,6 +64,9 @@ const GUEST_PROFILE: Profile = {
 const ReadOnlyContext = createContext(false);
 function useReadOnly() { return useContext(ReadOnlyContext); }
 
+const SyncingContext = createContext(false);
+function useSyncing() { return useContext(SyncingContext); }
+
 // ----- DM storage -----
 
 const DM_KEY = "clawbook:dms:v1";
@@ -333,6 +336,50 @@ function buildCover(profile: Profile) {
   return {
     background: `linear-gradient(135deg, ${profile.accent} 0%, rgba(20, 26, 39, 0.85) 42%, #071019 100%)`,
   };
+}
+
+// ----- loading skeleton -----
+
+function PostSkeleton() {
+  return (
+    <div className="post-skeleton">
+      <div className="skel skel-avatar" />
+      <div className="skel-body">
+        <div className="skel skel-line skel-w-40" />
+        <div className="skel skel-line skel-w-80" />
+        <div className="skel skel-line skel-w-60" />
+      </div>
+    </div>
+  );
+}
+
+function FeedSkeleton() {
+  return (
+    <section className="feed">
+      {[1, 2, 3].map((n) => <PostSkeleton key={n} />)}
+    </section>
+  );
+}
+
+// ----- URL linkifier -----
+
+const URL_RE = /(https?:\/\/[^\s<>"]+)/g;
+
+function Linkified({ text }: { text: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <>
+      {parts.map((part, i) =>
+        URL_RE.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="post-link" onClick={(e) => e.stopPropagation()}>
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
 }
 
 // ----- connection badge -----
@@ -831,6 +878,7 @@ function CreatePost({
         maxLength={POST_MAX_LENGTH}
         placeholder={t.whatsHappening(currentProfile.display_name)}
         onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); create(); } }}
       />
       <input
         value={imageUrl}
@@ -859,7 +907,9 @@ function CreatePost({
           {t.addImage}
           <input type="file" accept="image/*" multiple onChange={(e) => attachImages(e.target.files)} />
         </label>
-        <span>{POST_MAX_LENGTH - body.length} chars</span>
+        <span className={POST_MAX_LENGTH - body.length < 80 ? "char-counter is-warning" : "char-counter"}>
+          {POST_MAX_LENGTH - body.length}
+        </span>
         <button
           type="button"
           onClick={create}
@@ -1007,7 +1057,7 @@ function SocialPostCard({
         </div>
       ) : (
         <>
-          {post.body ? <p className="post-body">{post.body}</p> : null}
+          {post.body ? <p className="post-body"><Linkified text={post.body} /></p> : null}
           {post.image_url ? (
             <div className="post-media-grid"><img src={post.image_url} alt="Post image" /></div>
           ) : null}
@@ -1088,7 +1138,7 @@ function SocialPostCard({
                     </div>
                   </div>
                 ) : (
-                  <p>{comment.body}</p>
+                  <p><Linkified text={comment.body} /></p>
                 )}
                 <small className="comment-time">
                   {relativeTime(comment.created_at, lang)}
@@ -1114,6 +1164,7 @@ function SocialPostCard({
             maxLength={COMMENT_MAX_LENGTH}
             placeholder={t.commentPlaceholder(currentProfile.display_name)}
             onChange={(e) => setCommentDraft(e.target.value)}
+            onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submitComment(); } }}
           />
           <button
             data-testid="comment-button"
@@ -1161,6 +1212,9 @@ function Feed({
   const { lang } = useLang();
   const readOnly = useReadOnly();
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const syncing = useSyncing();
+
+  if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
   const displayPosts = activeTag ? posts.filter((p) => p.tags.includes(activeTag)) : posts;
 
   if (posts.length === 0) {
@@ -1789,6 +1843,10 @@ function SocialApp() {
     return () => window.removeEventListener("popstate", handler);
   }, []);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [route]);
+
   const sortedPosts = useMemo(
     () => [...posts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [posts],
@@ -2060,6 +2118,7 @@ function SocialApp() {
 
   return (
     <LangContext.Provider value={langValue}>
+      <SyncingContext.Provider value={isSyncing}>
       <ReadOnlyContext.Provider value={guestMode}>
       <div className="app-shell" data-testid="app">
         <Topbar
@@ -2115,6 +2174,7 @@ function SocialApp() {
         )}
       </div>
       </ReadOnlyContext.Provider>
+      </SyncingContext.Provider>
     </LangContext.Provider>
   );
 }
