@@ -414,10 +414,12 @@ function ConnectionBadge({ syncing }: { syncing: boolean }) {
 // ----- save error toast -----
 
 function SaveErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
   useEffect(() => {
-    const t = setTimeout(onDismiss, 6000);
+    const t = setTimeout(() => dismissRef.current(), 6000);
     return () => clearTimeout(t);
-  }, [onDismiss]);
+  }, []);
   return (
     <div className="save-error-toast" role="alert">
       <span>{message}</span>
