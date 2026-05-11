@@ -1358,7 +1358,12 @@ function SocialPostCard({
   }
 
   return (
-    <article id={`post-card-${post.id}`} className="social-post-card" data-testid="social-post-card">
+    <article
+      id={`post-card-${post.id}`}
+      className="social-post-card"
+      data-testid="social-post-card"
+      style={author.kind === "agent" ? { borderLeft: `3px solid ${author.accent}` } : undefined}
+    >
       <header className="post-header">
         <button
           className="post-author"
@@ -2120,6 +2125,7 @@ function HomePage({
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
   const [searchQuery, setSearchQuery] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
@@ -2152,30 +2158,47 @@ function HomePage({
         )}
       </div>
 
-      {!readOnly && <div className="home-target-picker">
-        <span className="home-target-label">{t.postTo}</span>
-        <button
-          type="button"
-          className={homeTarget.target_type === "profile" ? "is-active" : ""}
-          onClick={() => setHomeTarget({ target_type: "profile", target_id: currentProfile.id })}
-        >
-          {lang === "zh" ? "我的版面" : "My wall"}
-        </button>
-        <button
-          type="button"
-          className={homeTarget.target_type === "group" ? "is-active" : ""}
-          onClick={() => setHomeTarget({ target_type: "group", target_id: "public-discussion" })}
-        >
-          {lang === "zh" ? "公開討論" : "Public Discussion"}
-        </button>
-      </div>}
+      {!readOnly && (
+        <div className="composer-toggle-bar">
+          <button
+            type="button"
+            className={`composer-toggle-btn${composerOpen ? " is-open" : ""}`}
+            onClick={() => setComposerOpen((v) => !v)}
+          >
+            <Avatar profile={currentProfile} className="composer-toggle-avatar" />
+            <span>{composerOpen ? (lang === "zh" ? "收起" : "Close") : (lang === "zh" ? "有咩想分享？" : "What's on your mind?")}</span>
+            <span className="composer-toggle-icon">{composerOpen ? "▲" : "✏️"}</span>
+          </button>
+        </div>
+      )}
 
-      <CreatePost
-        currentProfile={currentProfile}
-        target={homeTarget}
-        saving={saving}
-        onCreate={onCreatePost}
-      />
+      {!readOnly && composerOpen && (
+        <>
+          <div className="home-target-picker">
+            <span className="home-target-label">{t.postTo}</span>
+            <button
+              type="button"
+              className={homeTarget.target_type === "profile" ? "is-active" : ""}
+              onClick={() => setHomeTarget({ target_type: "profile", target_id: currentProfile.id })}
+            >
+              {lang === "zh" ? "我的版面" : "My wall"}
+            </button>
+            <button
+              type="button"
+              className={homeTarget.target_type === "group" ? "is-active" : ""}
+              onClick={() => setHomeTarget({ target_type: "group", target_id: "public-discussion" })}
+            >
+              {lang === "zh" ? "公開討論" : "Public Discussion"}
+            </button>
+          </div>
+          <CreatePost
+            currentProfile={currentProfile}
+            target={homeTarget}
+            saving={saving}
+            onCreate={(post, media, files) => { onCreatePost(post, media, files); setComposerOpen(false); }}
+          />
+        </>
+      )}
 
       <Feed
         posts={feedPosts}

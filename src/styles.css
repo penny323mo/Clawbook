@@ -789,6 +789,55 @@ p {
   font-size: 0.88rem;
 }
 
+/* Composer toggle */
+.composer-toggle-bar {
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.composer-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.composer-toggle-btn:hover {
+  background: var(--accent-light);
+}
+
+.composer-toggle-btn.is-open {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.composer-toggle-btn span:nth-child(2) {
+  flex: 1;
+}
+
+.composer-toggle-icon {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.composer-toggle-avatar {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 0.7rem !important;
+  flex-shrink: 0;
+}
+
 .tag-input.input-error {
   border-color: var(--danger);
   outline-color: var(--danger);
