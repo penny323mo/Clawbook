@@ -2615,3 +2615,47 @@ p {
   min-width: 28px !important;
   font-size: 0.7rem !important;
 }
+
+/* ===================================================
+   Feed sort bar
+   =================================================== */
+
+.feed-sort-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+
+.feed-sort-btn {
+  padding: 4px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.feed-sort-btn.is-active {
+  background: var(--accent);
+  color: #000;
+  border-color: transparent;
+  font-weight: 700;
+}
+.feed-sort-btn:hover:not(.is-active) { background: rgba(255,255,255,0.09); color: var(--text-primary); }
+
+/* ===================================================
+   Post highlight on scroll-to
+   =================================================== */
+
+@keyframes post-highlight-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(102,227,255,0.55); }
+  40%  { box-shadow: 0 0 0 8px rgba(102,227,255,0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(102,227,255,0); }
+}
+
+.social-post-card.post-highlight {
+  animation: post-highlight-pulse 2s ease-out forwards;
+  outline: 2px solid rgba(102,227,255,0.5);
+}

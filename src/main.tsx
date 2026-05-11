@@ -48,6 +48,7 @@ const COMMENT_MAX_LENGTH = 260;
 const REACTION_OPTIONS = ["👍", "👎"];
 
 const PAGE_SIZE = 20;
+let pendingScrollPostId: string | null = null;
 
 const GUEST_PROFILE: Profile = {
   id: "guest",
@@ -427,10 +428,11 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
 }
 
-function buildGroupCover() {
-  return {
-    background: "linear-gradient(135deg, #1877f2 0%, #0a4a9f 40%, #071019 100%)",
-  };
+function buildGroupCover(groupId = "public-discussion") {
+  if (groupId === "builders-corner") {
+    return { background: "linear-gradient(135deg, #7c3aed 0%, #3b0764 40%, #070d14 100%)" };
+  }
+  return { background: "linear-gradient(135deg, #1877f2 0%, #0a4a9f 40%, #071019 100%)" };
 }
 
 function Avatar({ profile, className, style }: { profile: Profile; className?: string; style?: CSSProperties }) {
@@ -691,14 +693,17 @@ function Sidebar({
             {t.myHome}
             {unreadPosts ? <span className="nav-unread-dot">{unreadPosts > 9 ? "9+" : unreadPosts}</span> : null}
           </button>
-          <button
-            type="button"
-            data-testid="public-group-link"
-            className={route.name === "group" ? "is-active" : ""}
-            onClick={() => go({ name: "group", id: "public-discussion" })}
-          >
-            {t.publicDiscussion}
-          </button>
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              data-testid={g.id === "public-discussion" ? "public-group-link" : undefined}
+              className={route.name === "group" && route.id === g.id ? "is-active" : ""}
+              onClick={() => go({ name: "group", id: g.id })}
+            >
+              {g.is_public ? "🌐" : "🔒"} {g.name}
+            </button>
+          ))}
           {!readOnly && (
             <button
               type="button"
@@ -817,7 +822,7 @@ function Topbar({
                         <li
                           key={n.id}
                           className={`notif-item${n.read ? "" : " is-unread"}`}
-                          onClick={() => { setNotifOpen(false); navigate({ name: "profile", id: n.post_id.startsWith("post") ? n.from_id : n.from_id }); }}
+                          onClick={() => { setNotifOpen(false); pendingScrollPostId = n.post_id; navigate({ name: "home" }); onNotifRead?.(); }}
                         >
                           {from && <Avatar profile={from} className="notif-avatar" />}
                           <div>
@@ -1011,11 +1016,11 @@ function BottomNav({
       <button
         type="button"
         data-testid="public-group-link-mobile"
-        className={route.name === "group" ? "is-active" : ""}
-        onClick={() => navigate({ name: "group", id: "public-discussion" })}
+        className={route.name === "group" && (route.id === "public-discussion" || !route.id) ? "is-active" : ""}
+        onClick={() => navigate({ name: "group", id: groups[0]?.id ?? "public-discussion" })}
       >
         <span className="nav-icon">💬</span>
-        {lang === "zh" ? "討論" : "Groups"}
+        {lang === "zh" ? "群組" : "Groups"}
       </button>
       {!readOnly && (
         <button
@@ -1050,12 +1055,19 @@ function CreatePost({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
-  const [body, setBody] = useState("");
+  const draftKey = `clawbook:draft:${target.target_type}:${target.target_id}`;
+  const [body, setBody] = useState(() => {
+    try { return localStorage.getItem(draftKey) ?? ""; } catch { return ""; }
+  });
   const [tags, setTags] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [previews, setPreviews] = useState<Media[]>([]);
   const [visibility, setVisibility] = useState<Post["visibility"]>("public");
   const fileMapRef = useRef<Map<string, File>>(new Map());
+
+  useEffect(() => {
+    try { if (body) localStorage.setItem(draftKey, body); else localStorage.removeItem(draftKey); } catch {}
+  }, [body, draftKey]);
 
   if (readOnly) return null;
 
@@ -1129,12 +1141,13 @@ function CreatePost({
     setPreviews([]);
     setVisibility("public");
     fileMapRef.current.clear();
+    try { localStorage.removeItem(draftKey); } catch {}
   }
 
   return (
     <section className="create-post" data-testid="create-post">
       <div className="composer-header" style={profileAccent(currentProfile)}>
-        <span className="avatar">{currentProfile.avatar_initials}</span>
+        <Avatar profile={currentProfile} />
         <div>
           <strong>{currentProfile.display_name}</strong>
           <span>{lang === "zh" ? `發佈至：${targetLabel}` : `Posting to: ${targetLabel}`}</span>
@@ -1311,7 +1324,7 @@ function SocialPostCard({
   }
 
   return (
-    <article className="social-post-card" data-testid="social-post-card">
+    <article id={`post-card-${post.id}`} className="social-post-card" data-testid="social-post-card">
       <header className="post-header">
         <button
           className="post-author"
@@ -1540,7 +1553,25 @@ function Feed({
   const readOnly = useReadOnly();
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [sortBy, setSortBy] = useState<"latest" | "top">("latest");
   const syncing = useSyncing();
+
+  useEffect(() => {
+    const targetId = pendingScrollPostId;
+    if (!targetId) return;
+    pendingScrollPostId = null;
+    const attempt = (tries: number) => {
+      const el = document.getElementById(`post-card-${targetId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("post-highlight");
+        setTimeout(() => el.classList.remove("post-highlight"), 2200);
+      } else if (tries > 0) {
+        setTimeout(() => attempt(tries - 1), 250);
+      }
+    };
+    attempt(8);
+  }, []); // runs once on Feed mount
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
 
@@ -1552,7 +1583,14 @@ function Feed({
         getProfile(p.author_id).display_name.toLowerCase().includes(q),
       )
     : posts;
-  const allDisplayPosts = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
+  const allDisplayPostsRaw = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
+  const allDisplayPosts = sortBy === "top"
+    ? [...allDisplayPostsRaw].sort((a, b) => {
+        const ra = allReactions.filter((r) => r.post_id === a.id).length;
+        const rb = allReactions.filter((r) => r.post_id === b.id).length;
+        return rb - ra || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      })
+    : allDisplayPostsRaw;
   const displayPosts = allDisplayPosts.slice(0, visibleCount);
 
   if (posts.length === 0) {
@@ -1575,6 +1613,14 @@ function Feed({
 
   return (
     <section className="feed" data-testid="feed">
+      <div className="feed-sort-bar">
+        <button type="button" className={`feed-sort-btn${sortBy === "latest" ? " is-active" : ""}`} onClick={() => setSortBy("latest")}>
+          {lang === "zh" ? "最新" : "Latest"}
+        </button>
+        <button type="button" className={`feed-sort-btn${sortBy === "top" ? " is-active" : ""}`} onClick={() => setSortBy("top")}>
+          {lang === "zh" ? "熱門" : "Top"}
+        </button>
+      </div>
       {activeTag && (
         <div className="tag-filter-bar">
           <span>#{activeTag}</span>
@@ -1853,6 +1899,7 @@ function ProfilePage({
 // ----- public group page -----
 
 function PublicGroupPage({
+  groupId,
   currentProfile,
   posts,
   comments,
@@ -1867,6 +1914,7 @@ function PublicGroupPage({
   onEditComment,
   onDeleteComment,
 }: {
+  groupId: string;
   currentProfile: Profile;
   posts: Post[];
   comments: Comment[];
@@ -1882,14 +1930,14 @@ function PublicGroupPage({
   onDeleteComment: (commentId: string) => void;
 }) {
   const { t, lang } = useLang();
-  const group = getGroup("public-discussion");
+  const group = getGroup(groupId);
   const groupPosts = posts.filter((p) => p.target_type === "group" && p.target_id === group.id);
   const [copiedGroupLink, setCopiedGroupLink] = useState(false);
 
   return (
     <div className="surface">
       <section className="group-header">
-        <div className="group-cover" style={buildGroupCover()} />
+        <div className="group-cover" style={buildGroupCover(group.id)} />
         <div className="group-header-title-row">
           <h1>{group.name}</h1>
           <button
@@ -2651,6 +2699,7 @@ function SocialApp() {
   if (route.name === "group") {
     screen = (
       <PublicGroupPage
+        groupId={route.id}
         currentProfile={currentProfile}
         posts={visiblePosts}
         comments={comments}
