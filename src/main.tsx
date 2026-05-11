@@ -96,7 +96,7 @@ function saveDMs(dms: DirectMessage[]): void {
 
 type AppNotification = {
   id: string;
-  type: "mention";
+  type: "mention" | "comment";
   from_id: string;
   post_id: string;
   snippet: string;
@@ -834,7 +834,7 @@ function Topbar({
                           {from && <Avatar profile={from} className="notif-avatar" />}
                           <div>
                             <span className="notif-who">{from?.display_name ?? n.from_id}</span>
-                            {" "}<span className="notif-verb">{lang === "zh" ? "提及了你" : "mentioned you"}</span>
+                            {" "}<span className="notif-verb">{n.type === "comment" ? (lang === "zh" ? "留言了你的貼文" : "commented on your post") : (lang === "zh" ? "提及了你" : "mentioned you")}</span>
                             <p className="notif-snippet">"{n.snippet.slice(0, 60)}{n.snippet.length > 60 ? "…" : ""}"</p>
                           </div>
                         </li>
@@ -1073,6 +1073,10 @@ function CreatePost({
   const fileMapRef = useRef<Map<string, File>>(new Map());
 
   useEffect(() => {
+    setVisibility(defaultVisibility);
+  }, [defaultVisibility]);
+
+  useEffect(() => {
     try { if (body) localStorage.setItem(draftKey, body); else localStorage.removeItem(draftKey); } catch {}
   }, [body, draftKey]);
 
@@ -1255,6 +1259,7 @@ function SocialPostCard({
   saving,
   onComment,
   onReaction,
+  onCommentReaction,
   onEditPost,
   onDeletePost,
   onEditComment,
@@ -1269,6 +1274,7 @@ function SocialPostCard({
   saving: boolean;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
@@ -1296,8 +1302,8 @@ function SocialPostCard({
         : t.wall(getProfile(post.target_id).display_name);
   const groupedReactions = REACTION_OPTIONS.map((emoji) => ({
     emoji,
-    count: reactions.filter((r) => r.emoji === emoji).length,
-    active: reactions.some((r) => r.emoji === emoji && r.author_id === currentProfile.id),
+    count: reactions.filter((r) => r.emoji === emoji && r.comment_id === null).length,
+    active: reactions.some((r) => r.emoji === emoji && r.author_id === currentProfile.id && r.comment_id === null),
   }));
 
   function submitComment() {
@@ -1484,12 +1490,31 @@ function SocialPostCard({
                   {relativeTime(comment.created_at, lang, now)}
                   {comment.updated_at !== comment.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
                 </small>
-                {isMyComment && !isEditingThis && (
-                  <div className="comment-actions">
-                    <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
-                    <button type="button" onClick={() => onDeleteComment(comment.id)}>{t.delete}</button>
+                <div className="comment-footer">
+                  <div className="comment-reaction-row">
+                    {REACTION_OPTIONS.map((emoji) => {
+                      const count = reactions.filter((r) => r.comment_id === comment.id && r.emoji === emoji).length;
+                      const active = reactions.some((r) => r.comment_id === comment.id && r.author_id === currentProfile.id && r.emoji === emoji);
+                      return (
+                        <button
+                          key={emoji}
+                          type="button"
+                          className={`comment-react-btn${active ? " is-active" : ""}`}
+                          disabled={readOnly}
+                          onClick={() => !readOnly && onCommentReaction(comment.id, post.id, emoji)}
+                        >
+                          {emoji}{count > 0 ? <strong>{count}</strong> : null}
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
+                  {isMyComment && !isEditingThis && (
+                    <div className="comment-actions">
+                      <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
+                      <button type="button" onClick={() => onDeleteComment(comment.id)}>{t.delete}</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </article>
           );
@@ -1506,14 +1531,21 @@ function SocialPostCard({
             onChange={(e) => setCommentDraft(e.target.value)}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submitComment(); } }}
           />
-          <button
-            data-testid="comment-button"
-            type="button"
-            disabled={saving || !commentDraft.trim()}
-            onClick={submitComment}
-          >
-            {saving ? t.savingShort : t.commentBtn}
-          </button>
+          <div className="comment-composer-footer">
+            {commentDraft.length > COMMENT_MAX_LENGTH * 0.7 && (
+              <span className={`char-counter${commentDraft.length >= COMMENT_MAX_LENGTH ? " is-over" : ""}`}>
+                {COMMENT_MAX_LENGTH - commentDraft.length}
+              </span>
+            )}
+            <button
+              data-testid="comment-button"
+              type="button"
+              disabled={saving || !commentDraft.trim()}
+              onClick={submitComment}
+            >
+              {saving ? t.savingShort : t.commentBtn}
+            </button>
+          </div>
         </div>
       )}
       {lightbox && (
@@ -1535,6 +1567,7 @@ function Feed({
   searchQuery,
   onComment,
   onReaction,
+  onCommentReaction,
   onEditPost,
   onDeletePost,
   onEditComment,
@@ -1549,6 +1582,7 @@ function Feed({
   searchQuery?: string;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
@@ -1654,6 +1688,7 @@ function Feed({
           saving={saving}
           onComment={onComment}
           onReaction={onReaction}
+          onCommentReaction={onCommentReaction}
           onEditPost={onEditPost}
           onDeletePost={onDeletePost}
           onEditComment={onEditComment}
@@ -1687,6 +1722,7 @@ function ProfilePage({
   onCreatePost,
   onComment,
   onReaction,
+  onCommentReaction,
   onEditPost,
   onDeletePost,
   onEditComment,
@@ -1704,6 +1740,7 @@ function ProfilePage({
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
@@ -1730,7 +1767,7 @@ function ProfilePage({
   );
   const authoredPosts = posts.filter((p) => p.author_id === profile.id);
   const receivedReactions = reactions.filter((r) =>
-    posts.some((p) => p.id === r.post_id && p.author_id === profile.id),
+    r.comment_id === null && posts.some((p) => p.id === r.post_id && p.author_id === profile.id),
   );
   const profileImages = mediaItems.filter((m) => profilePosts.some((p) => p.id === m.post_id));
 
@@ -1897,6 +1934,7 @@ function ProfilePage({
         saving={saving}
         onComment={onComment}
         onReaction={onReaction}
+        onCommentReaction={onCommentReaction}
         onEditPost={onEditPost}
         onDeletePost={onDeletePost}
         onEditComment={onEditComment}
@@ -1919,6 +1957,7 @@ function PublicGroupPage({
   onCreatePost,
   onComment,
   onReaction,
+  onCommentReaction,
   onEditPost,
   onDeletePost,
   onEditComment,
@@ -1934,6 +1973,7 @@ function PublicGroupPage({
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
@@ -2012,6 +2052,7 @@ function PublicGroupPage({
         saving={saving}
         onComment={onComment}
         onReaction={onReaction}
+        onCommentReaction={onCommentReaction}
         onEditPost={onEditPost}
         onDeletePost={onDeletePost}
         onEditComment={onEditComment}
@@ -2033,6 +2074,7 @@ function HomePage({
   onCreatePost,
   onComment,
   onReaction,
+  onCommentReaction,
   onEditPost,
   onDeletePost,
   onEditComment,
@@ -2047,6 +2089,7 @@ function HomePage({
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
+  onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
@@ -2122,12 +2165,35 @@ function HomePage({
         searchQuery={searchQuery}
         onComment={onComment}
         onReaction={onReaction}
+        onCommentReaction={onCommentReaction}
         onEditPost={onEditPost}
         onDeletePost={onDeletePost}
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
       />
     </div>
+  );
+}
+
+// ----- back to top -----
+
+function BackToTop() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    function onScroll() { setVisible(window.scrollY > 400); }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  if (!visible) return null;
+  return (
+    <button
+      type="button"
+      className="back-to-top"
+      aria-label="Back to top"
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+    >
+      ↑
+    </button>
   );
 }
 
@@ -2353,6 +2419,11 @@ function SocialApp() {
   );
   const unreadNotifs = notifications.filter((n) => !n.read).length;
 
+  useEffect(() => {
+    if (session && !guestMode) setNotifications(loadNotifications(session.profileId));
+    else setNotifications([]);
+  }, [session, guestMode]);
+
   const refreshNotifications = useCallback(() => {
     if (session && !guestMode) setNotifications(loadNotifications(session.profileId));
   }, [session, guestMode]);
@@ -2524,6 +2595,20 @@ function SocialApp() {
       updated_at: createdAt,
     };
     setComments((c) => [...c, comment]);
+
+    // Notify post author when someone else comments
+    const parentPost = posts.find((p) => p.id === postId);
+    if (parentPost && parentPost.author_id !== session.profileId) {
+      pushNotification(parentPost.author_id, {
+        type: "comment",
+        from_id: session.profileId,
+        post_id: postId,
+        snippet: body,
+        created_at: createdAt,
+      });
+      if (!guestMode) refreshNotifications();
+    }
+
     setIsSaving(true);
     try {
       const result = await persistComment(comment);
@@ -2533,6 +2618,43 @@ function SocialApp() {
       }
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function addCommentReaction(commentId: string, postId: string, emoji: string) {
+    if (!session) return;
+    const profileId = session.profileId;
+    const exists = reactions.some(
+      (r) => r.comment_id === commentId && r.author_id === profileId && r.emoji === emoji,
+    );
+
+    const reactionData: Reaction = {
+      id: uniqueId("reaction-local"),
+      post_id: postId,
+      comment_id: commentId,
+      author_id: profileId,
+      emoji,
+      created_at: new Date().toISOString(),
+    };
+
+    if (exists) {
+      setReactions((c) =>
+        c.filter((r) => !(r.comment_id === commentId && r.author_id === profileId && r.emoji === emoji)),
+      );
+    } else {
+      setReactions((c) => [...c, reactionData]);
+    }
+
+    const result = await toggleReaction(reactionData);
+    if (result.error) {
+      setSaveError(`Failed to save reaction: ${result.error}`);
+      if (exists) {
+        setReactions((c) => [...c, reactionData]);
+      } else {
+        setReactions((c) =>
+          c.filter((r) => !(r.comment_id === commentId && r.author_id === profileId && r.emoji === emoji)),
+        );
+      }
     }
   }
 
@@ -2686,6 +2808,7 @@ function SocialApp() {
       onCreatePost={createPost}
       onComment={addComment}
       onReaction={react}
+      onCommentReaction={addCommentReaction}
       onEditPost={editPost}
       onDeletePost={removePost}
       onEditComment={editComment}
@@ -2706,6 +2829,7 @@ function SocialApp() {
         onCreatePost={createPost}
         onComment={addComment}
         onReaction={react}
+        onCommentReaction={addCommentReaction}
         onEditPost={editPost}
         onDeletePost={removePost}
         onEditComment={editComment}
@@ -2741,6 +2865,7 @@ function SocialApp() {
         onCreatePost={createPost}
         onComment={addComment}
         onReaction={react}
+        onCommentReaction={addCommentReaction}
         onEditPost={editPost}
         onDeletePost={removePost}
         onEditComment={editComment}
@@ -2803,6 +2928,7 @@ function SocialApp() {
           </div>
         </div>
         <BottomNav route={route} currentProfile={currentProfile} unreadPosts={unreadPosts} onMenuOpen={() => setSidebarOpen(true)} />
+        <BackToTop />
         {messagesOpen && !guestMode && (
           <MessagesPanel
             currentProfile={currentProfile}

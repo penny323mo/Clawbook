@@ -1536,6 +1536,102 @@ p {
   font-weight: 600;
 }
 
+.char-counter.is-over {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ----- comment footer & reactions ----- */
+
+.comment-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.comment-reaction-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.comment-react-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  line-height: 1.4;
+}
+
+.comment-react-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.comment-react-btn.is-active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.comment-react-btn strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.comment-react-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ----- comment composer footer ----- */
+
+.comment-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* ----- back to top ----- */
+
+.back-to-top {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 200;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  transition: background 0.15s, opacity 0.2s;
+  opacity: 0.85;
+}
+
+.back-to-top:hover {
+  background: var(--surface-2);
+  opacity: 1;
+}
+
 /* ----- feed skeleton ----- */
 
 @keyframes shimmer {

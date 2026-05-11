@@ -43,8 +43,9 @@ export function subscribeToSocialChanges(onChange: () => void) {
     return () => undefined;
   }
 
+  const channelId = `clawbook-social-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const channel = supabase
-    .channel("clawbook-social-feed")
+    .channel(channelId)
     .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "reactions" }, onChange)
