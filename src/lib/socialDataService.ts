@@ -29,7 +29,7 @@ export type SocialData = {
 const MOCK_KEY = "clawbook:mock:social:v1";
 const PROFILE_OVERRIDE_KEY = "clawbook:mock:profiles:v1";
 
-type ProfileOverrides = Record<string, { bio?: string; status?: string; accent?: string; role?: string }>;
+type ProfileOverrides = Record<string, { bio?: string; status?: string; accent?: string; role?: string; avatar_url?: string }>;
 
 function loadProfileOverrides(): ProfileOverrides {
   try {
@@ -38,7 +38,7 @@ function loadProfileOverrides(): ProfileOverrides {
   } catch { return {}; }
 }
 
-function saveProfileOverride(id: string, updates: { bio: string; status: string; accent?: string; role?: string }) {
+function saveProfileOverride(id: string, updates: { bio: string; status: string; accent?: string; role?: string; avatar_url?: string }) {
   const overrides = loadProfileOverrides();
   overrides[id] = updates;
   try { localStorage.setItem(PROFILE_OVERRIDE_KEY, JSON.stringify(overrides)); } catch {}
@@ -409,7 +409,7 @@ export async function markMessagesRead(
 
 export async function updateProfile(
   profileId: string,
-  updates: { bio: string; status: string; accent?: string; role?: string },
+  updates: { bio: string; status: string; accent?: string; role?: string; avatar_url?: string },
 ): Promise<ServiceResult<Profile>> {
   if (!isSupabaseConfigured || !supabase) {
     saveProfileOverride(profileId, updates);
@@ -421,6 +421,7 @@ export async function updateProfile(
   const patch: Partial<Profile> = { bio: updates.bio, status: updates.status };
   if (updates.accent) patch.accent = updates.accent;
   if (updates.role) patch.role = updates.role;
+  if (updates.avatar_url) patch.avatar_url = updates.avatar_url;
 
   const { data, error } = await supabase
     .from("profiles")

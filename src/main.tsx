@@ -1,4 +1,4 @@
-import { StrictMode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Component, StrictMode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
 import {
   comments as seedComments,
@@ -46,6 +46,8 @@ const SESSION_PROFILES = profiles;
 const POST_MAX_LENGTH = 640;
 const COMMENT_MAX_LENGTH = 260;
 const REACTION_OPTIONS = ["👍", "👎"];
+
+const PAGE_SIZE = 20;
 
 const GUEST_PROFILE: Profile = {
   id: "guest",
@@ -355,6 +357,34 @@ function buildCover(profile: Profile) {
   return {
     background: `linear-gradient(135deg, ${profile.accent} 0%, rgba(20, 26, 39, 0.85) 42%, #071019 100%)`,
   };
+}
+
+class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; message: string }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-boundary-fallback">
+          <div className="error-boundary-icon">⚠️</div>
+          <h2>Something went wrong</h2>
+          <p className="error-boundary-msg">{this.state.message}</p>
+          <button
+            className="btn-primary"
+            onClick={() => { this.setState({ hasError: false, message: "" }); window.location.reload(); }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function buildGroupCover() {
@@ -1365,6 +1395,7 @@ function Feed({
   const { lang } = useLang();
   const readOnly = useReadOnly();
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const syncing = useSyncing();
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
@@ -1377,7 +1408,8 @@ function Feed({
         getProfile(p.author_id).display_name.toLowerCase().includes(q),
       )
     : posts;
-  const displayPosts = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
+  const allDisplayPosts = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
+  const displayPosts = allDisplayPosts.slice(0, visibleCount);
 
   if (posts.length === 0) {
     return (
@@ -1388,7 +1420,7 @@ function Feed({
     );
   }
 
-  if (displayPosts.length === 0 && q) {
+  if (allDisplayPosts.length === 0 && q) {
     return (
       <section className="feed feed-empty" data-testid="feed">
         <p className="feed-empty-icon">🔍</p>
@@ -1405,7 +1437,7 @@ function Feed({
           <button type="button" onClick={() => setActiveTag(null)} aria-label="Clear filter">✕</button>
         </div>
       )}
-      {displayPosts.length === 0 && (
+      {allDisplayPosts.length === 0 && (
         <div className="feed-empty">
           <p className="feed-empty-icon">🏷️</p>
           <p>{lang === "zh" ? `沒有帶有 #${activeTag} 標籤的帖子` : `No posts tagged #${activeTag}`}</p>
@@ -1429,6 +1461,15 @@ function Feed({
           onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
         />
       ))}
+      {visibleCount < allDisplayPosts.length && (
+        <button
+          type="button"
+          className="feed-load-more"
+          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+        >
+          {lang === "zh" ? `載入更多（還有 ${allDisplayPosts.length - visibleCount} 篇）` : `Load more (${allDisplayPosts.length - visibleCount} remaining)`}
+        </button>
+      )}
     </section>
   );
 }
@@ -1467,7 +1508,7 @@ function ProfilePage({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
-  onEditProfile?: (bio: string, status: string, accent: string, role: string) => void;
+  onEditProfile?: (bio: string, status: string, accent: string, role: string, avatarUrl?: string) => void;
   onMessage?: () => void;
 }) {
   const { t, lang } = useLang();
@@ -1479,6 +1520,10 @@ function ProfilePage({
   const [editStatus, setEditStatus] = useState(profile.status);
   const [editAccent, setEditAccent] = useState(profile.accent);
   const [editRole, setEditRole] = useState(profile.role);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const profilePosts = posts.filter(
     (p) => p.author_id === profile.id || (p.target_type === "profile" && p.target_id === profile.id),
@@ -1501,7 +1546,7 @@ function ProfilePage({
             {!editingProfile && <span>{profile.status}</span>}
           </div>
           {isOwnProfile && !editingProfile && (
-            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setEditingProfile(true); }} title="Edit profile">✏️</button>
+            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setAvatarPreview(null); setAvatarFile(null); setEditingProfile(true); }} title="Edit profile">✏️</button>
           )}
           {!isOwnProfile && !readOnly && onMessage && (
             <button type="button" className="profile-message-btn" onClick={onMessage}>
@@ -1526,6 +1571,32 @@ function ProfilePage({
 
         {editingProfile ? (
           <div className="profile-edit-form">
+            <div className="profile-edit-avatar-row">
+              <button
+                type="button"
+                className="profile-edit-avatar-btn"
+                onClick={() => avatarInputRef.current?.click()}
+                title={lang === "zh" ? "更換頭像" : "Change avatar"}
+              >
+                {avatarPreview
+                  ? <img src={avatarPreview} alt="preview" className="avatar avatar-img" />
+                  : <Avatar profile={profile} />}
+                <span className="profile-edit-avatar-overlay">📷</span>
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="visually-hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setAvatarFile(file);
+                  setAvatarPreview(URL.createObjectURL(file));
+                }}
+              />
+              <span className="profile-edit-avatar-hint">{lang === "zh" ? "點擊更換頭像" : "Click to change avatar"}</span>
+            </div>
             <input
               className="profile-edit-status"
               value={editRole}
@@ -1553,8 +1624,27 @@ function ProfilePage({
               <input type="color" value={editAccent} onChange={(e) => setEditAccent(e.target.value)} />
             </div>
             <div className="post-edit-actions">
-              <button type="button" className="btn-save" onClick={() => { onEditProfile?.(editBio, editStatus, editAccent, editRole); setEditingProfile(false); }}>{t.save}</button>
-              <button type="button" className="btn-cancel" onClick={() => setEditingProfile(false)}>{t.cancel}</button>
+              <button
+                type="button"
+                className="btn-save"
+                disabled={uploadingAvatar}
+                onClick={async () => {
+                  setUploadingAvatar(true);
+                  let avatarUrl: string | undefined;
+                  if (avatarFile) {
+                    const res = await uploadMediaFile(avatarFile, profile.id, "avatar");
+                    if (!res.error && res.data) avatarUrl = res.data.public_url;
+                  }
+                  onEditProfile?.(editBio, editStatus, editAccent, editRole, avatarUrl);
+                  setUploadingAvatar(false);
+                  setAvatarFile(null);
+                  setAvatarPreview(null);
+                  setEditingProfile(false);
+                }}
+              >
+                {uploadingAvatar ? "…" : t.save}
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => { setEditingProfile(false); setAvatarPreview(null); setAvatarFile(null); }}>{t.cancel}</button>
             </div>
           </div>
         ) : (
@@ -2359,10 +2449,10 @@ function SocialApp() {
         onDeletePost={removePost}
         onEditComment={editComment}
         onDeleteComment={removeComment}
-        onEditProfile={async (bio, status, accent, role) => {
-          const result = await updateProfile(currentProfile.id, { bio, status, accent, role });
+        onEditProfile={async (bio, status, accent, role, avatarUrl) => {
+          const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
-          setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role } : p));
+          setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p));
         }}
         onMessage={() => {
           const target = profilesList.find((p) => p.id === route.id) ?? getProfile(route.id);
@@ -2463,6 +2553,8 @@ if (!root) throw new Error("Root element not found.");
 
 createRoot(root).render(
   <StrictMode>
-    <SocialApp />
+    <ErrorBoundary>
+      <SocialApp />
+    </ErrorBoundary>
   </StrictMode>,
 );
