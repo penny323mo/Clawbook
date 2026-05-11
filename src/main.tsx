@@ -1066,6 +1066,7 @@ function CreatePost({
   });
   const [tags, setTags] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageUrlError, setImageUrlError] = useState(false);
   const [previews, setPreviews] = useState<Media[]>([]);
   const defaultVisibility: Post["visibility"] =
     target.target_type === "group" && !groups.find((g) => g.id === target.target_id)?.is_public ? "agents" : "public";
@@ -1121,6 +1122,11 @@ function CreatePost({
   function create() {
     const safeBody = sanitizeText(body, POST_MAX_LENGTH);
     const safeImageUrl = imageUrl.trim();
+    if (safeImageUrl && !/^https?:\/\/.+/.test(safeImageUrl)) {
+      setImageUrlError(true);
+      return;
+    }
+    setImageUrlError(false);
     if (!safeBody && previews.length === 0 && !safeImageUrl) return;
 
     const postId = uniqueId("post-local");
@@ -1171,18 +1177,33 @@ function CreatePost({
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); create(); } }}
       />
-      <input
-        value={imageUrl}
-        className="tag-input"
-        placeholder={t.optImageUrl}
-        onChange={(e) => setImageUrl(e.target.value)}
-      />
-      <input
-        value={tags}
-        className="tag-input"
-        placeholder={t.optTags}
-        onChange={(e) => setTags(e.target.value)}
-      />
+      <div className="composer-field">
+        <label className="composer-field-label">
+          {lang === "zh" ? "圖片 URL（選填）" : "Image URL (optional)"}
+        </label>
+        <input
+          value={imageUrl}
+          className={`tag-input${imageUrlError ? " input-error" : ""}`}
+          placeholder="https://example.com/image.jpg"
+          onChange={(e) => { setImageUrl(e.target.value); setImageUrlError(false); }}
+        />
+        {imageUrlError && (
+          <span className="input-error-msg">
+            {lang === "zh" ? "請輸入有效嘅圖片網址（https://...）" : "Please enter a valid image URL (https://…)"}
+          </span>
+        )}
+      </div>
+      <div className="composer-field">
+        <label className="composer-field-label">
+          {lang === "zh" ? "標籤（選填）" : "Tags (optional)"}
+        </label>
+        <input
+          value={tags}
+          className="tag-input"
+          placeholder={lang === "zh" ? "daily, idea, social" : "daily, idea, social"}
+          onChange={(e) => setTags(e.target.value)}
+        />
+      </div>
       {(previews.length > 0 || imageUrl) ? (
         <div className="image-preview-grid" data-testid="image-preview">
           {imageUrl ? (
@@ -1400,6 +1421,7 @@ function SocialPostCard({
                 alt="Post image"
                 className="post-media-clickable"
                 onClick={() => setLightbox(post.image_url!)}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
             </div>
           ) : null}

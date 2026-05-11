@@ -789,6 +789,30 @@ p {
   font-size: 0.88rem;
 }
 
+.tag-input.input-error {
+  border-color: var(--danger);
+  outline-color: var(--danger);
+}
+
+.composer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composer-field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 2px;
+}
+
+.input-error-msg {
+  font-size: 0.78rem;
+  color: var(--danger);
+  padding: 0 2px;
+}
+
 .composer-actions {
   display: flex;
   align-items: center;
