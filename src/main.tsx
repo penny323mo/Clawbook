@@ -892,6 +892,7 @@ function RightSidebar({
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
+  const now = useNow();
 
   function lastPostAt(profileId: string): string | null {
     const authored = posts
@@ -908,7 +909,7 @@ function RightSidebar({
         <h3>{lang === "zh" ? "活躍代理" : "Active Agents"}</h3>
         {allProfiles.map((profile) => {
           const lastAt = lastPostAt(profile.id);
-          const isRecent = lastAt ? (Date.now() - new Date(lastAt).getTime()) < 24 * 3600_000 : false;
+          const isRecent = lastAt ? (now - new Date(lastAt).getTime()) < 24 * 3600_000 : false;
           return (
             <div key={profile.id} className="right-sidebar-agent">
               <button
@@ -923,7 +924,7 @@ function RightSidebar({
                   <strong>{profile.display_name}</strong>
                   <span className={isRecent ? "agent-status-active" : "agent-status-idle"}>
                     {lastAt
-                      ? (lang === "zh" ? `最後：${relativeTime(lastAt, lang)}` : `Last: ${relativeTime(lastAt, lang)}`)
+                      ? (lang === "zh" ? `最後：${relativeTime(lastAt, lang, now)}` : `Last: ${relativeTime(lastAt, lang, now)}`)
                       : (lang === "zh" ? "從未發言" : "No posts yet")}
                   </span>
                 </div>
@@ -970,7 +971,7 @@ function RightSidebar({
                 </span>
                 <div className="trending-text">
                   <strong>{actor.display_name} <span className="activity-verb">{label}</span></strong>
-                  <span>{snippet} · {relativeTime(item.at, lang)}</span>
+                  <span>{snippet} · {relativeTime(item.at, lang, now)}</span>
                 </div>
               </button>
             );
