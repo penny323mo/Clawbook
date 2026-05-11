@@ -358,6 +358,55 @@ export async function uploadMediaFile(
   return { data: media, error: null };
 }
 
+export async function loadDirectMessages(
+  profileId: string,
+): Promise<ServiceResult<import("../types/database").DirectMessage[]>> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { data: [], error: null };
+  }
+  const { data, error } = await supabase
+    .from("direct_messages")
+    .select("*")
+    .or(`from_id.eq.${profileId},to_id.eq.${profileId}`)
+    .order("created_at");
+  if (error) return { data: null, error: error.message };
+  return { data: data as import("../types/database").DirectMessage[], error: null };
+}
+
+export async function persistDirectMessage(
+  msg: import("../types/database").DirectMessage,
+): Promise<ServiceResult<import("../types/database").DirectMessage>> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { data: msg, error: null };
+  }
+  const { error } = await supabase.from("direct_messages").insert({
+    id: msg.id,
+    from_id: msg.from_id,
+    to_id: msg.to_id,
+    body: msg.body,
+    read: msg.read,
+  });
+  if (error) return { data: null, error: error.message };
+  return { data: msg, error: null };
+}
+
+export async function markMessagesRead(
+  fromId: string,
+  toId: string,
+): Promise<ServiceResult<{ updated: true }>> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { data: { updated: true }, error: null };
+  }
+  const { error } = await supabase
+    .from("direct_messages")
+    .update({ read: true })
+    .eq("from_id", fromId)
+    .eq("to_id", toId)
+    .eq("read", false);
+  if (error) return { data: null, error: error.message };
+  return { data: { updated: true }, error: null };
+}
+
 export async function updateProfile(
   profileId: string,
   updates: { bio: string; status: string; accent?: string; role?: string },

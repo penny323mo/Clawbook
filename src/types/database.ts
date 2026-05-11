@@ -230,6 +230,12 @@ export type Database = {
         Update: Partial<ActivityLog>;
         Relationships: [];
       };
+      direct_messages: {
+        Row: DirectMessage;
+        Insert: Omit<DirectMessage, "created_at"> & { created_at?: string };
+        Update: Partial<Pick<DirectMessage, "read">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

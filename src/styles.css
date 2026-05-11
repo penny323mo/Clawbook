@@ -2185,6 +2185,50 @@ p {
 }
 
 /* ===================================================
+   Feed search bar
+   =================================================== */
+
+.feed-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--lg-bg-card);
+  backdrop-filter: var(--lg-blur-card);
+  -webkit-backdrop-filter: var(--lg-blur-card);
+  border: 1px solid var(--lg-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--lg-shadow-card);
+  margin-bottom: 0;
+}
+
+.feed-search-bar input[type="search"] {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.feed-search-bar input[type="search"]::placeholder {
+  color: var(--text-muted);
+}
+
+.feed-search-bar button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.feed-search-bar button:hover {
+  color: var(--text-primary);
+}
+
+/* ===================================================
    @Mention links
    =================================================== */
 

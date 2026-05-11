@@ -14,7 +14,10 @@ import {
   deleteComment,
   deletePost,
   loadAllSocialData,
+  loadDirectMessages,
+  markMessagesRead,
   persistComment,
+  persistDirectMessage,
   persistPost,
   toggleReaction,
   updateComment,
@@ -1311,6 +1314,7 @@ function Feed({
   allReactions,
   allMedia,
   saving,
+  searchQuery,
   onComment,
   onReaction,
   onEditPost,
@@ -1324,6 +1328,7 @@ function Feed({
   allReactions: Reaction[];
   allMedia: Media[];
   saving: boolean;
+  searchQuery?: string;
   onComment: (postId: string, body: string) => void;
   onReaction: (postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
@@ -1337,13 +1342,31 @@ function Feed({
   const syncing = useSyncing();
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
-  const displayPosts = activeTag ? posts.filter((p) => p.tags.includes(activeTag)) : posts;
+
+  const q = searchQuery?.toLowerCase().trim() ?? "";
+  const filteredBySearch = q
+    ? posts.filter((p) =>
+        p.body.toLowerCase().includes(q) ||
+        p.tags.some((t) => t.includes(q)) ||
+        getProfile(p.author_id).display_name.toLowerCase().includes(q),
+      )
+    : posts;
+  const displayPosts = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
 
   if (posts.length === 0) {
     return (
       <section className="feed feed-empty" data-testid="feed">
         <p className="feed-empty-icon">📭</p>
         <p>{lang === "zh" ? (readOnly ? "尚無帖子" : "未有帖子，發佈第一篇吧！") : (readOnly ? "Nothing here yet." : "No posts yet — be the first to share something!")}</p>
+      </section>
+    );
+  }
+
+  if (displayPosts.length === 0 && q) {
+    return (
+      <section className="feed feed-empty" data-testid="feed">
+        <p className="feed-empty-icon">🔍</p>
+        <p>{lang === "zh" ? `搜尋「${searchQuery}」沒有結果` : `No results for "${searchQuery}"`}</p>
       </section>
     );
   }
@@ -1679,6 +1702,7 @@ function HomePage({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
+  const [searchQuery, setSearchQuery] = useState("");
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
@@ -1698,6 +1722,18 @@ function HomePage({
         <h1>{readOnly ? t.guestWelcome : t.welcomeBack(currentProfile.display_name)}</h1>
         {!readOnly && <p>{isSupabaseConfigured ? t.supabaseActive : t.supabaseInactive}</p>}
       </section>
+
+      <div className="feed-search-bar">
+        <input
+          type="search"
+          placeholder={lang === "zh" ? "搜尋帖子、作者、標籤…" : "Search posts, authors, tags…"}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search">✕</button>
+        )}
+      </div>
 
       {!readOnly && <div className="home-target-picker">
         <span className="home-target-label">{t.postTo}</span>
@@ -1731,6 +1767,7 @@ function HomePage({
         allReactions={reactions}
         allMedia={mediaItems}
         saving={saving}
+        searchQuery={searchQuery}
         onComment={onComment}
         onReaction={onReaction}
         onEditPost={onEditPost}
@@ -1760,6 +1797,23 @@ function MessagesPanel({
   const [activeWith, setActiveWith] = useState<Profile | null>(initialWith ?? null);
   const [draft, setDraft] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
+
+  // Load from Supabase on mount and merge with localStorage
+  useEffect(() => {
+    loadDirectMessages(currentProfile.id).then((result) => {
+      if (result.data && result.data.length > 0) {
+        setDms((local) => {
+          const merged = [...result.data!];
+          local.forEach((m) => {
+            if (!merged.some((s) => s.id === m.id)) merged.push(m);
+          });
+          merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+          saveDMs(merged);
+          return merged;
+        });
+      }
+    });
+  }, [currentProfile.id]);
 
   const otherProfiles = allProfiles.filter((p) => p.id !== currentProfile.id && p.id !== "guest");
 
@@ -1796,6 +1850,7 @@ function MessagesPanel({
       saveDMs(updated);
       return updated;
     });
+    void markMessagesRead(profile.id, currentProfile.id);
   }
 
   function send() {
@@ -1814,6 +1869,7 @@ function MessagesPanel({
       saveDMs(next);
       return next;
     });
+    void persistDirectMessage(msg);
     setDraft("");
     setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
   }
