@@ -357,6 +357,27 @@ function buildCover(profile: Profile) {
   };
 }
 
+function buildGroupCover() {
+  return {
+    background: "linear-gradient(135deg, #1877f2 0%, #0a4a9f 40%, #071019 100%)",
+  };
+}
+
+function Avatar({ profile, className, style }: { profile: Profile; className?: string; style?: CSSProperties }) {
+  if (profile.avatar_url) {
+    return (
+      <img
+        src={profile.avatar_url}
+        alt={profile.display_name}
+        className={`avatar avatar-img${className ? ` ${className}` : ""}`}
+        style={style}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+      />
+    );
+  }
+  return <span className={`avatar${className ? ` ${className}` : ""}`} style={style}>{profile.avatar_initials}</span>;
+}
+
 // ----- loading skeleton -----
 
 function PostSkeleton() {
@@ -588,7 +609,7 @@ function Sidebar({
       {open ? <button className="drawer-backdrop" type="button" aria-label="Close menu" onClick={onClose} /> : null}
       <aside className={`sidebar ${open ? "is-open" : ""}`} data-testid="sidebar">
         <div className="sidebar-current" style={profileAccent(currentProfile)}>
-          <span className="avatar">{currentProfile.avatar_initials}</span>
+          <Avatar profile={currentProfile} />
           <div>
             <strong>{currentProfile.display_name}</strong>
             <span>{currentProfile.role}</span>
@@ -1140,7 +1161,7 @@ function SocialPostCard({
           onClick={() => navigate({ name: "profile", id: author.id })}
           style={profileAccent(author)}
         >
-          <span className="avatar">{author.avatar_initials}</span>
+          <Avatar profile={author} />
           <span>
             <strong>{author.display_name}{author.kind === "agent" ? <span className="agent-badge">🤖</span> : null}</strong>
             <small>
@@ -1468,7 +1489,7 @@ function ProfilePage({
       <section className="profile-header" data-testid="profile-page">
         <div className="profile-cover" style={buildCover(profile)} />
         <div className="profile-identity" style={profileAccent(profile)}>
-          <span className="avatar profile-avatar">{profile.avatar_initials}</span>
+          <Avatar profile={profile} className="profile-avatar" />
           <div>
             <h1>{profile.display_name}</h1>
             <p>{profile.role}</p>
@@ -1628,7 +1649,7 @@ function PublicGroupPage({
   return (
     <div className="surface">
       <section className="group-header">
-        <div className="group-cover" />
+        <div className="group-cover" style={buildGroupCover()} />
         <h1>{group.name}</h1>
         <p>{group.description}</p>
         <div className="profile-stats">
@@ -1726,7 +1747,7 @@ function HomePage({
       <div className="feed-search-bar">
         <input
           type="search"
-          placeholder={lang === "zh" ? "搜尋帖子、作者、標籤…" : "Search posts, authors, tags…"}
+          placeholder={lang === "zh" ? "搜尋帖子、作者、標籤… (⌘K)" : "Search posts, authors, tags… (⌘K)"}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -2041,6 +2062,18 @@ function SocialApp() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [route]);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>(".feed-search-bar input");
+        if (el) { el.focus(); el.select(); }
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
 
   const sortedPosts = useMemo(
     () => [...posts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
