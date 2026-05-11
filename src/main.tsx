@@ -87,6 +87,43 @@ function saveDMs(dms: DirectMessage[]): void {
   try { localStorage.setItem(DM_KEY, JSON.stringify(dms)); } catch {}
 }
 
+// ----- notifications -----
+
+type AppNotification = {
+  id: string;
+  type: "mention";
+  from_id: string;
+  post_id: string;
+  snippet: string;
+  created_at: string;
+  read: boolean;
+};
+
+const NOTIF_KEY = "clawbook:notifications:v2";
+
+function loadNotifications(profileId: string): AppNotification[] {
+  try {
+    const saved = localStorage.getItem(`${NOTIF_KEY}:${profileId}`);
+    return saved ? (JSON.parse(saved) as AppNotification[]) : [];
+  } catch { return []; }
+}
+
+function saveNotifications(profileId: string, notifs: AppNotification[]): void {
+  try { localStorage.setItem(`${NOTIF_KEY}:${profileId}`, JSON.stringify(notifs)); } catch {}
+}
+
+function pushNotification(profileId: string, n: Omit<AppNotification, "id" | "read">): void {
+  const existing = loadNotifications(profileId);
+  const dedup = existing.some((e) => e.type === n.type && e.from_id === n.from_id && e.post_id === n.post_id);
+  if (dedup) return;
+  saveNotifications(profileId, [{ ...n, id: `notif-${Date.now()}`, read: false }, ...existing].slice(0, 50));
+}
+
+function extractMentions(body: string): string[] {
+  const matches = body.match(/@([\w-]+)/g) ?? [];
+  return [...new Set(matches.map((m) => m.slice(1).toLowerCase()))];
+}
+
 // ----- i18n -----
 
 type Lang = "en" | "zh";
@@ -699,19 +736,26 @@ function Topbar({
   syncing,
   guestMode,
   unreadDms,
+  unreadNotifs,
+  notifications,
   onMenu,
   onLogout,
   onMessages,
+  onNotifRead,
 }: {
   currentProfile: Profile;
   syncing: boolean;
   guestMode?: boolean;
   unreadDms?: number;
+  unreadNotifs?: number;
+  notifications?: AppNotification[];
   onMenu: () => void;
   onLogout: () => void;
   onMessages?: () => void;
+  onNotifRead?: () => void;
 }) {
   const { t, lang, setLang } = useLang();
+  const [notifOpen, setNotifOpen] = useState(false);
   return (
     <header className="app-topbar">
       <button className="icon-button menu-button" type="button" onClick={onMenu} aria-label="Open navigation">
@@ -730,6 +774,50 @@ function Topbar({
         >
           {lang === "en" ? "中文" : "EN"}
         </button>
+        {!guestMode && notifications && (
+          <div className="notif-wrapper">
+            <button
+              className="icon-button notif-btn"
+              type="button"
+              aria-label="Notifications"
+              onClick={() => { setNotifOpen((o) => !o); if (!notifOpen) onNotifRead?.(); }}
+            >
+              🔔
+              {(unreadNotifs ?? 0) > 0 && <span className="dm-unread-dot">{(unreadNotifs ?? 0) > 9 ? "9+" : unreadNotifs}</span>}
+            </button>
+            {notifOpen && (
+              <div className="notif-panel">
+                <div className="notif-panel-header">
+                  <strong>{lang === "zh" ? "通知" : "Notifications"}</strong>
+                  <button type="button" className="icon-button" onClick={() => setNotifOpen(false)} aria-label="Close">✕</button>
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="notif-empty">{lang === "zh" ? "暫無通知" : "No notifications yet"}</p>
+                ) : (
+                  <ul className="notif-list">
+                    {notifications.slice(0, 15).map((n) => {
+                      const from = profiles.find((p) => p.id === n.from_id);
+                      return (
+                        <li
+                          key={n.id}
+                          className={`notif-item${n.read ? "" : " is-unread"}`}
+                          onClick={() => { setNotifOpen(false); navigate({ name: "profile", id: n.post_id.startsWith("post") ? n.from_id : n.from_id }); }}
+                        >
+                          {from && <Avatar profile={from} className="notif-avatar" />}
+                          <div>
+                            <span className="notif-who">{from?.display_name ?? n.from_id}</span>
+                            {" "}<span className="notif-verb">{lang === "zh" ? "提及了你" : "mentioned you"}</span>
+                            <p className="notif-snippet">"{n.snippet.slice(0, 60)}{n.snippet.length > 60 ? "…" : ""}"</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {!guestMode && onMessages && (
           <button className="icon-button dm-icon-btn" type="button" onClick={onMessages} aria-label="Messages" title={t.messages}>
             💬
@@ -738,7 +826,7 @@ function Topbar({
         )}
         {guestMode && <span className="guest-badge">{t.guestLabel}</span>}
         <div className="topbar-profile" style={profileAccent(currentProfile)}>
-          {!guestMode && <span className="avatar">{currentProfile.avatar_initials}</span>}
+          {!guestMode && <Avatar profile={currentProfile} className="topbar-avatar" />}
           <button type="button" onClick={onLogout}>
             {guestMode ? t.signIn : t.switchIdentity}
           </button>
@@ -1137,6 +1225,7 @@ function SocialPostCard({
   const [editTags, setEditTags] = useState(post.tags.join(", "));
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   const author = getProfile(post.author_id);
   const isMyPost = post.author_id === currentProfile.id;
@@ -1240,13 +1329,26 @@ function SocialPostCard({
         <>
           {post.body ? <p className="post-body"><Linkified text={post.body} /></p> : null}
           {post.image_url ? (
-            <div className="post-media-grid"><img src={post.image_url} alt="Post image" /></div>
+            <div className="post-media-grid">
+              <img
+                src={post.image_url}
+                alt="Post image"
+                className="post-media-clickable"
+                onClick={() => setLightbox(post.image_url!)}
+              />
+            </div>
           ) : null}
           {mediaItems.length > 0 ? (
             <div className="post-media-grid">
               {mediaItems.map((item) =>
                 item.public_url ? (
-                  <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Post media"} />
+                  <img
+                    key={item.id}
+                    src={item.public_url}
+                    alt={item.alt_text ?? "Post media"}
+                    className="post-media-clickable"
+                    onClick={() => setLightbox(item.public_url)}
+                  />
                 ) : (
                   <div key={item.id} className="mock-media">
                     <span>Image</span><small>{item.storage_path}</small>
@@ -1355,6 +1457,12 @@ function SocialPostCard({
           >
             {saving ? t.savingShort : t.commentBtn}
           </button>
+        </div>
+      )}
+      {lightbox && (
+        <div className="lightbox-overlay" onClick={() => setLightbox(null)} role="dialog" aria-modal="true">
+          <img src={lightbox} alt="Full size" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+          <button type="button" className="lightbox-close" onClick={() => setLightbox(null)} aria-label="Close">✕</button>
         </div>
       )}
     </article>
@@ -2129,6 +2237,22 @@ function SocialApp() {
   }, [guestMode, session]);
   const [unreadDms, setUnreadDms] = useState(() => countUnreadDms());
 
+  const [notifications, setNotifications] = useState<AppNotification[]>(() =>
+    session && !guestMode ? loadNotifications(session.profileId) : [],
+  );
+  const unreadNotifs = notifications.filter((n) => !n.read).length;
+
+  const refreshNotifications = useCallback(() => {
+    if (session && !guestMode) setNotifications(loadNotifications(session.profileId));
+  }, [session, guestMode]);
+
+  const markNotifsRead = useCallback(() => {
+    if (!session || guestMode) return;
+    const updated = loadNotifications(session.profileId).map((n) => ({ ...n, read: true }));
+    saveNotifications(session.profileId, updated);
+    setNotifications(updated);
+  }, [session, guestMode]);
+
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
   const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
@@ -2220,6 +2344,25 @@ function SocialApp() {
   async function createPost(post: Post, nextMedia: Media[], files: File[]) {
     setPosts((c) => [post, ...c]);
     setMediaItems((c) => [...nextMedia, ...c]);
+
+    // Emit mention notifications
+    const mentionedSlugs = extractMentions(post.body ?? "");
+    if (mentionedSlugs.length > 0) {
+      const allProfs = profilesList.length > 0 ? profilesList : profiles;
+      mentionedSlugs.forEach((slug) => {
+        const mentioned = allProfs.find((p) => matchProfileSlug(p, slug));
+        if (mentioned && mentioned.id !== post.author_id) {
+          pushNotification(mentioned.id, {
+            type: "mention",
+            from_id: post.author_id,
+            post_id: post.id,
+            snippet: post.body ?? "",
+            created_at: post.created_at,
+          });
+        }
+      });
+      if (session && !guestMode) refreshNotifications();
+    }
 
     setIsSaving(true);
     try {
@@ -2493,8 +2636,11 @@ function SocialApp() {
           syncing={isSyncing}
           guestMode={guestMode}
           unreadDms={unreadDms}
+          unreadNotifs={unreadNotifs}
+          notifications={notifications}
           onMenu={() => setSidebarOpen(true)}
           onMessages={() => { setUnreadDms(0); setMessagesOpen(true); }}
+          onNotifRead={markNotifsRead}
           onLogout={() => {
             if (guestMode) {
               localStorage.removeItem("clawbook:guest");
