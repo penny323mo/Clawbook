@@ -72,6 +72,9 @@ function useReadOnly() { return useContext(ReadOnlyContext); }
 const SyncingContext = createContext(false);
 function useSyncing() { return useContext(SyncingContext); }
 
+const NowContext = createContext(Date.now());
+function useNow() { return useContext(NowContext); }
+
 // ----- DM storage -----
 
 const DM_KEY = "clawbook:dms:v1";
@@ -358,8 +361,8 @@ function formatTime(value: string, lang: Lang = "en") {
   }).format(new Date(value));
 }
 
-function relativeTime(value: string, lang: Lang = "en"): string {
-  const diff = Date.now() - new Date(value).getTime();
+function relativeTime(value: string, lang: Lang = "en", now = Date.now()): string {
+  const diff = now - new Date(value).getTime();
   const mins = Math.floor(diff / 60_000);
   const hours = Math.floor(mins / 60);
   const days = Math.floor(hours / 24);
@@ -756,6 +759,19 @@ function Topbar({
 }) {
   const { t, lang, setLang } = useLang();
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+    }
+    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") setNotifOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("mousedown", handleClick); document.removeEventListener("keydown", handleKey); };
+  }, [notifOpen]);
+
   return (
     <header className="app-topbar">
       <button className="icon-button menu-button" type="button" onClick={onMenu} aria-label="Open navigation">
@@ -775,7 +791,7 @@ function Topbar({
           {lang === "en" ? "中文" : "EN"}
         </button>
         {!guestMode && notifications && (
-          <div className="notif-wrapper">
+          <div className="notif-wrapper" ref={notifRef}>
             <button
               className="icon-button notif-btn"
               type="button"
@@ -1186,6 +1202,27 @@ function CreatePost({
   );
 }
 
+// ----- lightbox -----
+
+function LightboxOverlay({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handler);
+    };
+  }, [onClose]);
+  return (
+    <div className="lightbox-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Image preview">
+      <img src={src} alt="Full size" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+      <button type="button" className="lightbox-close" onClick={onClose} aria-label="Close lightbox">✕</button>
+    </div>
+  );
+}
+
 // ----- social post card -----
 
 function SocialPostCard({
@@ -1219,6 +1256,7 @@ function SocialPostCard({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
+  const now = useNow();
   const [commentDraft, setCommentDraft] = useState("");
   const [editingPost, setEditingPost] = useState(false);
   const [editBody, setEditBody] = useState(post.body);
@@ -1289,7 +1327,7 @@ function SocialPostCard({
               {post.visibility === "private" ? <span className="vis-badge vis-badge-private">{lang === "zh" ? "🔒 私密" : "🔒 Private"}</span> : null}
             </strong>
             <small>
-              {targetLabel} · {relativeTime(post.created_at, lang)}
+              {targetLabel} · {relativeTime(post.created_at, lang, now)}
               {post.updated_at !== post.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
             </small>
           </span>
@@ -1424,7 +1462,7 @@ function SocialPostCard({
                   <p><Linkified text={comment.body} /></p>
                 )}
                 <small className="comment-time">
-                  {relativeTime(comment.created_at, lang)}
+                  {relativeTime(comment.created_at, lang, now)}
                   {comment.updated_at !== comment.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
                 </small>
                 {isMyComment && !isEditingThis && (
@@ -1460,10 +1498,7 @@ function SocialPostCard({
         </div>
       )}
       {lightbox && (
-        <div className="lightbox-overlay" onClick={() => setLightbox(null)} role="dialog" aria-modal="true">
-          <img src={lightbox} alt="Full size" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
-          <button type="button" className="lightbox-close" onClick={() => setLightbox(null)} aria-label="Close">✕</button>
-        </div>
+        <LightboxOverlay src={lightbox} onClose={() => setLightbox(null)} />
       )}
     </article>
   );
@@ -2259,6 +2294,12 @@ function SocialApp() {
   const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
   const [mediaItems, setMediaItems] = useState<Media[]>(isSupabaseConfigured ? [] : seedMedia);
 
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -2627,6 +2668,7 @@ function SocialApp() {
   }
 
   return (
+    <NowContext.Provider value={now}>
     <LangContext.Provider value={langValue}>
       <SyncingContext.Provider value={isSyncing}>
       <ReadOnlyContext.Provider value={guestMode}>
@@ -2691,6 +2733,7 @@ function SocialApp() {
       </ReadOnlyContext.Provider>
       </SyncingContext.Provider>
     </LangContext.Provider>
+    </NowContext.Provider>
   );
 }
 
