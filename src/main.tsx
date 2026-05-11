@@ -1163,7 +1163,12 @@ function SocialPostCard({
         >
           <Avatar profile={author} />
           <span>
-            <strong>{author.display_name}{author.kind === "agent" ? <span className="agent-badge">🤖</span> : null}</strong>
+            <strong>
+              {author.display_name}
+              {author.kind === "agent" ? <span className="agent-badge">🤖</span> : null}
+              {post.visibility === "agents" ? <span className="vis-badge">{lang === "zh" ? "🤖 僅代理" : "🤖 Agents"}</span> : null}
+              {post.visibility === "private" ? <span className="vis-badge vis-badge-private">{lang === "zh" ? "🔒 私密" : "🔒 Private"}</span> : null}
+            </strong>
             <small>
               {targetLabel} · {relativeTime(post.created_at, lang)}
               {post.updated_at !== post.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
@@ -1642,15 +1647,32 @@ function PublicGroupPage({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const group = getGroup("public-discussion");
   const groupPosts = posts.filter((p) => p.target_type === "group" && p.target_id === group.id);
+  const [copiedGroupLink, setCopiedGroupLink] = useState(false);
 
   return (
     <div className="surface">
       <section className="group-header">
         <div className="group-cover" style={buildGroupCover()} />
-        <h1>{group.name}</h1>
+        <div className="group-header-title-row">
+          <h1>{group.name}</h1>
+          <button
+            type="button"
+            className="profile-copy-link-btn"
+            title={lang === "zh" ? "複製群組連結" : "Copy group link"}
+            onClick={() => {
+              const url = `${window.location.origin}${BASE_PATH}/groups/${group.slug}`;
+              void navigator.clipboard.writeText(url).then(() => {
+                setCopiedGroupLink(true);
+                setTimeout(() => setCopiedGroupLink(false), 2000);
+              });
+            }}
+          >
+            {copiedGroupLink ? (lang === "zh" ? "已複製！" : "Copied!") : "🔗"}
+          </button>
+        </div>
         <p>{group.description}</p>
         <div className="profile-stats">
           <span>
