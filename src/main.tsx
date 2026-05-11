@@ -49,6 +49,7 @@ const REACTION_OPTIONS = ["👍", "👎"];
 
 const PAGE_SIZE = 20;
 let pendingScrollPostId: string | null = null;
+let liveProfiles: Profile[] = profiles;
 
 const GUEST_PROFILE: Profile = {
   id: "guest",
@@ -342,7 +343,7 @@ function navigate(route: Route) {
 }
 
 function getProfile(profileId: string): Profile {
-  return profiles.find((p) => p.id === profileId) ?? profiles[0];
+  return liveProfiles.find((p) => p.id === profileId) ?? profiles.find((p) => p.id === profileId) ?? profiles[0];
 }
 
 function getGroup(groupId: string): Group {
@@ -2389,6 +2390,7 @@ function SocialApp() {
       return;
     }
     setSyncError(null);
+    liveProfiles = result.data.profiles;
     setProfilesList(result.data.profiles);
     setPosts(result.data.posts);
     setComments(result.data.comments);
@@ -2711,7 +2713,11 @@ function SocialApp() {
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
-          setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p));
+          setProfilesList((c) => {
+            const updated = c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p);
+            liveProfiles = updated;
+            return updated;
+          });
         }}
         onMessage={() => {
           const target = profilesList.find((p) => p.id === route.id) ?? getProfile(route.id);
