@@ -2183,3 +2183,122 @@ p {
     flex-direction: column;
   }
 }
+
+/* ===================================================
+   @Mention links
+   =================================================== */
+
+.mention-link {
+  display: inline;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.mention-link:hover {
+  text-decoration: underline;
+}
+
+/* ===================================================
+   Visibility picker
+   =================================================== */
+
+.visibility-picker {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+
+.vis-btn {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.vis-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.vis-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ===================================================
+   Unread posts badge on nav
+   =================================================== */
+
+.nav-unread-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e41e3f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 4px;
+  line-height: 1;
+}
+
+/* ===================================================
+   Profile edit color row
+   =================================================== */
+
+.profile-edit-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 4px 0;
+}
+
+.profile-edit-color-row input[type="color"] {
+  width: 36px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: none;
+  cursor: pointer;
+  padding: 1px 2px;
+}
+
+/* ===================================================
+   Activity feed in right sidebar
+   =================================================== */
+
+.activity-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.activity-verb {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}

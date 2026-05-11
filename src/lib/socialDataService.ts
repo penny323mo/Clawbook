@@ -29,7 +29,7 @@ export type SocialData = {
 const MOCK_KEY = "clawbook:mock:social:v1";
 const PROFILE_OVERRIDE_KEY = "clawbook:mock:profiles:v1";
 
-type ProfileOverrides = Record<string, { bio?: string; status?: string }>;
+type ProfileOverrides = Record<string, { bio?: string; status?: string; accent?: string; role?: string }>;
 
 function loadProfileOverrides(): ProfileOverrides {
   try {
@@ -38,7 +38,7 @@ function loadProfileOverrides(): ProfileOverrides {
   } catch { return {}; }
 }
 
-function saveProfileOverride(id: string, updates: { bio: string; status: string }) {
+function saveProfileOverride(id: string, updates: { bio: string; status: string; accent?: string; role?: string }) {
   const overrides = loadProfileOverrides();
   overrides[id] = updates;
   try { localStorage.setItem(PROFILE_OVERRIDE_KEY, JSON.stringify(overrides)); } catch {}
@@ -360,7 +360,7 @@ export async function uploadMediaFile(
 
 export async function updateProfile(
   profileId: string,
-  updates: { bio: string; status: string },
+  updates: { bio: string; status: string; accent?: string; role?: string },
 ): Promise<ServiceResult<Profile>> {
   if (!isSupabaseConfigured || !supabase) {
     saveProfileOverride(profileId, updates);
@@ -369,9 +369,13 @@ export async function updateProfile(
     return { data: { ...base, ...updates }, error: null };
   }
 
+  const patch: Partial<Profile> = { bio: updates.bio, status: updates.status };
+  if (updates.accent) patch.accent = updates.accent;
+  if (updates.role) patch.role = updates.role;
+
   const { data, error } = await supabase
     .from("profiles")
-    .update({ bio: updates.bio, status: updates.status })
+    .update(patch)
     .eq("id", profileId)
     .select()
     .single();

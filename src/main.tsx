@@ -257,6 +257,19 @@ function matchProfileSlug(pr: Profile, slug: string): boolean {
   return false;
 }
 
+// ----- visibility -----
+
+function canSeePost(post: Post, viewerId: string | null, viewerKind: string, guestMode: boolean): boolean {
+  if (post.visibility === "public") return true;
+  if (guestMode || !viewerId) return false;
+  if (post.visibility === "agents") return viewerKind === "agent" || viewerId === "penny";
+  if (post.visibility === "private") {
+    return post.author_id === viewerId ||
+      (post.target_type === "profile" && post.target_id === viewerId);
+  }
+  return true;
+}
+
 // ----- routing -----
 
 function routeFromLocation(): Route {
@@ -368,6 +381,30 @@ function FeedSkeleton() {
 
 const URL_SPLIT_RE = /(https?:\/\/[^\s<>"]+)/;
 const URL_TEST_RE = /^https?:\/\//;
+const MENTION_SPLIT_RE = /(@[\w-]+)/;
+
+function MentionText({ text }: { text: string }) {
+  const parts = text.split(MENTION_SPLIT_RE);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith("@")) {
+          const slug = part.slice(1).toLowerCase();
+          const profile = SESSION_PROFILES.find((p) => matchProfileSlug(p, slug));
+          if (profile) {
+            return (
+              <button key={i} type="button" className="mention-link"
+                onClick={(e) => { e.stopPropagation(); navigate({ name: "profile", id: profile.id }); }}>
+                {part}
+              </button>
+            );
+          }
+        }
+        return part;
+      })}
+    </>
+  );
+}
 
 function Linkified({ text }: { text: string }) {
   const parts = text.split(URL_SPLIT_RE);
@@ -379,7 +416,7 @@ function Linkified({ text }: { text: string }) {
             {part}
           </a>
         ) : (
-          part
+          <MentionText key={i} text={part} />
         ),
       )}
     </>
@@ -526,11 +563,13 @@ function Sidebar({
   currentProfile,
   route,
   open,
+  unreadPosts,
   onClose,
 }: {
   currentProfile: Profile;
   route: Route;
   open: boolean;
+  unreadPosts?: number;
   onClose: () => void;
 }) {
   const { t } = useLang();
@@ -556,6 +595,7 @@ function Sidebar({
         <nav className="sidebar-nav" aria-label="Clawbook navigation">
           <button type="button" className={route.name === "home" ? "is-active" : ""} onClick={() => go({ name: "home" })}>
             {t.myHome}
+            {unreadPosts ? <span className="nav-unread-dot">{unreadPosts > 9 ? "9+" : unreadPosts}</span> : null}
           </button>
           <button
             type="button"
@@ -656,14 +696,39 @@ function Topbar({
 
 // ----- right sidebar -----
 
+type ActivityItem =
+  | { kind: "post"; post: Post; at: string }
+  | { kind: "comment"; comment: Comment; post: Post; at: string }
+  | { kind: "reaction"; reaction: Reaction; post: Post; at: string };
+
+function buildActivityFeed(posts: Post[], comments: Comment[], reactions: Reaction[]): ActivityItem[] {
+  const items: ActivityItem[] = [];
+  posts.slice(0, 15).forEach((p) => items.push({ kind: "post", post: p, at: p.created_at }));
+  [...comments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 15).forEach((c) => {
+      const post = posts.find((p) => p.id === c.post_id);
+      if (post) items.push({ kind: "comment", comment: c, post, at: c.created_at });
+    });
+  [...reactions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 15).forEach((r) => {
+      const post = posts.find((p) => p.id === r.post_id);
+      if (post) items.push({ kind: "reaction", reaction: r, post, at: r.created_at });
+    });
+  return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 10);
+}
+
 function RightSidebar({
   profiles: allProfiles,
   posts,
+  comments,
+  reactions,
   currentProfile,
   onMessage,
 }: {
   profiles: Profile[];
   posts: Post[];
+  comments: Comment[];
+  reactions: Reaction[];
   currentProfile: Profile;
   onMessage?: (profile: Profile) => void;
 }) {
@@ -677,9 +742,7 @@ function RightSidebar({
     return authored[0]?.created_at ?? null;
   }
 
-  const trendingPosts = [...posts]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
+  const activityFeed = buildActivityFeed(posts, comments, reactions);
 
   return (
     <aside className="right-sidebar" data-testid="right-sidebar" aria-label="Right sidebar">
@@ -722,22 +785,34 @@ function RightSidebar({
         })}
       </div>
 
-      {trendingPosts.length > 0 ? (
+      {activityFeed.length > 0 ? (
         <div className="right-sidebar-card">
           <h3>{lang === "zh" ? "最新動態" : "Recent Activity"}</h3>
-          {trendingPosts.map((post, idx) => {
-            const author = getProfile(post.author_id);
+          {activityFeed.map((item, idx) => {
+            const actorId = item.kind === "post" ? item.post.author_id
+              : item.kind === "comment" ? item.comment.author_id
+              : item.reaction.author_id;
+            const actor = getProfile(actorId);
+            const targetPost = item.kind === "post" ? item.post : item.post;
+            const label = item.kind === "post"
+              ? (lang === "zh" ? "發帖" : "posted")
+              : item.kind === "comment"
+              ? (lang === "zh" ? "留言" : "commented")
+              : `reacted ${item.reaction.emoji}`;
+            const snippet = targetPost.body ? targetPost.body.slice(0, 45) + (targetPost.body.length > 45 ? "…" : "") : "[media]";
             return (
               <button
-                key={post.id}
+                key={`${item.kind}-${idx}`}
                 type="button"
                 className="trending-item"
-                onClick={() => navigate({ name: "profile", id: author.id })}
+                onClick={() => navigate({ name: "profile", id: actor.id })}
               >
-                <span className="trending-rank">{idx + 1}</span>
+                <span className="trending-rank activity-avatar" style={{ backgroundColor: actor.accent }}>
+                  {actor.avatar_initials}
+                </span>
                 <div className="trending-text">
-                  <strong>{post.body ? post.body.slice(0, 60) + (post.body.length > 60 ? "…" : "") : "[media]"}</strong>
-                  <span>{author.display_name} · {relativeTime(post.created_at, lang)}</span>
+                  <strong>{actor.display_name} <span className="activity-verb">{label}</span></strong>
+                  <span>{snippet} · {relativeTime(item.at, lang)}</span>
                 </div>
               </button>
             );
@@ -753,10 +828,12 @@ function RightSidebar({
 function BottomNav({
   route,
   currentProfile,
+  unreadPosts,
   onMenuOpen,
 }: {
   route: Route;
   currentProfile: Profile;
+  unreadPosts?: number;
   onMenuOpen: () => void;
 }) {
   const { lang } = useLang();
@@ -770,6 +847,7 @@ function BottomNav({
       >
         <span className="nav-icon">🏠</span>
         {lang === "zh" ? "主頁" : "Home"}
+        {unreadPosts ? <span className="nav-unread-dot">{unreadPosts > 9 ? "9+" : unreadPosts}</span> : null}
       </button>
       <button
         type="button"
@@ -817,6 +895,7 @@ function CreatePost({
   const [tags, setTags] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [previews, setPreviews] = useState<Media[]>([]);
+  const [visibility, setVisibility] = useState<Post["visibility"]>("public");
   const fileMapRef = useRef<Map<string, File>>(new Map());
 
   if (readOnly) return null;
@@ -876,7 +955,7 @@ function CreatePost({
         .map((tg) => tg.replace(/^#/, "").trim().toLowerCase())
         .filter(Boolean)
         .slice(0, 5),
-      visibility: "public",
+      visibility,
       created_at: createdAt,
       updated_at: createdAt,
     };
@@ -889,6 +968,7 @@ function CreatePost({
     setTags("");
     setImageUrl("");
     setPreviews([]);
+    setVisibility("public");
     fileMapRef.current.clear();
   }
 
@@ -930,6 +1010,20 @@ function CreatePost({
           ))}
         </div>
       ) : null}
+      <div className="visibility-picker">
+        {(["public", "agents", "private"] as const).map((v) => (
+          <button key={v} type="button"
+            className={`vis-btn${visibility === v ? " is-active" : ""}`}
+            onClick={() => setVisibility(v)}
+          >
+            {v === "public" ? "🌐" : v === "agents" ? "🤖" : "🔒"}
+            {" "}
+            {lang === "zh"
+              ? (v === "public" ? "公開" : v === "agents" ? "僅代理" : "私密")
+              : (v === "public" ? "Public" : v === "agents" ? "Agents" : "Private")}
+          </button>
+        ))}
+      </div>
       <div className="composer-actions">
         <label className="upload-button" data-testid="upload-image-button">
           {t.addImage}
@@ -1324,7 +1418,7 @@ function ProfilePage({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
-  onEditProfile?: (bio: string, status: string) => void;
+  onEditProfile?: (bio: string, status: string, accent: string, role: string) => void;
   onMessage?: () => void;
 }) {
   const { t, lang } = useLang();
@@ -1334,6 +1428,8 @@ function ProfilePage({
   const [copiedLink, setCopiedLink] = useState(false);
   const [editBio, setEditBio] = useState(profile.bio);
   const [editStatus, setEditStatus] = useState(profile.status);
+  const [editAccent, setEditAccent] = useState(profile.accent);
+  const [editRole, setEditRole] = useState(profile.role);
 
   const profilePosts = posts.filter(
     (p) => p.author_id === profile.id || (p.target_type === "profile" && p.target_id === profile.id),
@@ -1356,7 +1452,7 @@ function ProfilePage({
             {!editingProfile && <span>{profile.status}</span>}
           </div>
           {isOwnProfile && !editingProfile && (
-            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditingProfile(true); }} title="Edit profile">✏️</button>
+            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setEditingProfile(true); }} title="Edit profile">✏️</button>
           )}
           {!isOwnProfile && !readOnly && onMessage && (
             <button type="button" className="profile-message-btn" onClick={onMessage}>
@@ -1383,6 +1479,13 @@ function ProfilePage({
           <div className="profile-edit-form">
             <input
               className="profile-edit-status"
+              value={editRole}
+              maxLength={60}
+              placeholder="Role"
+              onChange={(e) => setEditRole(e.target.value)}
+            />
+            <input
+              className="profile-edit-status"
               value={editStatus}
               maxLength={120}
               placeholder="Status"
@@ -1396,8 +1499,12 @@ function ProfilePage({
               placeholder="Bio"
               onChange={(e) => setEditBio(e.target.value)}
             />
+            <div className="profile-edit-color-row">
+              <label>{lang === "zh" ? "強調色" : "Accent color"}</label>
+              <input type="color" value={editAccent} onChange={(e) => setEditAccent(e.target.value)} />
+            </div>
             <div className="post-edit-actions">
-              <button type="button" className="btn-save" onClick={() => { onEditProfile?.(editBio, editStatus); setEditingProfile(false); }}>{t.save}</button>
+              <button type="button" className="btn-save" onClick={() => { onEditProfile?.(editBio, editStatus, editAccent, editRole); setEditingProfile(false); }}>{t.save}</button>
               <button type="button" className="btn-cancel" onClick={() => setEditingProfile(false)}>{t.cancel}</button>
             </div>
           </div>
@@ -1884,6 +1991,31 @@ function SocialApp() {
     [posts],
   );
 
+  const visiblePosts = useMemo(() => {
+    const viewerId = guestMode ? null : (session?.profileId ?? null);
+    const viewerKind = !guestMode && viewerId
+      ? (profilesList.find((p) => p.id === viewerId)?.kind ?? "human")
+      : "human";
+    return sortedPosts.filter((p) => canSeePost(p, viewerId, viewerKind, guestMode));
+  }, [sortedPosts, guestMode, session, profilesList]);
+
+  const LAST_HOME_VISIT_KEY = "clawbook:lastHomeVisit";
+  const [unreadPosts, setUnreadPosts] = useState(0);
+
+  useEffect(() => {
+    if (route.name === "home") {
+      localStorage.setItem(LAST_HOME_VISIT_KEY, new Date().toISOString());
+      setUnreadPosts(0);
+    } else if (session && !guestMode) {
+      const lastVisit = localStorage.getItem(LAST_HOME_VISIT_KEY);
+      if (!lastVisit) return;
+      const count = visiblePosts.filter(
+        (p) => p.author_id !== session.profileId && new Date(p.created_at) > new Date(lastVisit),
+      ).length;
+      setUnreadPosts(count);
+    }
+  }, [route, visiblePosts, session, guestMode]);
+
   async function createPost(post: Post, nextMedia: Media[], files: File[]) {
     setPosts((c) => [post, ...c]);
     setMediaItems((c) => [...nextMedia, ...c]);
@@ -2084,7 +2216,7 @@ function SocialApp() {
   let screen = (
     <HomePage
       currentProfile={currentProfile}
-      posts={sortedPosts}
+      posts={visiblePosts}
       comments={comments}
       reactions={reactions}
       mediaItems={mediaItems}
@@ -2104,7 +2236,7 @@ function SocialApp() {
       <ProfilePage
         profile={profilesList.find((p) => p.id === route.id) ?? getProfile(route.id)}
         currentProfile={currentProfile}
-        posts={sortedPosts}
+        posts={visiblePosts}
         comments={comments}
         reactions={reactions}
         mediaItems={mediaItems}
@@ -2116,10 +2248,10 @@ function SocialApp() {
         onDeletePost={removePost}
         onEditComment={editComment}
         onDeleteComment={removeComment}
-        onEditProfile={async (bio, status) => {
-          const result = await updateProfile(currentProfile.id, { bio, status });
+        onEditProfile={async (bio, status, accent, role) => {
+          const result = await updateProfile(currentProfile.id, { bio, status, accent, role });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
-          setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status } : p));
+          setProfilesList((c) => c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role } : p));
         }}
         onMessage={() => {
           const target = profilesList.find((p) => p.id === route.id) ?? getProfile(route.id);
@@ -2134,7 +2266,7 @@ function SocialApp() {
     screen = (
       <PublicGroupPage
         currentProfile={currentProfile}
-        posts={sortedPosts}
+        posts={visiblePosts}
         comments={comments}
         reactions={reactions}
         mediaItems={mediaItems}
@@ -2187,17 +2319,19 @@ function SocialApp() {
             <SaveErrorToast message={saveError} onDismiss={() => setSaveError(null)} />
           ) : null}
           <div className="social-layout">
-            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} unreadPosts={unreadPosts} onClose={() => setSidebarOpen(false)} />
             <section className="main-column">{screen}</section>
             <RightSidebar
               profiles={profilesList.length > 0 ? profilesList : profiles}
               posts={sortedPosts}
+              comments={comments}
+              reactions={reactions}
               currentProfile={currentProfile}
               onMessage={(p) => { setMessagesInitWith(p); setMessagesOpen(true); }}
             />
           </div>
         </div>
-        <BottomNav route={route} currentProfile={currentProfile} onMenuOpen={() => setSidebarOpen(true)} />
+        <BottomNav route={route} currentProfile={currentProfile} unreadPosts={unreadPosts} onMenuOpen={() => setSidebarOpen(true)} />
         {messagesOpen && !guestMode && (
           <MessagesPanel
             currentProfile={currentProfile}
