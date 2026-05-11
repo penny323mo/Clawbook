@@ -2659,3 +2659,45 @@ p {
   animation: post-highlight-pulse 2s ease-out forwards;
   outline: 2px solid rgba(102,227,255,0.5);
 }
+
+/* ===================================================
+   Group member avatar row
+   =================================================== */
+
+.group-member-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 0 2px;
+}
+
+.group-member-avatar {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.group-member-avatar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+.group-member-avatar .avatar,
+.group-member-avatar .avatar-img {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  font-size: 0.72rem !important;
+}
+
+/* Notification panel mobile fix */
+@media (max-width: 600px) {
+  .notif-panel {
+    position: fixed;
+    top: 56px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}

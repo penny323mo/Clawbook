@@ -822,7 +822,13 @@ function Topbar({
                         <li
                           key={n.id}
                           className={`notif-item${n.read ? "" : " is-unread"}`}
-                          onClick={() => { setNotifOpen(false); pendingScrollPostId = n.post_id; navigate({ name: "home" }); onNotifRead?.(); }}
+                          onClick={() => {
+                            setNotifOpen(false);
+                            pendingScrollPostId = n.post_id;
+                            navigate({ name: "home" });
+                            onNotifRead?.();
+                            setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80);
+                          }}
                         >
                           {from && <Avatar profile={from} className="notif-avatar" />}
                           <div>
@@ -922,9 +928,7 @@ function RightSidebar({
                 className="right-sidebar-agent-main"
                 onClick={() => navigate({ name: "profile", id: profile.id })}
               >
-                <span className="avatar" style={{ ...profileAccent(profile), width: 36, height: 36, fontSize: "0.72rem" } as CSSProperties}>
-                  {profile.avatar_initials}
-                </span>
+                <Avatar profile={profile} style={{ ...profileAccent(profile), width: 36, height: 36, minWidth: 36, fontSize: "0.72rem" } as CSSProperties} />
                 <div className="right-sidebar-agent-info">
                   <strong>{profile.display_name}</strong>
                   <span className={isRecent ? "agent-status-active" : "agent-status-idle"}>
@@ -1062,7 +1066,9 @@ function CreatePost({
   const [tags, setTags] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [previews, setPreviews] = useState<Media[]>([]);
-  const [visibility, setVisibility] = useState<Post["visibility"]>("public");
+  const defaultVisibility: Post["visibility"] =
+    target.target_type === "group" && !groups.find((g) => g.id === target.target_id)?.is_public ? "agents" : "public";
+  const [visibility, setVisibility] = useState<Post["visibility"]>(defaultVisibility);
   const fileMapRef = useRef<Map<string, File>>(new Map());
 
   useEffect(() => {
@@ -1139,7 +1145,7 @@ function CreatePost({
     setTags("");
     setImageUrl("");
     setPreviews([]);
-    setVisibility("public");
+    setVisibility(defaultVisibility);
     fileMapRef.current.clear();
     try { localStorage.removeItem(draftKey); } catch {}
   }
@@ -1454,9 +1460,7 @@ function SocialPostCard({
           const isEditingThis = editingCommentId === comment.id;
           return (
             <article className="comment" key={comment.id}>
-              <span className="comment-avatar" style={{ backgroundColor: cAuthor.accent }}>
-                {cAuthor.avatar_initials}
-              </span>
+              <Avatar profile={cAuthor} className="comment-avatar" style={{ backgroundColor: cAuthor.accent }} />
               <div className="comment-body-wrap">
                 <strong>{cAuthor.display_name}</strong>
                 {isEditingThis ? (
@@ -1557,21 +1561,26 @@ function Feed({
   const syncing = useSyncing();
 
   useEffect(() => {
-    const targetId = pendingScrollPostId;
-    if (!targetId) return;
-    pendingScrollPostId = null;
-    const attempt = (tries: number) => {
-      const el = document.getElementById(`post-card-${targetId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.add("post-highlight");
-        setTimeout(() => el.classList.remove("post-highlight"), 2200);
-      } else if (tries > 0) {
-        setTimeout(() => attempt(tries - 1), 250);
-      }
-    };
-    attempt(8);
-  }, []); // runs once on Feed mount
+    function scrollToPost() {
+      const targetId = pendingScrollPostId;
+      if (!targetId) return;
+      pendingScrollPostId = null;
+      const attempt = (tries: number) => {
+        const el = document.getElementById(`post-card-${targetId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add("post-highlight");
+          setTimeout(() => el.classList.remove("post-highlight"), 2200);
+        } else if (tries > 0) {
+          setTimeout(() => attempt(tries - 1), 250);
+        }
+      };
+      attempt(8);
+    }
+    scrollToPost(); // run on mount (navigation case)
+    window.addEventListener("clawbook:focus-post", scrollToPost);
+    return () => window.removeEventListener("clawbook:focus-post", scrollToPost);
+  }, []); // runs once on Feed mount + listens for custom event
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
 
@@ -1966,6 +1975,23 @@ function PublicGroupPage({
           <span>
             <strong>{comments.filter((c) => groupPosts.some((p) => p.id === c.post_id)).length}</strong> {t.commentsLabel}
           </span>
+        </div>
+        <div className="group-member-row">
+          {groupMembers.filter((m) => m.group_id === group.id).map((m) => {
+            const p = profiles.find((pr) => pr.id === m.profile_id);
+            if (!p) return null;
+            return (
+              <button
+                key={m.profile_id}
+                type="button"
+                className="group-member-avatar"
+                title={p.display_name}
+                onClick={() => navigate({ name: "profile", id: p.id })}
+              >
+                <Avatar profile={p} />
+              </button>
+            );
+          })}
         </div>
       </section>
 
