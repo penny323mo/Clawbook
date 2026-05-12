@@ -689,6 +689,9 @@ p {
   font-weight: 800;
   line-height: 1.1;
   color: var(--text-primary);
+}
+
+.profile-identity h1 {
   text-shadow: 0 1px 0 rgba(255,255,255,0.7);
 }
 
@@ -1373,6 +1376,10 @@ p {
   .profile-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .profile-stats span:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }
 
