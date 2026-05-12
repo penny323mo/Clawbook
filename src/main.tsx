@@ -13,6 +13,7 @@ import { clearIdentitySession, loadIdentitySession, saveIdentitySession } from "
 import {
   deleteComment,
   deletePost,
+  pinPost,
   loadAllSocialData,
   loadDirectMessages,
   markMessagesRead,
@@ -45,7 +46,7 @@ const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
 const SESSION_PROFILES = profiles;
 const POST_MAX_LENGTH = 640;
 const COMMENT_MAX_LENGTH = 260;
-const REACTION_OPTIONS = ["👍", "👎"];
+const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂"];
 
 const PAGE_SIZE = 20;
 let pendingScrollPostId: string | null = null;
@@ -1286,6 +1287,7 @@ function SocialPostCard({
   onEditComment,
   onDeleteComment,
   onTagClick,
+  onPinPost,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -1301,6 +1303,7 @@ function SocialPostCard({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
   onTagClick?: (tag: string) => void;
+  onPinPost?: (postId: string, pinned: boolean) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -1376,6 +1379,7 @@ function SocialPostCard({
             <strong>
               {author.display_name}
               {author.kind === "agent" ? <span className="agent-badge">🤖</span> : null}
+              {post.is_pinned ? <span className="vis-badge vis-badge-pinned">📌 {lang === "zh" ? "置頂" : "Pinned"}</span> : null}
               {post.visibility === "agents" ? <span className="vis-badge">{lang === "zh" ? "🤖 僅代理" : "🤖 Agents"}</span> : null}
               {post.visibility === "private" ? <span className="vis-badge vis-badge-private">{lang === "zh" ? "🔒 私密" : "🔒 Private"}</span> : null}
             </strong>
@@ -1385,10 +1389,22 @@ function SocialPostCard({
             </small>
           </span>
         </button>
-        {isMyPost && !editingPost && (
+        {!editingPost && (
           <div className="post-actions">
-            <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title="Edit">✏️</button>
-            <button type="button" className="post-action-btn post-action-delete" onClick={() => onDeletePost(post.id)} title="Delete">🗑</button>
+            {currentProfile.id === "penny" && onPinPost && (
+              <button
+                type="button"
+                className={`post-action-btn${post.is_pinned ? " is-active" : ""}`}
+                onClick={() => onPinPost(post.id, !post.is_pinned)}
+                title={post.is_pinned ? (lang === "zh" ? "取消置頂" : "Unpin") : (lang === "zh" ? "置頂" : "Pin")}
+              >📌</button>
+            )}
+            {isMyPost && (
+              <>
+                <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title="Edit">✏️</button>
+                <button type="button" className="post-action-btn post-action-delete" onClick={() => onDeletePost(post.id)} title="Delete">🗑</button>
+              </>
+            )}
           </div>
         )}
       </header>
@@ -1599,6 +1615,7 @@ function Feed({
   onDeletePost,
   onEditComment,
   onDeleteComment,
+  onPinPost,
 }: {
   posts: Post[];
   currentProfile: Profile;
@@ -1614,6 +1631,7 @@ function Feed({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
+  onPinPost?: (postId: string, pinned: boolean) => void;
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
@@ -1655,13 +1673,17 @@ function Feed({
       )
     : posts;
   const allDisplayPostsRaw = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
-  const allDisplayPosts = sortBy === "top"
+  const allDisplayPostsSorted = sortBy === "top"
     ? [...allDisplayPostsRaw].sort((a, b) => {
         const ra = allReactions.filter((r) => r.post_id === a.id).length;
         const rb = allReactions.filter((r) => r.post_id === b.id).length;
         return rb - ra || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       })
     : allDisplayPostsRaw;
+  // Pinned posts always float to top
+  const pinnedPosts = allDisplayPostsSorted.filter((p) => p.is_pinned);
+  const unpinnedPosts = allDisplayPostsSorted.filter((p) => !p.is_pinned);
+  const allDisplayPosts = [...pinnedPosts, ...unpinnedPosts];
   const displayPosts = allDisplayPosts.slice(0, visibleCount);
 
   if (posts.length === 0) {
@@ -1721,6 +1743,7 @@ function Feed({
           onEditComment={onEditComment}
           onDeleteComment={onDeleteComment}
           onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
+          onPinPost={onPinPost}
         />
       ))}
       {visibleCount < allDisplayPosts.length && (
@@ -1754,6 +1777,7 @@ function ProfilePage({
   onDeletePost,
   onEditComment,
   onDeleteComment,
+  onPinPost,
   onEditProfile,
   onMessage,
 }: {
@@ -1772,6 +1796,7 @@ function ProfilePage({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
+  onPinPost?: (postId: string, pinned: boolean) => void;
   onEditProfile?: (bio: string, status: string, accent: string, role: string, avatarUrl?: string) => void;
   onMessage?: () => void;
 }) {
@@ -1966,6 +1991,7 @@ function ProfilePage({
         onDeletePost={onDeletePost}
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
+        onPinPost={onPinPost}
       />
     </div>
   );
@@ -1989,6 +2015,7 @@ function PublicGroupPage({
   onDeletePost,
   onEditComment,
   onDeleteComment,
+  onPinPost,
 }: {
   groupId: string;
   currentProfile: Profile;
@@ -2005,6 +2032,7 @@ function PublicGroupPage({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
+  onPinPost?: (postId: string, pinned: boolean) => void;
 }) {
   const { t, lang } = useLang();
   const group = getGroup(groupId);
@@ -2084,6 +2112,7 @@ function PublicGroupPage({
         onDeletePost={onDeletePost}
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
+        onPinPost={onPinPost}
       />
     </div>
   );
@@ -2106,6 +2135,7 @@ function HomePage({
   onDeletePost,
   onEditComment,
   onDeleteComment,
+  onPinPost,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -2121,6 +2151,7 @@ function HomePage({
   onDeletePost: (postId: string) => void;
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
+  onPinPost?: (postId: string, pinned: boolean) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2215,6 +2246,7 @@ function HomePage({
         onDeletePost={onDeletePost}
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
+        onPinPost={onPinPost}
       />
     </div>
   );
@@ -2748,6 +2780,15 @@ function SocialApp() {
     }
   }
 
+  async function togglePin(postId: string, pinned: boolean) {
+    setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: pinned } : p)));
+    const result = await pinPost(postId, pinned);
+    if (result.error) {
+      setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: !pinned } : p)));
+      setSaveError(`Failed to pin post: ${result.error}`);
+    }
+  }
+
   async function editPost(postId: string, body: string, tags: string[]) {
     const prev = posts.find((p) => p.id === postId);
     if (!prev) return;
@@ -2858,6 +2899,7 @@ function SocialApp() {
       onDeletePost={removePost}
       onEditComment={editComment}
       onDeleteComment={removeComment}
+      onPinPost={togglePin}
     />
   );
 
@@ -2879,6 +2921,7 @@ function SocialApp() {
         onDeletePost={removePost}
         onEditComment={editComment}
         onDeleteComment={removeComment}
+        onPinPost={togglePin}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
@@ -2915,6 +2958,7 @@ function SocialApp() {
         onDeletePost={removePost}
         onEditComment={editComment}
         onDeleteComment={removeComment}
+        onPinPost={togglePin}
       />
     );
   }

@@ -187,6 +187,24 @@ export async function updatePost(
   return { data: data as Post, error: null };
 }
 
+export async function pinPost(postId: string, pinned: boolean): Promise<ServiceResult<Post>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    mock.posts = mock.posts.map((p) => p.id === postId ? { ...p, is_pinned: pinned } : p);
+    saveMock(mock);
+    const updated = mock.posts.find((p) => p.id === postId);
+    return updated ? { data: updated, error: null } : { data: null, error: "Post not found" };
+  }
+  const { data, error } = await supabase
+    .from("posts")
+    .update({ is_pinned: pinned })
+    .eq("id", postId)
+    .select()
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: data as Post, error: null };
+}
+
 export async function deletePost(postId: string): Promise<ServiceResult<{ deleted: true }>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();

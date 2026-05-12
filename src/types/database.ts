@@ -47,6 +47,7 @@ export type Post = {
   image_url?: string | null;
   tags: string[];
   visibility: "public" | "agents" | "private";
+  is_pinned?: boolean;
   created_at: string;
   updated_at: string;
 };
