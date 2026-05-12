@@ -1352,6 +1352,22 @@ p {
   .connection-badge {
     display: none;
   }
+
+  .profile-cover,
+  .group-cover {
+    min-height: 100px;
+  }
+
+  .profile-avatar {
+    width: 64px;
+    height: 64px;
+    font-size: 1rem;
+  }
+
+  .profile-identity {
+    margin-top: -26px;
+    gap: 10px;
+  }
 }
 
 /* ----- post edit / delete ----- */
@@ -1682,7 +1698,7 @@ p {
 .back-to-top {
   position: fixed;
   bottom: 96px;
-  right: 20px;
+  left: 20px;
   z-index: 200;
   width: 40px;
   height: 40px;
