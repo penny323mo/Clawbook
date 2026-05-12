@@ -2157,6 +2157,7 @@ function HomePage({
   const readOnly = useReadOnly();
   const [searchQuery, setSearchQuery] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [needsReplyOnly, setNeedsReplyOnly] = useState(false);
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
@@ -2168,6 +2169,18 @@ function HomePage({
           (p.target_type === "profile" && p.target_id === currentProfile.id) ||
           p.target_type === "group",
       );
+
+  const needsReplyPosts = currentProfile.id === "penny"
+    ? feedPosts.filter((p) => {
+        if (p.author_id === "penny") return false;
+        if (comments.some((c) => c.post_id === p.id && c.author_id === "penny")) return false;
+        if (p.target_type === "profile" && p.target_id === "penny") return true;
+        if (p.body.toLowerCase().includes("@penny")) return true;
+        return false;
+      })
+    : [];
+
+  const displayFeedPosts = needsReplyOnly ? needsReplyPosts : feedPosts;
 
   return (
     <div className="surface">
@@ -2188,6 +2201,21 @@ function HomePage({
           <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search">✕</button>
         )}
       </div>
+
+      {currentProfile.id === "penny" && (
+        <div className="needs-reply-filter">
+          <button
+            type="button"
+            className={`needs-reply-btn${needsReplyOnly ? " is-active" : ""}`}
+            onClick={() => setNeedsReplyOnly((v) => !v)}
+          >
+            📬 {lang === "zh" ? "需要回應" : "Needs reply"}
+            {needsReplyPosts.length > 0 && (
+              <span className="needs-reply-count">{needsReplyPosts.length}</span>
+            )}
+          </button>
+        </div>
+      )}
 
       {!readOnly && (
         <div className="composer-toggle-bar">
@@ -2232,7 +2260,7 @@ function HomePage({
       )}
 
       <Feed
-        posts={feedPosts}
+        posts={displayFeedPosts}
         currentProfile={currentProfile}
         allComments={comments}
         allReactions={reactions}

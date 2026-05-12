@@ -2530,6 +2530,57 @@ p {
 }
 
 /* ===================================================
+   Needs-reply filter (Penny only)
+   =================================================== */
+
+.needs-reply-filter {
+  padding: 0 16px 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.needs-reply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.needs-reply-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.needs-reply-btn.is-active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.needs-reply-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ===================================================
    Group header title row
    =================================================== */
 
