@@ -2585,14 +2585,14 @@ p {
    =================================================== */
 
 .profile-status-line {
-  margin: 6px 16px 0;
+  margin: 6px 0 0;
   font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
 .agent-last-active {
-  margin: 4px 16px 0;
+  margin: 4px 0 0;
   font-size: 0.78rem;
   color: var(--text-muted);
 }
