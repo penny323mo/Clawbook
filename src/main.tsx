@@ -1048,6 +1048,104 @@ function BottomNav({
 
 // ----- create post -----
 
+// ----- mention textarea -----
+
+function MentionTextarea({
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  maxLength,
+  rows,
+  className,
+  "data-testid": testId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  maxLength?: number;
+  rows?: number;
+  className?: string;
+  "data-testid"?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [cursorPos, setCursorPos] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  const mentionMatch = value.slice(0, cursorPos).match(/@(\w*)$/);
+  const query = mentionMatch ? mentionMatch[1].toLowerCase() : null;
+  const suggestions = query !== null
+    ? liveProfiles
+        .filter((p) => p.id !== "guest" && (
+          p.username.toLowerCase().startsWith(query) ||
+          p.display_name.toLowerCase().startsWith(query)
+        ))
+        .slice(0, 5)
+    : [];
+  const showDropdown = open && suggestions.length > 0;
+
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    onChange(e.target.value);
+    setCursorPos(e.target.selectionStart ?? 0);
+    setOpen(true);
+  }
+
+  function trackCursor(e: React.SyntheticEvent<HTMLTextAreaElement>) {
+    setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? 0);
+  }
+
+  function insertMention(p: Profile) {
+    if (!mentionMatch) return;
+    const start = cursorPos - mentionMatch[0].length;
+    const inserted = `@${p.username} `;
+    const next = value.slice(0, start) + inserted + value.slice(cursorPos);
+    onChange(next);
+    setOpen(false);
+    const newPos = start + inserted.length;
+    setTimeout(() => {
+      ref.current?.focus();
+      ref.current?.setSelectionRange(newPos, newPos);
+    }, 0);
+  }
+
+  return (
+    <div className="mention-wrap">
+      <textarea
+        ref={ref}
+        value={value}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        rows={rows}
+        className={className}
+        data-testid={testId}
+        onChange={handleChange}
+        onKeyUp={trackCursor}
+        onClick={trackCursor}
+        onKeyDown={onKeyDown}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {showDropdown && (
+        <ul className="mention-dropdown">
+          {suggestions.map((p) => (
+            <li key={p.id}>
+              <button
+                type="button"
+                className="mention-dropdown-item"
+                onMouseDown={(e) => { e.preventDefault(); insertMention(p); }}
+              >
+                <Avatar profile={p} className="mention-dropdown-avatar" />
+                <span className="mention-dropdown-name">{p.display_name}</span>
+                <span className="mention-dropdown-handle">@{p.username}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function CreatePost({
   currentProfile,
   target,
@@ -1171,11 +1269,11 @@ function CreatePost({
           <span>{lang === "zh" ? `發佈至：${targetLabel}` : `Posting to: ${targetLabel}`}</span>
         </div>
       </div>
-      <textarea
+      <MentionTextarea
         value={body}
         maxLength={POST_MAX_LENGTH}
         placeholder={t.whatsHappening(currentProfile.display_name)}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={setBody}
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); create(); } }}
       />
       <div className="composer-field">
@@ -1566,12 +1664,12 @@ function SocialPostCard({
 
       {!readOnly && (
         <div className="comment-composer">
-          <textarea
+          <MentionTextarea
             data-testid="comment-textarea"
             value={commentDraft}
             maxLength={COMMENT_MAX_LENGTH}
             placeholder={t.commentPlaceholder(currentProfile.display_name)}
-            onChange={(e) => setCommentDraft(e.target.value)}
+            onChange={setCommentDraft}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submitComment(); } }}
           />
           <div className="comment-composer-footer">
@@ -1802,6 +1900,7 @@ function ProfilePage({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
+  const now = useNow();
   const isOwnProfile = profile.id === currentProfile.id;
   const [editingProfile, setEditingProfile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -1833,6 +1932,12 @@ function ProfilePage({
             <h1>{profile.display_name}</h1>
             <p>{profile.role}</p>
             {!editingProfile && <span>{profile.status}</span>}
+            {profile.kind === "agent" && (() => {
+              const lastPost = [...authoredPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+              return lastPost
+                ? <span className="agent-last-active">⏱ {lang === "zh" ? "上次活動：" : "Last active: "}{relativeTime(lastPost.created_at, lang, now)}</span>
+                : <span className="agent-last-active">{lang === "zh" ? "尚未發過帖" : "No posts yet"}</span>;
+            })()}
           </div>
           {isOwnProfile && !editingProfile && (
             <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setAvatarPreview(null); setAvatarFile(null); setEditingProfile(true); }} title="Edit profile">✏️</button>

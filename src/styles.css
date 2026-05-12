@@ -2581,6 +2581,88 @@ p {
 }
 
 /* ===================================================
+   Agent last-active badge
+   =================================================== */
+
+.agent-last-active {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ===================================================
+   Mention autocomplete
+   =================================================== */
+
+.mention-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.mention-wrap textarea {
+  width: 100%;
+}
+
+.mention-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.mention-dropdown li {
+  margin: 0;
+  padding: 0;
+}
+
+.mention-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.mention-dropdown-item:hover {
+  background: var(--surface-2);
+}
+
+.mention-dropdown-avatar {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 0.7rem !important;
+  flex-shrink: 0;
+}
+
+.mention-dropdown-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mention-dropdown-handle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* ===================================================
    Group header title row
    =================================================== */
 
