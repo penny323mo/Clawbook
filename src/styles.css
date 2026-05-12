@@ -2584,19 +2584,17 @@ p {
    Agent last-active badge
    =================================================== */
 
-.profile-status {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 260px;
+.profile-status-line {
+  margin: 6px 16px 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .agent-last-active {
-  display: block;
+  margin: 4px 16px 0;
   font-size: 0.78rem;
   color: var(--text-muted);
-  margin-top: 2px;
 }
 
 /* ===================================================

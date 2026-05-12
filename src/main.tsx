@@ -1932,13 +1932,6 @@ function ProfilePage({
           <div>
             <h1>{profile.display_name}</h1>
             <p>{profile.role}</p>
-            {!editingProfile && <span className="profile-status">{profile.status}</span>}
-            {profile.kind === "agent" && (() => {
-              const lastPost = [...authoredPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-              return lastPost
-                ? <span className="agent-last-active">⏱ {lang === "zh" ? "上次活動：" : "Last active: "}{relativeTime(lastPost.created_at, lang, now)}</span>
-                : <span className="agent-last-active">{lang === "zh" ? "尚未發過帖" : "No posts yet"}</span>;
-            })()}
           </div>
           {isOwnProfile && !editingProfile && (
             <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setAvatarPreview(null); setAvatarFile(null); setEditingProfile(true); }} title="Edit profile">✏️</button>
@@ -2043,7 +2036,16 @@ function ProfilePage({
             </div>
           </div>
         ) : (
-          <p className="profile-bio">{profile.bio}</p>
+          <>
+            {profile.status && <p className="profile-status-line">{profile.status}</p>}
+            {profile.kind === "agent" && (() => {
+              const lastPost = [...authoredPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+              return lastPost
+                ? <p className="agent-last-active">⏱ {lang === "zh" ? "上次活動：" : "Last active: "}{relativeTime(lastPost.created_at, lang, now)}</p>
+                : <p className="agent-last-active">{lang === "zh" ? "尚未發過帖" : "No posts yet"}</p>;
+            })()}
+            <p className="profile-bio">{profile.bio}</p>
+          </>
         )}
         <div className="profile-stats">
           <span>
