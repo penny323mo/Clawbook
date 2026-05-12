@@ -1902,6 +1902,7 @@ function ProfilePage({
   const readOnly = useReadOnly();
   const now = useNow();
   const isOwnProfile = profile.id === currentProfile.id;
+  const [composerOpen, setComposerOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [editBio, setEditBio] = useState(profile.bio);
@@ -1931,7 +1932,7 @@ function ProfilePage({
           <div>
             <h1>{profile.display_name}</h1>
             <p>{profile.role}</p>
-            {!editingProfile && <span>{profile.status}</span>}
+            {!editingProfile && <span className="profile-status">{profile.status}</span>}
             {profile.kind === "agent" && (() => {
               const lastPost = [...authoredPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
               return lastPost
@@ -2060,12 +2061,27 @@ function ProfilePage({
         </div>
       </section>
 
-      <CreatePost
-        currentProfile={currentProfile}
-        target={{ target_type: "profile", target_id: profile.id }}
-        saving={saving}
-        onCreate={onCreatePost}
-      />
+      {isOwnProfile && !readOnly && (
+        <div className="composer-toggle-bar">
+          <button
+            type="button"
+            className={`composer-toggle-btn${composerOpen ? " is-open" : ""}`}
+            onClick={() => setComposerOpen((v) => !v)}
+          >
+            <Avatar profile={currentProfile} className="composer-toggle-avatar" />
+            <span>{composerOpen ? (lang === "zh" ? "收起" : "Close") : (lang === "zh" ? "有咩想分享？" : "What's on your mind?")}</span>
+            <span className="composer-toggle-icon">{composerOpen ? "▲" : "✏️"}</span>
+          </button>
+        </div>
+      )}
+      {isOwnProfile && !readOnly && composerOpen && (
+        <CreatePost
+          currentProfile={currentProfile}
+          target={{ target_type: "profile", target_id: profile.id }}
+          saving={saving}
+          onCreate={(post, media, files) => { onCreatePost(post, media, files); setComposerOpen(false); }}
+        />
+      )}
 
       {profileImages.length > 0 ? (
         <section className="image-strip">
@@ -2140,9 +2156,11 @@ function PublicGroupPage({
   onPinPost?: (postId: string, pinned: boolean) => void;
 }) {
   const { t, lang } = useLang();
+  const readOnly = useReadOnly();
   const group = getGroup(groupId);
   const groupPosts = posts.filter((p) => p.target_type === "group" && p.target_id === group.id);
   const [copiedGroupLink, setCopiedGroupLink] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   return (
     <div className="surface">
@@ -2196,12 +2214,27 @@ function PublicGroupPage({
         </div>
       </section>
 
-      <CreatePost
-        currentProfile={currentProfile}
-        target={{ target_type: "group", target_id: group.id }}
-        saving={saving}
-        onCreate={onCreatePost}
-      />
+      {!readOnly && (
+        <div className="composer-toggle-bar">
+          <button
+            type="button"
+            className={`composer-toggle-btn${composerOpen ? " is-open" : ""}`}
+            onClick={() => setComposerOpen((v) => !v)}
+          >
+            <Avatar profile={currentProfile} className="composer-toggle-avatar" />
+            <span>{composerOpen ? (lang === "zh" ? "收起" : "Close") : (lang === "zh" ? "有咩想分享？" : "What's on your mind?")}</span>
+            <span className="composer-toggle-icon">{composerOpen ? "▲" : "✏️"}</span>
+          </button>
+        </div>
+      )}
+      {!readOnly && composerOpen && (
+        <CreatePost
+          currentProfile={currentProfile}
+          target={{ target_type: "group", target_id: group.id }}
+          saving={saving}
+          onCreate={(post, media, files) => { onCreatePost(post, media, files); setComposerOpen(false); }}
+        />
+      )}
 
       <Feed
         posts={groupPosts}

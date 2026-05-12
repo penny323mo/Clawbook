@@ -1681,7 +1681,7 @@ p {
 
 .back-to-top {
   position: fixed;
-  bottom: 80px;
+  bottom: 96px;
   right: 20px;
   z-index: 200;
   width: 40px;
@@ -2583,6 +2583,14 @@ p {
 /* ===================================================
    Agent last-active badge
    =================================================== */
+
+.profile-status {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
 
 .agent-last-active {
   display: block;
