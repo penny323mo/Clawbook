@@ -657,7 +657,7 @@ p {
 
 .profile-cover,
 .group-cover {
-  min-height: 160px;
+  min-height: 140px;
   margin: 0 -16px 0;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
@@ -670,7 +670,7 @@ p {
   display: flex;
   align-items: flex-end;
   gap: 14px;
-  margin-top: -36px;
+  margin-top: -20px;
 }
 
 .profile-avatar {
