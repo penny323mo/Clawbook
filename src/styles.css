@@ -1567,7 +1567,7 @@ p {
 
 .profile-edit-btn {
   position: absolute;
-  top: 0;
+  bottom: 0;
   right: 0;
 }
 
@@ -1861,7 +1861,7 @@ p {
 
 .profile-copy-link-btn {
   position: absolute;
-  top: 0;
+  bottom: 0;
   right: 36px;
   padding: 5px 9px;
   border-radius: 50%;
@@ -1948,7 +1948,7 @@ p {
 
 .profile-message-btn {
   position: absolute;
-  top: 0;
+  bottom: 0;
   right: 80px;
   padding: 6px 14px;
   border-radius: 20px;
