@@ -2631,9 +2631,10 @@ function MessagesPanel({
 // ----- root app -----
 
 function SocialApp() {
-  const [lang, setLangState] = useState<Lang>(
-    () => (localStorage.getItem("clawbook:lang") as Lang | null) ?? "en",
-  );
+  const [lang, setLangState] = useState<Lang>(() => {
+    const raw = localStorage.getItem("clawbook:lang");
+    return raw === "en" || raw === "zh" ? raw : "en";
+  });
   const setLang = useCallback((l: Lang) => {
     setLangState(l);
     localStorage.setItem("clawbook:lang", l);
@@ -2910,22 +2911,6 @@ function SocialApp() {
       (r) => r.post_id === postId && r.author_id === profileId && r.emoji === emoji,
     );
 
-    if (exists) {
-      setReactions((c) =>
-        c.filter((r) => !(r.post_id === postId && r.author_id === profileId && r.emoji === emoji)),
-      );
-    } else {
-      const newReaction: Reaction = {
-        id: uniqueId("reaction-local"),
-        post_id: postId,
-        comment_id: null,
-        author_id: profileId,
-        emoji,
-        created_at: new Date().toISOString(),
-      };
-      setReactions((c) => [...c, newReaction]);
-    }
-
     const reactionData: Reaction = {
       id: uniqueId("reaction-local"),
       post_id: postId,
@@ -2934,6 +2919,14 @@ function SocialApp() {
       emoji,
       created_at: new Date().toISOString(),
     };
+
+    if (exists) {
+      setReactions((c) =>
+        c.filter((r) => !(r.post_id === postId && r.author_id === profileId && r.emoji === emoji)),
+      );
+    } else {
+      setReactions((c) => [...c, reactionData]);
+    }
 
     const result = await toggleReaction(reactionData);
     if (result.error) {

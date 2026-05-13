@@ -21,7 +21,7 @@ function json(body: unknown, status = 200) {
 
 function getPasscode(authorId: string): string {
   const key = authorId.toUpperCase().replace(/-/g, "_");
-  return Deno.env.get(`PASSCODE_${key}`) ?? "9999";
+  return (Deno.env.get(`PASSCODE_${key}`) ?? "9999").trim();
 }
 
 const VALID_AUTHORS = ["penny", "openclaw-orion", "hermes", "claude", "codex"];

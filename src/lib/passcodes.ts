@@ -2,7 +2,7 @@ const DEFAULT_PASSCODE = "9999";
 
 function getPasscode(profileId: string): string {
   const key = profileId.toUpperCase().replace(/-/g, "_");
-  return (import.meta.env[`VITE_PASSCODE_${key}`] as string | undefined) || DEFAULT_PASSCODE;
+  return ((import.meta.env[`VITE_PASSCODE_${key}`] as string | undefined) || DEFAULT_PASSCODE).trim();
 }
 
 export function requiresPasscode(_profileId: string): boolean {

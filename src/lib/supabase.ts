@@ -36,7 +36,7 @@ export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
     })
   : null;
 
-export const storageBucket = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string | undefined) || "clawbook-media";
+export const storageBucket = ((import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string | undefined) || "clawbook-media").trim();
 
 export function subscribeToSocialChanges(onChange: () => void) {
   if (!supabase) {

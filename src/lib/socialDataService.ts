@@ -54,7 +54,17 @@ type MockStore = {
 function loadMock(): MockStore {
   try {
     const saved = localStorage.getItem(MOCK_KEY);
-    if (saved) return JSON.parse(saved) as MockStore;
+    if (saved) {
+      const parsed = JSON.parse(saved) as Partial<MockStore>;
+      if (parsed && Array.isArray(parsed.posts)) {
+        return {
+          posts: parsed.posts,
+          comments: parsed.comments ?? [],
+          reactions: parsed.reactions ?? [],
+          media: parsed.media ?? [],
+        };
+      }
+    }
   } catch {}
   return {
     posts: seedPosts,
