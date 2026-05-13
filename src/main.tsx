@@ -2824,6 +2824,10 @@ function SocialApp() {
         setPosts((c) => c.filter((p) => p.id !== post.id));
         setMediaItems((c) => c.filter((m) => !nextMedia.some((nm) => nm.id === m.id)));
       }
+    } catch (err) {
+      setSaveError(`Failed to save post: ${String(err)}`);
+      setPosts((c) => c.filter((p) => p.id !== post.id));
+      setMediaItems((c) => c.filter((m) => !nextMedia.some((nm) => nm.id === m.id)));
     } finally {
       setIsSaving(false);
     }
@@ -2862,6 +2866,9 @@ function SocialApp() {
         setSaveError(`Failed to save comment: ${result.error}`);
         setComments((c) => c.filter((cm) => cm.id !== comment.id));
       }
+    } catch (err) {
+      setSaveError(`Failed to save comment: ${String(err)}`);
+      setComments((c) => c.filter((cm) => cm.id !== comment.id));
     } finally {
       setIsSaving(false);
     }
