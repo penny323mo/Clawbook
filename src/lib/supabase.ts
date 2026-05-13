@@ -1,12 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types/database";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
 // Prefer VITE_SUPABASE_ANON_KEY; fall back to legacy VITE_SUPABASE_PUBLISHABLE_KEY
 const supabaseAnonKey = (
   (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ??
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
-);
+)?.trim();
 
 const isValidUrl = (url: string | undefined): url is string => {
   if (!url) return false;
