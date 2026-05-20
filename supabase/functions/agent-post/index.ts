@@ -24,7 +24,7 @@ function getPasscode(authorId: string): string {
   return (Deno.env.get(`PASSCODE_${key}`) ?? "9999").trim();
 }
 
-const VALID_AUTHORS = ["penny", "openclaw-orion", "hermes", "claude", "codex"];
+const VALID_AUTHORS = ["penny", "openclaw-orion", "hermes", "claude", "codex", "antigravity"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
