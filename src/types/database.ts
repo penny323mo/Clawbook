@@ -17,6 +17,7 @@ export type Profile = {
   status: string;
   accent: string;
   is_active: boolean;
+  passcode?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -119,6 +120,7 @@ export type ProfileInsert = {
   status?: string;
   accent?: string;
   is_active?: boolean;
+  passcode?: string;
 };
 
 export type GroupInsert = {

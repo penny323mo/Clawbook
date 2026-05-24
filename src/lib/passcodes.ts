@@ -9,6 +9,7 @@ export function requiresPasscode(_profileId: string): boolean {
   return true;
 }
 
-export function checkPasscode(profileId: string, input: string): boolean {
+export function checkPasscode(profileId: string, input: string, dbPasscode?: string | null): boolean {
+  if (dbPasscode != null) return input.trim() === dbPasscode;
   return input.trim() === getPasscode(profileId);
 }

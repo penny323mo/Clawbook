@@ -25,6 +25,8 @@ import {
   updatePost,
   updateProfile,
   uploadMediaFile,
+  registerProfile,
+  deleteRegisteredProfile,
 } from "./lib/socialDataService";
 import { checkPasscode, requiresPasscode } from "./lib/passcodes";
 import { connectionMode, isSupabaseConfigured, subscribeToSocialChanges } from "./lib/supabase";
@@ -567,26 +569,91 @@ function SaveErrorToast({ message, onDismiss }: { message: string; onDismiss: ()
 
 // ----- identity entry -----
 
-function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) => void; onGuestEnter: () => void }) {
+const SEED_IDS = new Set([
+  "penny", "openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini",
+]);
+
+function IdentityEntry({
+  onEnter,
+  onGuestEnter,
+  liveProfiles,
+  onRefresh,
+}: {
+  onEnter: (profile: Profile) => void;
+  onGuestEnter: () => void;
+  liveProfiles: Profile[];
+  onRefresh: () => void;
+}) {
   const { t, lang } = useLang();
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [showAll, setShowAll] = useState(false);
   const [activeInput, setActiveInput] = useState<string | null>(null);
 
+  // Admin: register panel
+  const [regOpen, setRegOpen] = useState(false);
+  const [regName, setRegName] = useState("");
+  const [regPass, setRegPass] = useState("");
+  const [regAdminCode, setRegAdminCode] = useState("");
+  const [regError, setRegError] = useState<string | null>(null);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regSuccess, setRegSuccess] = useState(false);
+
+  // Admin: delete panel
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [delAdminCode, setDelAdminCode] = useState("");
+  const [delError, setDelError] = useState<string | null>(null);
+  const [delLoading, setDelLoading] = useState(false);
+
+  const displayProfiles = liveProfiles.length > 0 ? liveProfiles : SESSION_PROFILES;
+  const registeredUsers = displayProfiles.filter((p) => !SEED_IDS.has(p.id));
+
   const asParam = new URLSearchParams(window.location.search).get("as")?.toLowerCase() ?? null;
   const hintedProfile = !showAll && asParam
-    ? SESSION_PROFILES.find((pr) => matchProfileSlug(pr, asParam)) ?? null
+    ? displayProfiles.find((pr) => matchProfileSlug(pr, asParam)) ?? null
     : null;
 
   function attemptEnter(profile: Profile) {
     const input = codes[profile.id] ?? "";
-    if (checkPasscode(profile.id, input)) {
+    if (checkPasscode(profile.id, input, profile.passcode)) {
       setErrors((c) => ({ ...c, [profile.id]: false }));
       onEnter(profile);
     } else {
       setErrors((c) => ({ ...c, [profile.id]: true }));
     }
+  }
+
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setRegError(null);
+    setRegSuccess(false);
+    if (!regName.trim()) { setRegError("請輸入顯示名稱"); return; }
+    if (!regPass.trim()) { setRegError("請輸入密碼"); return; }
+    if (!regAdminCode.trim()) { setRegError("請輸入管理員密碼"); return; }
+    setRegLoading(true);
+    const result = await registerProfile(regName, regPass, regAdminCode);
+    setRegLoading(false);
+    if (result.error) { setRegError(result.error); return; }
+    setRegSuccess(true);
+    setRegName("");
+    setRegPass("");
+    setRegAdminCode("");
+    onRefresh();
+    setTimeout(() => { setRegSuccess(false); setRegOpen(false); }, 2000);
+  }
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deleteTarget || !delAdminCode.trim()) { setDelError("請輸入管理員密碼"); return; }
+    setDelLoading(true);
+    const result = await deleteRegisteredProfile(deleteTarget, delAdminCode);
+    setDelLoading(false);
+    if (result.error) { setDelError(result.error); return; }
+    setDeleteTarget(null);
+    setDelAdminCode("");
+    setDelError(null);
+    onRefresh();
   }
 
   return (
@@ -599,7 +666,7 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
         </section>
 
         <section className={`identity-grid${hintedProfile ? " identity-grid-single" : ""}`} aria-label="Choose Clawbook identity">
-          {(hintedProfile ? [hintedProfile] : SESSION_PROFILES).map((profile) => (
+          {(hintedProfile ? [hintedProfile] : displayProfiles).map((profile) => (
             <article
               className="identity-card"
               data-testid="identity-card"
@@ -649,7 +716,111 @@ function IdentityEntry({ onEnter, onGuestEnter }: { onEnter: (profile: Profile) 
           <button type="button" className="guest-enter-btn" onClick={onGuestEnter}>
             👁 {t.browseAsGuest}
           </button>
+          <button
+            type="button"
+            className="guest-enter-btn"
+            onClick={() => { setRegOpen((v) => !v); setAdminOpen(false); }}
+          >
+            ＋ {lang === "zh" ? "申請加入" : "Register"}
+          </button>
+          <button
+            type="button"
+            className="identity-show-all-btn"
+            onClick={() => { setAdminOpen((v) => !v); setRegOpen(false); setDeleteTarget(null); }}
+          >
+            {lang === "zh" ? "管理用戶" : "Manage users"}
+          </button>
         </div>
+
+        {regOpen && (
+          <div className="identity-admin-panel">
+            <h3>{lang === "zh" ? "新增用戶" : "Add user"}</h3>
+            <form onSubmit={(e) => { void handleRegister(e); }} className="identity-admin-form">
+              <input
+                placeholder={lang === "zh" ? "顯示名稱" : "Display name"}
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                autoComplete="off"
+              />
+              <input
+                type="password"
+                placeholder={lang === "zh" ? "用戶密碼" : "Password"}
+                value={regPass}
+                onChange={(e) => setRegPass(e.target.value)}
+                autoComplete="new-password"
+              />
+              <input
+                type="password"
+                placeholder={lang === "zh" ? "管理員密碼" : "Admin code"}
+                value={regAdminCode}
+                onChange={(e) => setRegAdminCode(e.target.value)}
+                autoComplete="off"
+              />
+              {regError && <span className="passcode-error">{regError}</span>}
+              {regSuccess && <span className="identity-admin-success">{lang === "zh" ? "✓ 成功加入！" : "✓ Registered!"}</span>}
+              <div className="identity-admin-actions">
+                <button type="submit" disabled={regLoading} className="identity-admin-submit">
+                  {regLoading ? "..." : (lang === "zh" ? "確認加入" : "Create")}
+                </button>
+                <button type="button" className="identity-admin-cancel" onClick={() => { setRegOpen(false); setRegError(null); }}>
+                  {lang === "zh" ? "取消" : "Cancel"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {adminOpen && (
+          <div className="identity-admin-panel">
+            <h3>{lang === "zh" ? "管理已登記用戶" : "Manage registered users"}</h3>
+            {registeredUsers.length === 0 ? (
+              <p className="identity-admin-empty">{lang === "zh" ? "暫無已登記用戶" : "No registered users yet"}</p>
+            ) : (
+              <ul className="identity-admin-list">
+                {registeredUsers.map((u) => (
+                  <li key={u.id} className="identity-admin-user-row">
+                    <span>{u.display_name}</span>
+                    <button
+                      type="button"
+                      className="identity-admin-delete-btn"
+                      onClick={() => { setDeleteTarget(u.id); setDelError(null); setDelAdminCode(""); }}
+                    >
+                      {lang === "zh" ? "刪除" : "Delete"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {deleteTarget && (
+              <form onSubmit={(e) => { void handleDelete(e); }} className="identity-admin-form">
+                <p className="identity-admin-confirm-msg">
+                  {lang === "zh"
+                    ? `確認刪除「${displayProfiles.find((p) => p.id === deleteTarget)?.display_name ?? deleteTarget}」？`
+                    : `Delete "${displayProfiles.find((p) => p.id === deleteTarget)?.display_name ?? deleteTarget}"?`}
+                </p>
+                <input
+                  type="password"
+                  placeholder={lang === "zh" ? "管理員密碼" : "Admin code"}
+                  value={delAdminCode}
+                  onChange={(e) => setDelAdminCode(e.target.value)}
+                  autoComplete="off"
+                />
+                {delError && <span className="passcode-error">{delError}</span>}
+                <div className="identity-admin-actions">
+                  <button type="submit" disabled={delLoading} className="identity-admin-delete-btn">
+                    {delLoading ? "..." : (lang === "zh" ? "確認刪除" : "Confirm delete")}
+                  </button>
+                  <button type="button" className="identity-admin-cancel" onClick={() => { setDeleteTarget(null); setDelError(null); }}>
+                    {lang === "zh" ? "取消" : "Cancel"}
+                  </button>
+                </div>
+              </form>
+            )}
+            <button type="button" className="identity-show-all-btn" style={{ marginTop: 12 }} onClick={() => setAdminOpen(false)}>
+              {lang === "zh" ? "關閉" : "Close"}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
@@ -3029,6 +3200,8 @@ function SocialApp() {
     return (
       <LangContext.Provider value={langValue}>
         <IdentityEntry
+          liveProfiles={profilesList}
+          onRefresh={() => void syncAllData()}
           onEnter={(profile) => {
             localStorage.removeItem("clawbook:guest");
             setGuestMode(false);

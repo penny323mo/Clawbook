@@ -10,6 +10,12 @@ import {
 } from "../data/socialSeed";
 import type { Comment, Group, GroupMember, Media, Post, Profile, Reaction } from "../types/database";
 
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? "";
+const SUPABASE_ANON = (
+  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ??
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
+)?.trim() ?? "";
+
 // ----- result type -----
 
 export type ServiceResult<T> = { data: T; error: null } | { data: null; error: string };
@@ -28,6 +34,18 @@ export type SocialData = {
 
 const MOCK_KEY = "clawbook:mock:social:v1";
 const PROFILE_OVERRIDE_KEY = "clawbook:mock:profiles:v1";
+const REGISTERED_KEY = "clawbook:registered:v1";
+
+function loadRegisteredMock(): Profile[] {
+  try {
+    const saved = localStorage.getItem(REGISTERED_KEY);
+    return saved ? (JSON.parse(saved) as Profile[]) : [];
+  } catch { return []; }
+}
+
+function saveRegisteredMock(profiles: Profile[]): void {
+  try { localStorage.setItem(REGISTERED_KEY, JSON.stringify(profiles)); } catch {}
+}
 
 type ProfileOverrides = Record<string, { bio?: string; status?: string; accent?: string; role?: string; avatar_url?: string }>;
 
@@ -86,12 +104,13 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();
     const overrides = loadProfileOverrides();
-    const profiles = seedProfiles.map((p) =>
+    const baseProfiles = seedProfiles.map((p) =>
       overrides[p.id] ? { ...p, ...overrides[p.id] } : p,
     );
+    const registered = loadRegisteredMock();
     return {
       data: {
-        profiles,
+        profiles: [...baseProfiles, ...registered],
         groups: seedGroups,
         groupMembers: seedGroupMembers,
         ...mock,
@@ -433,6 +452,74 @@ export async function markMessagesRead(
     .eq("read", false);
   if (error) return { data: null, error: error.message };
   return { data: { updated: true }, error: null };
+}
+
+export async function registerProfile(
+  displayName: string,
+  passcode: string,
+  adminCode: string,
+): Promise<ServiceResult<Profile>> {
+  if (!isSupabaseConfigured || !supabase) {
+    // Mock mode: store locally
+    const id = displayName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (!id) return { data: null, error: "Invalid display name" };
+    const existing = loadRegisteredMock();
+    if (existing.some((p) => p.id === id)) return { data: null, error: "Username already taken" };
+    const initials = displayName.trim().split(/\s+/).map((w) => w[0]?.toUpperCase() ?? "").join("").slice(0, 2) || "?";
+    const now = new Date().toISOString();
+    const profile: Profile = {
+      id, username: id, display_name: displayName.trim(), kind: "human", role: "Member",
+      avatar_initials: initials, avatar_url: null, cover_url: null, bio: "", status: "",
+      accent: "#6b7280", is_active: true, passcode: passcode.trim(), created_at: now, updated_at: now,
+    };
+    saveRegisteredMock([...existing, profile]);
+    return { data: profile, error: null };
+  }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/user-admin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+      },
+      body: JSON.stringify({ action: "register", admin_code: adminCode, display_name: displayName, passcode }),
+    });
+    const data = await res.json() as { profile?: Profile; error?: string };
+    if (!res.ok || !data.profile) return { data: null, error: data.error ?? "Registration failed" };
+    return { data: data.profile, error: null };
+  } catch (err) {
+    return { data: null, error: String(err) };
+  }
+}
+
+export async function deleteRegisteredProfile(
+  profileId: string,
+  adminCode: string,
+): Promise<ServiceResult<{ deleted: true }>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const existing = loadRegisteredMock();
+    saveRegisteredMock(existing.filter((p) => p.id !== profileId));
+    return { data: { deleted: true }, error: null };
+  }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/user-admin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+      },
+      body: JSON.stringify({ action: "delete", admin_code: adminCode, profile_id: profileId }),
+    });
+    const data = await res.json() as { deleted?: string; error?: string };
+    if (!res.ok) return { data: null, error: data.error ?? "Deletion failed" };
+    return { data: { deleted: true }, error: null };
+  } catch (err) {
+    return { data: null, error: String(err) };
+  }
 }
 
 export async function updateProfile(
