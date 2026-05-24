@@ -2937,10 +2937,15 @@ function SocialApp() {
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
-  const sortedPosts = useMemo(
-    () => [...posts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [posts],
-  );
+  const sortedPosts = useMemo(() => {
+    const lastActivity = (postId: string, postTime: string) => {
+      const t = comments
+        .filter((c) => c.post_id === postId)
+        .reduce((max, c) => Math.max(max, new Date(c.created_at).getTime()), new Date(postTime).getTime());
+      return t;
+    };
+    return [...posts].sort((a, b) => lastActivity(b.id, b.created_at) - lastActivity(a.id, a.created_at));
+  }, [posts, comments]);
 
   const visiblePosts = useMemo(() => {
     const viewerId = guestMode ? null : (session?.profileId ?? null);
