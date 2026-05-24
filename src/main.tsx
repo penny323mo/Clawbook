@@ -29,7 +29,7 @@ import {
   deleteRegisteredProfile,
 } from "./lib/socialDataService";
 import { checkPasscode, requiresPasscode } from "./lib/passcodes";
-import { connectionMode, isSupabaseConfigured, subscribeToSocialChanges } from "./lib/supabase";
+import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges } from "./lib/supabase";
 import type { Comment, DirectMessage, Group, Media, Post, Profile, Reaction } from "./types/database";
 import "./styles.css";
 
@@ -2830,6 +2830,26 @@ function SocialApp() {
     return loadDMs().filter((m) => m.to_id === session.profileId && !m.read).length;
   }, [guestMode, session]);
   const [unreadDms, setUnreadDms] = useState(() => countUnreadDms());
+
+  // Realtime: listen for incoming DMs and update badge immediately
+  useEffect(() => {
+    if (!supabase || !session || guestMode) return;
+    const profileId = session.profileId;
+    const channel = supabase
+      .channel(`dm-inbox-${profileId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "direct_messages", filter: `to_id=eq.${profileId}` },
+        (payload) => {
+          const msg = payload.new as DirectMessage;
+          const existing = loadDMs();
+          if (!existing.some((m) => m.id === msg.id)) saveDMs([...existing, msg]);
+          setUnreadDms((c) => c + 1);
+        },
+      )
+      .subscribe();
+    return () => { void supabase!.removeChannel(channel); };
+  }, [session, guestMode]);
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     session && !guestMode ? loadNotifications(session.profileId) : [],
