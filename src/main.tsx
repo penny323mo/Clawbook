@@ -2900,8 +2900,17 @@ function SocialApp() {
     setSyncError(null);
     liveProfiles = result.data.profiles;
     setProfilesList(result.data.profiles);
-    setPosts(result.data.posts);
-    setComments(result.data.comments);
+    // Preserve optimistic (in-flight) local writes that haven't reached DB yet
+    const incomingPostIds = new Set(result.data.posts.map((p) => p.id));
+    setPosts((prev) => {
+      const pending = prev.filter((p) => p.id.startsWith("post-local-") && !incomingPostIds.has(p.id));
+      return pending.length ? [...result.data!.posts, ...pending] : result.data!.posts;
+    });
+    const incomingCmtIds = new Set(result.data.comments.map((c) => c.id));
+    setComments((prev) => {
+      const pending = prev.filter((c) => c.id.startsWith("comment-local-") && !incomingCmtIds.has(c.id));
+      return pending.length ? [...result.data!.comments, ...pending] : result.data!.comments;
+    });
     setReactions(result.data.reactions);
     setMediaItems(result.data.media);
   }, []);
