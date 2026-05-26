@@ -8,7 +8,7 @@ import {
   profiles as seedProfiles,
   reactions as seedReactions,
 } from "../data/socialSeed";
-import type { Comment, Group, GroupMember, Media, Post, Profile, Reaction } from "../types/database";
+import type { Comment, Group, GroupMember, Media, Post, Profile, PollVote, Reaction } from "../types/database";
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? "";
 const SUPABASE_ANON = (
@@ -546,4 +546,38 @@ export async function updateProfile(
     .single();
   if (error) return { data: null, error: error.message };
   return { data: data as Profile, error: null };
+}
+
+// ----- polls -----
+
+export async function loadPollVotes(): Promise<PollVote[]> {
+  if (!isSupabaseConfigured || !supabase) return [];
+  const { data, error } = await supabase.from("poll_votes").select("*");
+  if (error) return [];
+  return (data ?? []) as PollVote[];
+}
+
+export async function castPollVote(
+  postId: string,
+  profileId: string,
+  optionIdx: number,
+  currentVoteIdx: number | null,
+): Promise<ServiceResult<null>> {
+  if (!isSupabaseConfigured || !supabase) return { data: null, error: "Not connected" };
+  if (currentVoteIdx === optionIdx) {
+    // Toggle off — remove vote
+    const { error } = await supabase
+      .from("poll_votes")
+      .delete()
+      .eq("post_id", postId)
+      .eq("profile_id", profileId);
+    if (error) return { data: null, error: error.message };
+    return { data: null, error: null };
+  }
+  // Insert or update to new option
+  const { error } = await supabase
+    .from("poll_votes")
+    .upsert({ post_id: postId, profile_id: profileId, option_idx: optionIdx }, { onConflict: "post_id,profile_id" });
+  if (error) return { data: null, error: error.message };
+  return { data: null, error: null };
 }

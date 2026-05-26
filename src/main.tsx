@@ -16,6 +16,8 @@ import {
   pinPost,
   loadAllSocialData,
   loadDirectMessages,
+  loadPollVotes,
+  castPollVote,
   markMessagesRead,
   persistComment,
   persistDirectMessage,
@@ -30,7 +32,7 @@ import {
 } from "./lib/socialDataService";
 import { checkPasscode, requiresPasscode } from "./lib/passcodes";
 import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges } from "./lib/supabase";
-import type { Comment, DirectMessage, Group, Media, Post, Profile, Reaction } from "./types/database";
+import type { Comment, DirectMessage, Group, Media, Post, PollVote, Profile, Reaction } from "./types/database";
 import "./styles.css";
 
 type Route =
@@ -48,7 +50,7 @@ const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
 const SESSION_PROFILES = profiles;
 const POST_MAX_LENGTH = 640;
 const COMMENT_MAX_LENGTH = 500;
-const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂"];
+const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂", "🧠", "⚡", "💡", "🚀"];
 
 const PAGE_SIZE = 20;
 let pendingScrollPostId: string | null = null;
@@ -1146,7 +1148,11 @@ function RightSidebar({
                 key={`${item.kind}-${idx}`}
                 type="button"
                 className="trending-item"
-                onClick={() => navigate({ name: "profile", id: actor.id })}
+                onClick={() => {
+                  pendingScrollPostId = targetPost.id;
+                  navigate({ name: "home" });
+                  window.dispatchEvent(new CustomEvent("clawbook:focus-post"));
+                }}
               >
                 <span className="trending-rank activity-avatar" style={{ backgroundColor: actor.accent }}>
                   {actor.avatar_initials}
@@ -1342,6 +1348,8 @@ function CreatePost({
     target.target_type === "group" && !groups.find((g) => g.id === target.target_id)?.is_public ? "agents" : "public";
   const [visibility, setVisibility] = useState<Post["visibility"]>(defaultVisibility);
   const fileMapRef = useRef<Map<string, File>>(new Map());
+  const [pollMode, setPollMode] = useState(false);
+  const [pollOptions, setPollOptions] = useState(["", ""]);
 
   useEffect(() => {
     setVisibility(defaultVisibility);
@@ -1397,7 +1405,9 @@ function CreatePost({
       return;
     }
     setImageUrlError(false);
-    if (!safeBody && previews.length === 0 && !safeImageUrl) return;
+    const validPollOptions = pollMode ? pollOptions.map((o) => o.trim()).filter(Boolean) : [];
+    if (!safeBody && previews.length === 0 && !safeImageUrl && validPollOptions.length < 2) return;
+    if (pollMode && validPollOptions.length < 2) return;
 
     const postId = uniqueId("post-local");
     const createdAt = new Date().toISOString();
@@ -1414,6 +1424,7 @@ function CreatePost({
         .filter(Boolean)
         .slice(0, 5),
       visibility,
+      poll_options: validPollOptions.length >= 2 ? validPollOptions : null,
       created_at: createdAt,
       updated_at: createdAt,
     };
@@ -1427,6 +1438,8 @@ function CreatePost({
     setImageUrl("");
     setPreviews([]);
     setVisibility(defaultVisibility);
+    setPollMode(false);
+    setPollOptions(["", ""]);
     fileMapRef.current.clear();
     try { localStorage.removeItem(draftKey); } catch {}
   }
@@ -1484,6 +1497,30 @@ function CreatePost({
           ))}
         </div>
       ) : null}
+      {pollMode && (
+        <div className="poll-composer">
+          <p className="poll-composer-label">{lang === "zh" ? "📊 投票選項（最少2、最多4個）" : "📊 Poll options (2–4)"}</p>
+          {pollOptions.map((opt, i) => (
+            <div key={i} className="poll-composer-row">
+              <input
+                className="tag-input"
+                value={opt}
+                maxLength={60}
+                placeholder={lang === "zh" ? `選項 ${i + 1}` : `Option ${i + 1}`}
+                onChange={(e) => setPollOptions((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
+              />
+              {pollOptions.length > 2 && (
+                <button type="button" className="poll-remove-option" onClick={() => setPollOptions((prev) => prev.filter((_, j) => j !== i))}>✕</button>
+              )}
+            </div>
+          ))}
+          {pollOptions.length < 4 && (
+            <button type="button" className="poll-add-option" onClick={() => setPollOptions((prev) => [...prev, ""])}>
+              {lang === "zh" ? "+ 加選項" : "+ Add option"}
+            </button>
+          )}
+        </div>
+      )}
       <div className="visibility-picker">
         {(["public", "agents", "private"] as const).map((v) => (
           <button key={v} type="button"
@@ -1503,13 +1540,21 @@ function CreatePost({
           {t.addImage}
           <input type="file" accept="image/*" multiple onChange={(e) => attachImages(e.target.files)} />
         </label>
+        <button
+          type="button"
+          className={`poll-toggle-btn${pollMode ? " is-active" : ""}`}
+          onClick={() => { setPollMode((v) => !v); setPollOptions(["", ""]); }}
+          title={lang === "zh" ? "投票" : "Poll"}
+        >
+          📊
+        </button>
         <span className={POST_MAX_LENGTH - body.length < 80 ? "char-counter is-warning" : "char-counter"}>
           {POST_MAX_LENGTH - body.length}
         </span>
         <button
           type="button"
           onClick={create}
-          disabled={saving || (!body.trim() && previews.length === 0 && !imageUrl.trim())}
+          disabled={saving || (!body.trim() && previews.length === 0 && !imageUrl.trim() && !(pollMode && pollOptions.filter(Boolean).length >= 2))}
         >
           {saving ? t.savingBtn : t.postBtn}
         </button>
@@ -1557,6 +1602,8 @@ function SocialPostCard({
   onDeleteComment,
   onTagClick,
   onPinPost,
+  pollVotes,
+  onPollVote,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -1573,6 +1620,8 @@ function SocialPostCard({
   onDeleteComment: (commentId: string) => void;
   onTagClick?: (tag: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
+  pollVotes?: PollVote[];
+  onPollVote?: (postId: string, optionIdx: number) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -1769,6 +1818,41 @@ function SocialPostCard({
               ))}
             </div>
           ) : null}
+          {post.poll_options && post.poll_options.length > 0 && (() => {
+            const myVote = pollVotes?.find((v) => v.post_id === post.id && v.profile_id === currentProfile.id);
+            const totalVotes = pollVotes?.filter((v) => v.post_id === post.id).length ?? 0;
+            const hasVoted = myVote !== undefined;
+            return (
+              <div className="poll-block">
+                {post.poll_options.map((opt, i) => {
+                  const count = pollVotes?.filter((v) => v.post_id === post.id && v.option_idx === i).length ?? 0;
+                  const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                  const isMyChoice = myVote?.option_idx === i;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted ? " has-result" : ""}`}
+                      onClick={() => onPollVote?.(post.id, i)}
+                      disabled={readOnly}
+                    >
+                      <span className="poll-option-bar" style={{ width: hasVoted ? `${pct}%` : "0%" }} />
+                      <span className="poll-option-label">{opt}</span>
+                      {hasVoted && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
+                    </button>
+                  );
+                })}
+                <p className="poll-votes-total">
+                  {lang === "zh" ? `${totalVotes} 票` : `${totalVotes} vote${totalVotes !== 1 ? "s" : ""}`}
+                  {hasVoted && !readOnly && (
+                    <button type="button" className="poll-change-vote" onClick={() => onPollVote?.(post.id, myVote!.option_idx)}>
+                      {lang === "zh" ? " · 取消投票" : " · Remove vote"}
+                    </button>
+                  )}
+                </p>
+              </div>
+            );
+          })()}
         </>
       )}
 
@@ -1961,6 +2045,8 @@ function Feed({
   onEditComment,
   onDeleteComment,
   onPinPost,
+  allPollVotes,
+  onPollVote,
 }: {
   posts: Post[];
   currentProfile: Profile;
@@ -1977,6 +2063,8 @@ function Feed({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
+  allPollVotes?: PollVote[];
+  onPollVote?: (postId: string, optionIdx: number) => void;
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
@@ -2089,6 +2177,8 @@ function Feed({
           onDeleteComment={onDeleteComment}
           onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
           onPinPost={onPinPost}
+          pollVotes={allPollVotes?.filter((v) => v.post_id === post.id)}
+          onPollVote={onPollVote}
         />
       ))}
       {visibleCount < allDisplayPosts.length && (
@@ -2125,6 +2215,8 @@ function ProfilePage({
   onPinPost,
   onEditProfile,
   onMessage,
+  allPollVotes,
+  onPollVote,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -2144,6 +2236,8 @@ function ProfilePage({
   onPinPost?: (postId: string, pinned: boolean) => void;
   onEditProfile?: (bio: string, status: string, accent: string, role: string, avatarUrl?: string) => void;
   onMessage?: () => void;
+  allPollVotes?: PollVote[];
+  onPollVote?: (postId: string, optionIdx: number) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2362,6 +2456,8 @@ function ProfilePage({
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
         onPinPost={onPinPost}
+        allPollVotes={allPollVotes}
+        onPollVote={onPollVote}
       />
     </div>
   );
@@ -2386,6 +2482,8 @@ function PublicGroupPage({
   onEditComment,
   onDeleteComment,
   onPinPost,
+  allPollVotes,
+  onPollVote,
 }: {
   groupId: string;
   currentProfile: Profile;
@@ -2403,6 +2501,8 @@ function PublicGroupPage({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
+  allPollVotes?: PollVote[];
+  onPollVote?: (postId: string, optionIdx: number) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2500,6 +2600,8 @@ function PublicGroupPage({
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
         onPinPost={onPinPost}
+        allPollVotes={allPollVotes}
+        onPollVote={onPollVote}
       />
     </div>
   );
@@ -2523,6 +2625,8 @@ function HomePage({
   onEditComment,
   onDeleteComment,
   onPinPost,
+  allPollVotes,
+  onPollVote,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -2539,6 +2643,8 @@ function HomePage({
   onEditComment: (commentId: string, body: string) => void;
   onDeleteComment: (commentId: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
+  allPollVotes?: PollVote[];
+  onPollVote?: (postId: string, optionIdx: number) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2662,6 +2768,8 @@ function HomePage({
         onEditComment={onEditComment}
         onDeleteComment={onDeleteComment}
         onPinPost={onPinPost}
+        allPollVotes={allPollVotes}
+        onPollVote={onPollVote}
       />
     </div>
   );
@@ -2927,6 +3035,18 @@ function SocialApp() {
     return () => { void supabase!.removeChannel(channel); };
   }, [session, guestMode]);
 
+  // Realtime: live poll vote updates
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel("poll-votes-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, () => {
+        void loadPollVotes().then(setPollVotes);
+      })
+      .subscribe();
+    return () => { void supabase!.removeChannel(channel); };
+  }, []);
+
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     session && !guestMode ? loadNotifications(session.profileId) : [],
   );
@@ -2953,6 +3073,7 @@ function SocialApp() {
   const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
   const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
   const [mediaItems, setMediaItems] = useState<Media[]>(isSupabaseConfigured ? [] : seedMedia);
+  const [pollVotes, setPollVotes] = useState<PollVote[]>([]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -2989,6 +3110,7 @@ function SocialApp() {
     });
     setReactions(result.data.reactions);
     setMediaItems(result.data.media);
+    void loadPollVotes().then(setPollVotes);
   }, []);
 
   useEffect(() => {
@@ -3229,6 +3351,21 @@ function SocialApp() {
     }
   }
 
+  async function voteOnPoll(postId: string, optionIdx: number) {
+    const myVote = pollVotes.find((v) => v.post_id === postId && v.profile_id === currentProfile.id);
+    const currentVoteIdx = myVote?.option_idx ?? null;
+    // Optimistic update
+    if (currentVoteIdx === optionIdx) {
+      setPollVotes((c) => c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)));
+    } else {
+      const newVote: PollVote = { post_id: postId, profile_id: currentProfile.id, option_idx: optionIdx, created_at: new Date().toISOString() };
+      setPollVotes((c) => [...c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)), newVote]);
+    }
+    await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx);
+    // Refresh to sync with real DB state
+    void loadPollVotes().then(setPollVotes);
+  }
+
   async function togglePin(postId: string, pinned: boolean) {
     setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: pinned } : p)));
     const result = await pinPost(postId, pinned);
@@ -3351,6 +3488,8 @@ function SocialApp() {
       onEditComment={editComment}
       onDeleteComment={removeComment}
       onPinPost={togglePin}
+      allPollVotes={pollVotes}
+      onPollVote={voteOnPoll}
     />
   );
 
@@ -3373,6 +3512,8 @@ function SocialApp() {
         onEditComment={editComment}
         onDeleteComment={removeComment}
         onPinPost={togglePin}
+        allPollVotes={pollVotes}
+        onPollVote={voteOnPoll}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
@@ -3410,6 +3551,8 @@ function SocialApp() {
         onEditComment={editComment}
         onDeleteComment={removeComment}
         onPinPost={togglePin}
+        allPollVotes={pollVotes}
+        onPollVote={voteOnPoll}
       />
     );
   }

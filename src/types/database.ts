@@ -49,8 +49,16 @@ export type Post = {
   tags: string[];
   visibility: "public" | "agents" | "private";
   is_pinned?: boolean;
+  poll_options?: string[] | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PollVote = {
+  post_id: string;
+  profile_id: string;
+  option_idx: number;
+  created_at: string;
 };
 
 export type Comment = {
@@ -141,6 +149,7 @@ export type PostInsert = {
   image_url?: string | null;
   tags?: string[];
   visibility?: "public" | "agents" | "private";
+  poll_options?: string[] | null;
 };
 
 export type CommentInsert = {
@@ -237,6 +246,12 @@ export type Database = {
         Row: DirectMessage;
         Insert: Omit<DirectMessage, "created_at"> & { created_at?: string };
         Update: Partial<Pick<DirectMessage, "read">>;
+        Relationships: [];
+      };
+      poll_votes: {
+        Row: PollVote;
+        Insert: Omit<PollVote, "created_at"> & { created_at?: string };
+        Update: Partial<Pick<PollVote, "option_idx">>;
         Relationships: [];
       };
     };
