@@ -1583,6 +1583,7 @@ function SocialPostCard({
   const [editTags, setEditTags] = useState(post.tags.join(", "));
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
+  const [showAllComments, setShowAllComments] = useState(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   const author = getProfile(post.author_id);
@@ -1766,19 +1767,48 @@ function SocialPostCard({
           </button>
         ))}
         {comments.length > 0 && (
-          <span className="comment-count-badge">
+          <button
+            type="button"
+            className="comment-count-badge"
+            onClick={() => {
+              const latest = comments[comments.length - 1];
+              if (!latest) return;
+              const el = document.getElementById(`cmt-${latest.id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("comment-highlight");
+                setTimeout(() => el.classList.remove("comment-highlight"), 1800);
+              } else {
+                setShowAllComments(true);
+                setTimeout(() => {
+                  const el2 = document.getElementById(`cmt-${latest.id}`);
+                  if (el2) { el2.scrollIntoView({ behavior: "smooth", block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
+                }, 80);
+              }
+            }}
+            title={lang === "zh" ? "跳至最新留言" : "Jump to latest comment"}
+          >
             💬 {comments.length}
-          </span>
+          </button>
         )}
       </div>
 
       <section className="comments" data-testid="comment-list" aria-label="Comments">
-        {comments.map((comment) => {
+        {comments.length > 3 && !showAllComments && (
+          <button
+            type="button"
+            className="show-all-comments-btn"
+            onClick={() => setShowAllComments(true)}
+          >
+            {lang === "zh" ? `查看全部 ${comments.length} 條留言` : `View all ${comments.length} comments`}
+          </button>
+        )}
+        {(showAllComments ? comments : comments.slice(-3)).map((comment) => {
           const cAuthor = getProfile(comment.author_id);
           const isMyComment = comment.author_id === currentProfile.id;
           const isEditingThis = editingCommentId === comment.id;
           return (
-            <article className="comment" key={comment.id}>
+            <article className="comment" key={comment.id} id={`cmt-${comment.id}`}>
               <Avatar profile={cAuthor} className="comment-avatar" style={{ backgroundColor: cAuthor.accent }} />
               <div className="comment-body-wrap">
                 <strong>{cAuthor.display_name}</strong>

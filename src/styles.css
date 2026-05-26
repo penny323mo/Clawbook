@@ -1855,6 +1855,34 @@ p {
   color: var(--text-muted);
   padding: 4px 8px;
   align-self: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.comment-count-badge:hover {
+  background: rgba(102,227,255,0.1);
+  color: var(--accent);
+}
+
+/* ----- show all comments button ----- */
+
+.show-all-comments-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.show-all-comments-btn:hover {
+  color: var(--accent);
 }
 
 /* ----- profile copy link button ----- */
@@ -3139,6 +3167,17 @@ p {
 .social-post-card.post-highlight {
   animation: post-highlight-pulse 2s ease-out forwards;
   outline: 2px solid rgba(102,227,255,0.5);
+}
+
+@keyframes comment-highlight-pulse {
+  0%   { background: rgba(102,227,255,0.18); }
+  60%  { background: rgba(102,227,255,0.08); }
+  100% { background: transparent; }
+}
+
+.comment.comment-highlight {
+  animation: comment-highlight-pulse 1.8s ease-out forwards;
+  border-radius: 6px;
 }
 
 /* ===================================================
