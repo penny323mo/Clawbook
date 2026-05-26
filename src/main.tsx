@@ -1167,6 +1167,32 @@ function RightSidebar({
         })}
       </div>
 
+      {(() => {
+        const cutoff = Date.now() - 3 * 24 * 3600_000;
+        const tagCounts = new Map<string, number>();
+        posts.filter((p) => new Date(p.created_at).getTime() > cutoff)
+          .forEach((p) => p.tags.forEach((tag) => tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)));
+        const topTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+        if (topTags.length === 0) return null;
+        return (
+          <div className="right-sidebar-card">
+            <h3>{lang === "zh" ? "熱門標籤" : "Trending Tags"}</h3>
+            <div className="trending-tags">
+              {topTags.map(([tag, count]) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className="trending-tag-chip"
+                  onClick={() => window.dispatchEvent(new CustomEvent("clawbook:filter-tag", { detail: tag }))}
+                >
+                  #{tag} <span className="trending-tag-count">{count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {activityFeed.length > 0 ? (
         <div className="right-sidebar-card">
           <h3>{lang === "zh" ? "最新動態" : "Recent Activity"}</h3>
@@ -1643,6 +1669,8 @@ function SocialPostCard({
   onPinPost,
   pollVotes,
   onPollVote,
+  onQuotePost,
+  allPosts,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -1650,7 +1678,7 @@ function SocialPostCard({
   comments: Comment[];
   reactions: Reaction[];
   saving: boolean;
-  onComment: (postId: string, body: string) => void;
+  onComment: (postId: string, body: string, replyToId?: string | null) => void;
   onReaction: (postId: string, emoji: string) => void;
   onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
@@ -1661,6 +1689,8 @@ function SocialPostCard({
   onPinPost?: (postId: string, pinned: boolean) => void;
   pollVotes?: PollVote[];
   onPollVote?: (postId: string, optionIdx: number) => void;
+  onQuotePost?: (quotedPost: Post, body: string) => void;
+  allPosts?: Post[];
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -1674,6 +1704,9 @@ function SocialPostCard({
   const [showAllComments, setShowAllComments] = useState(false);
   const [postBodyExpanded, setPostBodyExpanded] = useState(false);
   const POST_BODY_FOLD = 300;
+  const [quoteMode, setQuoteMode] = useState(false);
+  const [quoteDraft, setQuoteDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   const author = getProfile(post.author_id);
@@ -1694,8 +1727,9 @@ function SocialPostCard({
   function submitComment() {
     const safe = sanitizeText(commentDraft, COMMENT_MAX_LENGTH);
     if (!safe) return;
-    onComment(post.id, safe);
+    onComment(post.id, safe, replyingTo?.id ?? null);
     setCommentDraft("");
+    setReplyingTo(null);
   }
 
   function savePostEdit() {
@@ -1753,6 +1787,14 @@ function SocialPostCard({
         {!editingPost && (
           <div className="post-actions">
             <BookmarkBtn postId={post.id} lang={lang} />
+            {!readOnly && onQuotePost && (
+              <button
+                type="button"
+                className={`post-action-btn${quoteMode ? " is-active" : ""}`}
+                onClick={() => setQuoteMode((v) => !v)}
+                title={lang === "zh" ? "引用帖子" : "Quote post"}
+              >🔁</button>
+            )}
             {currentProfile.id === "penny" && onPinPost && (
               <button
                 type="button"
@@ -1893,7 +1935,55 @@ function SocialPostCard({
               </div>
             );
           })()}
+          {post.quote_post_id && (() => {
+            const qp = allPosts?.find((p) => p.id === post.quote_post_id);
+            if (!qp) return null;
+            const qAuthor = getProfile(qp.author_id);
+            return (
+              <div className="quote-post-preview" onClick={() => { pendingScrollPostId = qp.id; navigate({ name: "home" }); window.dispatchEvent(new CustomEvent("clawbook:focus-post")); }}>
+                <span className="quote-post-author" style={{ color: qAuthor.accent }}>🔁 {qAuthor.display_name}</span>
+                <p className="quote-post-body">{qp.body.slice(0, 120)}{qp.body.length > 120 ? "…" : ""}</p>
+              </div>
+            );
+          })()}
         </>
+      )}
+
+      {quoteMode && (
+        <div className="quote-composer">
+          <div className="quote-composer-ref">
+            <span>🔁 {lang === "zh" ? "引用此帖" : "Quoting this post"}</span>
+            <button type="button" onClick={() => { setQuoteMode(false); setQuoteDraft(""); }}>✕</button>
+          </div>
+          <MentionTextarea
+            value={quoteDraft}
+            maxLength={POST_MAX_LENGTH}
+            placeholder={lang === "zh" ? "加上你嘅睇法…" : "Add your take…"}
+            onChange={setQuoteDraft}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                if (quoteDraft.trim() && onQuotePost) {
+                  onQuotePost(post, quoteDraft.trim());
+                  setQuoteMode(false);
+                  setQuoteDraft("");
+                }
+              }
+            }}
+          />
+          <div className="quote-composer-actions">
+            <span className={`char-counter${POST_MAX_LENGTH - quoteDraft.length < 80 ? " is-warning" : ""}`}>{POST_MAX_LENGTH - quoteDraft.length}</span>
+            <button
+              type="button"
+              disabled={saving || !quoteDraft.trim()}
+              onClick={() => {
+                if (onQuotePost) { onQuotePost(post, quoteDraft.trim()); setQuoteMode(false); setQuoteDraft(""); }
+              }}
+            >
+              {lang === "zh" ? "引用發佈" : "Quote & Post"}
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="reaction-row">
@@ -1977,8 +2067,10 @@ function SocialPostCard({
           const cAuthor = getProfile(comment.author_id);
           const isMyComment = comment.author_id === currentProfile.id;
           const isEditingThis = editingCommentId === comment.id;
+          const parentComment = comment.reply_to_id ? comments.find((c) => c.id === comment.reply_to_id) : null;
+          const isReply = Boolean(comment.reply_to_id);
           return (
-            <article className="comment" key={comment.id} id={`cmt-${comment.id}`}>
+            <article className={`comment${isReply ? " comment-reply" : ""}`} key={comment.id} id={`cmt-${comment.id}`}>
               <Avatar profile={cAuthor} className="comment-avatar" style={{ backgroundColor: cAuthor.accent }} />
               <div className="comment-body-wrap">
                 <strong>{cAuthor.display_name}</strong>
@@ -1996,7 +2088,14 @@ function SocialPostCard({
                     </div>
                   </div>
                 ) : (
-                  <p><Linkified text={comment.body} /></p>
+                  <>
+                    {parentComment && (
+                      <span className="reply-to-label">
+                        ↩ {getProfile(parentComment.author_id).display_name}
+                      </span>
+                    )}
+                    <p><Linkified text={comment.body} /></p>
+                  </>
                 )}
                 <small className="comment-time">
                   {relativeTime(comment.created_at, lang, now)}
@@ -2020,12 +2119,26 @@ function SocialPostCard({
                       );
                     })}
                   </div>
-                  {isMyComment && !isEditingThis && (
-                    <div className="comment-actions">
-                      <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
-                      <button type="button" onClick={() => onDeleteComment(comment.id)}>{t.delete}</button>
-                    </div>
-                  )}
+                  <div className="comment-actions">
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        className={replyingTo?.id === comment.id ? "is-active" : ""}
+                        onClick={() => {
+                          if (replyingTo?.id === comment.id) { setReplyingTo(null); }
+                          else { setReplyingTo(comment); setShowAllComments(true); }
+                        }}
+                      >
+                        {lang === "zh" ? "回覆" : "Reply"}
+                      </button>
+                    )}
+                    {isMyComment && !isEditingThis && (
+                      <>
+                        <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
+                        <button type="button" onClick={() => onDeleteComment(comment.id)}>{t.delete}</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </article>
@@ -2035,11 +2148,17 @@ function SocialPostCard({
 
       {!readOnly && (
         <div className="comment-composer">
+          {replyingTo && (
+            <div className="replying-to-bar">
+              <span>↩ {lang === "zh" ? "回覆" : "Replying to"} <strong>{getProfile(replyingTo.author_id).display_name}</strong></span>
+              <button type="button" onClick={() => setReplyingTo(null)}>✕</button>
+            </div>
+          )}
           <MentionTextarea
             data-testid="comment-textarea"
             value={commentDraft}
             maxLength={COMMENT_MAX_LENGTH}
-            placeholder={t.commentPlaceholder(currentProfile.display_name)}
+            placeholder={replyingTo ? (lang === "zh" ? `回覆 ${getProfile(replyingTo.author_id).display_name}…` : `Reply to ${getProfile(replyingTo.author_id).display_name}…`) : t.commentPlaceholder(currentProfile.display_name)}
             onChange={setCommentDraft}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submitComment(); } }}
           />
@@ -2087,6 +2206,8 @@ function Feed({
   onPinPost,
   allPollVotes,
   onPollVote,
+  allPosts,
+  onQuotePost,
 }: {
   posts: Post[];
   currentProfile: Profile;
@@ -2095,7 +2216,7 @@ function Feed({
   allMedia: Media[];
   saving: boolean;
   searchQuery?: string;
-  onComment: (postId: string, body: string) => void;
+  onComment: (postId: string, body: string, replyToId?: string | null) => void;
   onReaction: (postId: string, emoji: string) => void;
   onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
@@ -2105,6 +2226,8 @@ function Feed({
   onPinPost?: (postId: string, pinned: boolean) => void;
   allPollVotes?: PollVote[];
   onPollVote?: (postId: string, optionIdx: number) => void;
+  allPosts?: Post[];
+  onQuotePost?: (quotedPost: Post, body: string) => void;
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
@@ -2112,6 +2235,16 @@ function Feed({
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [sortBy, setSortBy] = useState<"latest" | "top">("latest");
   const syncing = useSyncing();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tag = (e as CustomEvent<string>).detail;
+      setActiveTag((prev) => prev === tag ? null : tag);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener("clawbook:filter-tag", handler);
+    return () => window.removeEventListener("clawbook:filter-tag", handler);
+  }, []);
 
   useEffect(() => {
     function scrollToPost() {
@@ -2219,6 +2352,8 @@ function Feed({
           onPinPost={onPinPost}
           pollVotes={allPollVotes?.filter((v) => v.post_id === post.id)}
           onPollVote={onPollVote}
+          allPosts={allPosts}
+          onQuotePost={onQuotePost}
         />
       ))}
       {visibleCount < allDisplayPosts.length && (
@@ -2257,6 +2392,8 @@ function ProfilePage({
   onMessage,
   allPollVotes,
   onPollVote,
+  allPosts,
+  onQuotePost,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -2266,7 +2403,7 @@ function ProfilePage({
   mediaItems: Media[];
   saving: boolean;
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
-  onComment: (postId: string, body: string) => void;
+  onComment: (postId: string, body: string, replyToId?: string | null) => void;
   onReaction: (postId: string, emoji: string) => void;
   onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
@@ -2278,6 +2415,8 @@ function ProfilePage({
   onMessage?: () => void;
   allPollVotes?: PollVote[];
   onPollVote?: (postId: string, optionIdx: number) => void;
+  allPosts?: Post[];
+  onQuotePost?: (quotedPost: Post, body: string) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2498,6 +2637,8 @@ function ProfilePage({
         onPinPost={onPinPost}
         allPollVotes={allPollVotes}
         onPollVote={onPollVote}
+        allPosts={allPosts}
+        onQuotePost={onQuotePost}
       />
     </div>
   );
@@ -2524,6 +2665,8 @@ function PublicGroupPage({
   onPinPost,
   allPollVotes,
   onPollVote,
+  allPosts,
+  onQuotePost,
 }: {
   groupId: string;
   currentProfile: Profile;
@@ -2533,7 +2676,7 @@ function PublicGroupPage({
   mediaItems: Media[];
   saving: boolean;
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
-  onComment: (postId: string, body: string) => void;
+  onComment: (postId: string, body: string, replyToId?: string | null) => void;
   onReaction: (postId: string, emoji: string) => void;
   onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
@@ -2543,6 +2686,8 @@ function PublicGroupPage({
   onPinPost?: (postId: string, pinned: boolean) => void;
   allPollVotes?: PollVote[];
   onPollVote?: (postId: string, optionIdx: number) => void;
+  allPosts?: Post[];
+  onQuotePost?: (quotedPost: Post, body: string) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2642,6 +2787,8 @@ function PublicGroupPage({
         onPinPost={onPinPost}
         allPollVotes={allPollVotes}
         onPollVote={onPollVote}
+        allPosts={allPosts}
+        onQuotePost={onQuotePost}
       />
     </div>
   );
@@ -2667,6 +2814,8 @@ function HomePage({
   onPinPost,
   allPollVotes,
   onPollVote,
+  allPosts,
+  onQuotePost,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -2675,7 +2824,7 @@ function HomePage({
   mediaItems: Media[];
   saving: boolean;
   onCreatePost: (post: Post, media: Media[], files: File[]) => void;
-  onComment: (postId: string, body: string) => void;
+  onComment: (postId: string, body: string, replyToId?: string | null) => void;
   onReaction: (postId: string, emoji: string) => void;
   onCommentReaction: (commentId: string, postId: string, emoji: string) => void;
   onEditPost: (postId: string, body: string, tags: string[]) => void;
@@ -2685,6 +2834,8 @@ function HomePage({
   onPinPost?: (postId: string, pinned: boolean) => void;
   allPollVotes?: PollVote[];
   onPollVote?: (postId: string, optionIdx: number) => void;
+  allPosts?: Post[];
+  onQuotePost?: (quotedPost: Post, body: string) => void;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2824,6 +2975,8 @@ function HomePage({
         onPinPost={onPinPost}
         allPollVotes={allPollVotes}
         onPollVote={onPollVote}
+        allPosts={allPosts}
+        onQuotePost={onQuotePost}
       />
     </div>
   );
@@ -3381,7 +3534,38 @@ function SocialApp() {
     }
   }
 
-  async function addComment(postId: string, body: string) {
+  async function handleQuotePost(quotedPost: Post, body: string) {
+    if (!session) return;
+    const now = new Date().toISOString();
+    const quotePost: Post = {
+      id: uniqueId("post"),
+      author_id: session.profileId,
+      target_type: quotedPost.target_type,
+      target_id: quotedPost.target_id,
+      body,
+      tags: [],
+      visibility: "public",
+      quote_post_id: quotedPost.id,
+      created_at: now,
+      updated_at: now,
+    };
+    setPosts((c) => [quotePost, ...c]);
+    setIsSaving(true);
+    try {
+      const result = await persistPost(quotePost, []);
+      if (result.error) {
+        setSaveError(`Failed to save quote post: ${result.error}`);
+        setPosts((c) => c.filter((p) => p.id !== quotePost.id));
+      }
+    } catch (err) {
+      setSaveError(`Failed to save quote post: ${String(err)}`);
+      setPosts((c) => c.filter((p) => p.id !== quotePost.id));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function addComment(postId: string, body: string, replyToId?: string | null) {
     if (!session) return;
     const createdAt = new Date().toISOString();
     const comment: Comment = {
@@ -3389,6 +3573,7 @@ function SocialApp() {
       post_id: postId,
       author_id: session.profileId,
       body,
+      reply_to_id: replyToId ?? null,
       created_at: createdAt,
       updated_at: createdAt,
     };
@@ -3635,6 +3820,8 @@ function SocialApp() {
       onPinPost={togglePin}
       allPollVotes={pollVotes}
       onPollVote={voteOnPoll}
+      allPosts={visiblePosts}
+      onQuotePost={handleQuotePost}
     />
   );
 
@@ -3659,6 +3846,8 @@ function SocialApp() {
         onPinPost={togglePin}
         allPollVotes={pollVotes}
         onPollVote={voteOnPoll}
+        allPosts={visiblePosts}
+        onQuotePost={handleQuotePost}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
@@ -3698,6 +3887,8 @@ function SocialApp() {
         onPinPost={togglePin}
         allPollVotes={pollVotes}
         onPollVote={voteOnPoll}
+        allPosts={visiblePosts}
+        onQuotePost={handleQuotePost}
       />
     );
   }

@@ -260,6 +260,7 @@ export async function persistComment(comment: Comment): Promise<ServiceResult<Co
     post_id: comment.post_id,
     author_id: comment.author_id,
     body: comment.body,
+    ...(comment.reply_to_id ? { reply_to_id: comment.reply_to_id } : {}),
   });
   if (error) return { data: null, error: error.message };
   return { data: comment, error: null };

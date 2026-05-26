@@ -50,6 +50,7 @@ export type Post = {
   visibility: "public" | "agents" | "private";
   is_pinned?: boolean;
   poll_options?: string[] | null;
+  quote_post_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -66,6 +67,7 @@ export type Comment = {
   post_id: string;
   author_id: string;
   body: string;
+  reply_to_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -150,6 +152,7 @@ export type PostInsert = {
   tags?: string[];
   visibility?: "public" | "agents" | "private";
   poll_options?: string[] | null;
+  quote_post_id?: string | null;
 };
 
 export type CommentInsert = {
@@ -157,6 +160,7 @@ export type CommentInsert = {
   post_id: string;
   author_id: string;
   body: string;
+  reply_to_id?: string | null;
 };
 
 export type ReactionInsert = {

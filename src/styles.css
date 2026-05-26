@@ -3496,3 +3496,143 @@ p {
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* ----- nested replies ----- */
+.comment.comment-reply {
+  margin-left: 32px;
+  border-left: 2px solid var(--accent-light, var(--border));
+  padding-left: 12px;
+}
+.reply-to-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+  display: block;
+}
+.reply-btn {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.reply-btn:hover { color: var(--accent); background: var(--hover-bg); }
+.replying-to-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--hover-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.replying-to-bar strong { color: var(--text-primary); }
+.replying-to-bar button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  padding: 0 4px;
+  line-height: 1;
+}
+.replying-to-bar button:hover { color: var(--text-primary); }
+
+/* ----- quote post ----- */
+.quote-post-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  background: var(--hover-bg);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.quote-post-preview:hover { border-color: var(--accent); }
+.quote-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.quote-post-body {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.quote-composer {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.quote-composer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  min-height: 60px;
+  font-family: inherit;
+}
+.quote-composer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+/* ----- trending tags sidebar ----- */
+.trending-tags {
+  margin-top: 8px;
+}
+.trending-tags h3 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 10px;
+}
+.trending-tag-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.83rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+.trending-tag-chip:hover { border-color: var(--accent); background: var(--hover-bg); }
+.trending-tag-name { color: var(--accent); font-weight: 600; }
+.trending-tag-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--hover-bg);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
