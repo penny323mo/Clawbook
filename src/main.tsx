@@ -1728,10 +1728,16 @@ function SocialPostCard({
   });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reactionDetailOpen, setReactionDetailOpen] = useState(false);
+  const [reactionDetailTab, setReactionDetailTab] = useState<string | null>(null);
   const commentComposeRef = useRef<HTMLDivElement>(null);
   const totalReactions = groupedReactions.reduce((s, r) => s + r.count, 0);
-  const activeEmojis = groupedReactions.filter((r) => r.count > 0).sort((a, b) => b.count - a.count).map((r) => r.emoji);
+  const activeGroups = groupedReactions.filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
+  const activeEmojis = activeGroups.map((r) => r.emoji);
   const myReaction = groupedReactions.find((r) => r.active)?.emoji ?? null;
+  // Flat list of all reactors with their emoji, for the detail panel
+  const allReactors = reactions
+    .filter((r) => r.comment_id === null)
+    .map((r) => ({ profile: getProfile(r.author_id), emoji: r.emoji }));
 
   function submitComment() {
     const safe = sanitizeText(commentDraft, COMMENT_MAX_LENGTH);
@@ -1987,59 +1993,92 @@ function SocialPostCard({
         </div>
       )}
 
-      {/* Stats bar — reaction summary + comment count */}
+      {/* Stats bar — left: counts, right: emoji type bubbles */}
       {(totalReactions > 0 || comments.length > 0) && (
         <div className="post-stats-bar">
+          <div className="post-stats-left">
+            {totalReactions > 0 && (
+              <button type="button" className="stat-count-btn" onClick={() => { setReactionDetailOpen((v) => !v); setReactionDetailTab(null); }}>
+                👍 {totalReactions}
+              </button>
+            )}
+            {comments.length > 0 && (
+              <button
+                type="button"
+                className="stat-count-btn"
+                onClick={() => {
+                  const latest = comments[comments.length - 1];
+                  if (!latest) return;
+                  const el = document.getElementById(`cmt-${latest.id}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    el.classList.add("comment-highlight");
+                    setTimeout(() => el.classList.remove("comment-highlight"), 1800);
+                  } else {
+                    setShowAllComments(true);
+                    setTimeout(() => {
+                      const el2 = document.getElementById(`cmt-${latest.id}`);
+                      if (el2) { el2.scrollIntoView({ behavior: "smooth", block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
+                    }, 80);
+                  }
+                }}
+              >
+                {comments.length} {lang === "zh" ? "則留言" : "comments"}
+              </button>
+            )}
+          </div>
           {totalReactions > 0 && (
             <div className="reaction-summary-wrap">
               <button
                 type="button"
-                className="reaction-summary-btn"
-                onClick={() => setReactionDetailOpen((v) => !v)}
-                title={lang === "zh" ? "查看反應" : "See reactions"}
+                className="reaction-type-bubbles-btn"
+                onClick={() => { setReactionDetailOpen((v) => !v); setReactionDetailTab(null); }}
               >
-                <span className="reaction-bubbles">
-                  {activeEmojis.slice(0, 3).map((e) => (
-                    <span key={e} className="reaction-bubble">{e}</span>
-                  ))}
-                </span>
-                <span className="reaction-total">{totalReactions}</span>
+                {activeEmojis.slice(0, 3).map((e) => (
+                  <span key={e} className="reaction-type-bubble">{e}</span>
+                ))}
               </button>
               {reactionDetailOpen && (
                 <div className="reaction-detail-popover">
-                  {groupedReactions.filter((r) => r.count > 0).map((r) => (
-                    <div key={r.emoji} className="reaction-detail-row">
-                      <span className="reaction-detail-emoji">{r.emoji}</span>
-                      <span className="reaction-detail-names">{r.names.join("、")}</span>
-                    </div>
-                  ))}
+                  {/* Tabs */}
+                  <div className="reaction-detail-tabs">
+                    <button
+                      type="button"
+                      className={`reaction-detail-tab${reactionDetailTab === null ? " is-active" : ""}`}
+                      onClick={() => setReactionDetailTab(null)}
+                    >
+                      {lang === "zh" ? "所有" : "All"} {totalReactions}
+                    </button>
+                    {activeGroups.map((g) => (
+                      <button
+                        key={g.emoji}
+                        type="button"
+                        className={`reaction-detail-tab${reactionDetailTab === g.emoji ? " is-active" : ""}`}
+                        onClick={() => setReactionDetailTab(g.emoji)}
+                      >
+                        {g.emoji} {g.count}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Reactor list */}
+                  <div className="reaction-detail-list">
+                    {allReactors
+                      .filter((r) => reactionDetailTab === null || r.emoji === reactionDetailTab)
+                      .map((r, i) => (
+                        <div key={i} className="reaction-detail-person">
+                          <div className="reaction-detail-avatar-wrap">
+                            <span className="reaction-detail-avatar" style={{ backgroundColor: r.profile.accent }}>
+                              {r.profile.avatar_initials}
+                            </span>
+                            <span className="reaction-detail-badge">{r.emoji}</span>
+                          </div>
+                          <span className="reaction-detail-name">{r.profile.display_name}</span>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               )}
             </div>
-          )}
-          {comments.length > 0 && (
-            <button
-              type="button"
-              className="comment-stat-link"
-              onClick={() => {
-                const latest = comments[comments.length - 1];
-                if (!latest) return;
-                const el = document.getElementById(`cmt-${latest.id}`);
-                if (el) {
-                  el.scrollIntoView({ behavior: "smooth", block: "center" });
-                  el.classList.add("comment-highlight");
-                  setTimeout(() => el.classList.remove("comment-highlight"), 1800);
-                } else {
-                  setShowAllComments(true);
-                  setTimeout(() => {
-                    const el2 = document.getElementById(`cmt-${latest.id}`);
-                    if (el2) { el2.scrollIntoView({ behavior: "smooth", block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
-                  }, 80);
-                }
-              }}
-            >
-              {comments.length} {lang === "zh" ? "則留言" : "comments"}
-            </button>
           )}
         </div>
       )}
