@@ -79,6 +79,28 @@ function useReadOnly() { return useContext(ReadOnlyContext); }
 const SyncingContext = createContext(false);
 function useSyncing() { return useContext(SyncingContext); }
 
+// ----- bookmarks -----
+
+const BOOKMARK_KEY = "clawbook:bookmarks:v1";
+
+function loadBookmarkIds(): Set<string> {
+  try {
+    const s = localStorage.getItem(BOOKMARK_KEY);
+    return new Set(s ? (JSON.parse(s) as string[]) : []);
+  } catch { return new Set(); }
+}
+
+function saveBookmarkIds(ids: Set<string>) {
+  try { localStorage.setItem(BOOKMARK_KEY, JSON.stringify([...ids])); } catch {}
+  window.dispatchEvent(new CustomEvent("clawbook:bookmarks-changed"));
+}
+
+const BookmarkContext = createContext<{ bookmarks: Set<string>; toggle: (id: string) => void }>({
+  bookmarks: new Set(),
+  toggle: () => {},
+});
+function useBookmarks() { return useContext(BookmarkContext); }
+
 const NowContext = createContext(Date.now());
 function useNow() { return useContext(NowContext); }
 
@@ -566,6 +588,23 @@ function SaveErrorToast({ message, onDismiss }: { message: string; onDismiss: ()
         ✕
       </button>
     </div>
+  );
+}
+
+// ----- bookmark button -----
+
+function BookmarkBtn({ postId, lang }: { postId: string; lang: Lang }) {
+  const { bookmarks, toggle } = useBookmarks();
+  const saved = bookmarks.has(postId);
+  return (
+    <button
+      type="button"
+      className={`post-action-btn${saved ? " is-active" : ""}`}
+      onClick={() => toggle(postId)}
+      title={saved ? (lang === "zh" ? "取消儲存" : "Unsave") : (lang === "zh" ? "儲存帖子" : "Save post")}
+    >
+      {saved ? "🔖" : "🏷️"}
+    </button>
   );
 }
 
@@ -1713,6 +1752,7 @@ function SocialPostCard({
         </button>
         {!editingPost && (
           <div className="post-actions">
+            <BookmarkBtn postId={post.id} lang={lang} />
             {currentProfile.id === "penny" && onPinPost && (
               <button
                 type="button"
@@ -2648,9 +2688,11 @@ function HomePage({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
+  const { bookmarks } = useBookmarks();
   const [searchQuery, setSearchQuery] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [needsReplyOnly, setNeedsReplyOnly] = useState(false);
+  const [showBookmarked, setShowBookmarked] = useState(false);
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
@@ -2673,7 +2715,9 @@ function HomePage({
       })
     : [];
 
-  const displayFeedPosts = needsReplyOnly ? needsReplyPosts : feedPosts;
+  const displayFeedPosts = showBookmarked
+    ? posts.filter((p) => bookmarks.has(p.id))
+    : needsReplyOnly ? needsReplyPosts : feedPosts;
 
   return (
     <div className="surface">
@@ -2695,20 +2739,30 @@ function HomePage({
         )}
       </div>
 
-      {currentProfile.id === "penny" && (
-        <div className="needs-reply-filter">
+      <div className="needs-reply-filter">
+        {currentProfile.id === "penny" && (
           <button
             type="button"
-            className={`needs-reply-btn${needsReplyOnly ? " is-active" : ""}`}
-            onClick={() => setNeedsReplyOnly((v) => !v)}
+            className={`needs-reply-btn${needsReplyOnly && !showBookmarked ? " is-active" : ""}`}
+            onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); }}
           >
             📬 {lang === "zh" ? "需要回應" : "Needs reply"}
             {needsReplyPosts.length > 0 && (
               <span className="needs-reply-count">{needsReplyPosts.length}</span>
             )}
           </button>
-        </div>
-      )}
+        )}
+        {!readOnly && (
+          <button
+            type="button"
+            className={`needs-reply-btn${showBookmarked ? " is-active" : ""}`}
+            onClick={() => { setShowBookmarked((v) => !v); setNeedsReplyOnly(false); }}
+          >
+            🔖 {lang === "zh" ? "已儲存" : "Saved"}
+            {bookmarks.size > 0 && <span className="needs-reply-count">{bookmarks.size}</span>}
+          </button>
+        )}
+      </div>
 
       {!readOnly && (
         <div className="composer-toggle-bar">
@@ -2815,6 +2869,10 @@ function MessagesPanel({
   const [activeWith, setActiveWith] = useState<Profile | null>(initialWith ?? null);
   const [draft, setDraft] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const [broadcastMode, setBroadcastMode] = useState(false);
+  const [broadcastRecipients, setBroadcastRecipients] = useState<Set<string>>(new Set());
+  const [broadcastDraft, setBroadcastDraft] = useState("");
+  const [broadcastSent, setBroadcastSent] = useState(false);
 
   // Load from Supabase on mount and merge with localStorage
   useEffect(() => {
@@ -2896,13 +2954,85 @@ function MessagesPanel({
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeThread.length]);
 
+  async function sendBroadcast() {
+    if (!broadcastDraft.trim() || broadcastRecipients.size === 0) return;
+    const body = broadcastDraft.trim().slice(0, 500);
+    const now = new Date().toISOString();
+    const newMsgs: DirectMessage[] = [...broadcastRecipients].map((toId) => ({
+      id: `dm-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      from_id: currentProfile.id,
+      to_id: toId,
+      body,
+      created_at: now,
+      read: false,
+    }));
+    setDms((prev) => {
+      const next = [...prev, ...newMsgs];
+      saveDMs(next);
+      return next;
+    });
+    await Promise.all(newMsgs.map((m) => persistDirectMessage(m)));
+    setBroadcastSent(true);
+    setBroadcastDraft("");
+    setBroadcastRecipients(new Set());
+    setTimeout(() => { setBroadcastSent(false); setBroadcastMode(false); }, 1800);
+  }
+
   return (
     <div className="messages-overlay" role="dialog" aria-modal="true" aria-label={t.messages}>
       <div className="messages-panel">
         <header className="messages-panel-header">
-          <h2>{t.messages}</h2>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Close">✕</button>
+          <h2>{broadcastMode ? (lang === "zh" ? "📢 群發訊息" : "📢 Broadcast") : t.messages}</h2>
+          <div style={{ display: "flex", gap: 6 }}>
+            {!broadcastMode && (
+              <button type="button" className="icon-button" title={lang === "zh" ? "群發訊息" : "Broadcast"} onClick={() => setBroadcastMode(true)}>📢</button>
+            )}
+            <button type="button" className="icon-button" onClick={() => { setBroadcastMode(false); onClose(); }} aria-label="Close">✕</button>
+          </div>
         </header>
+        {broadcastMode ? (
+          <div className="broadcast-panel">
+            <p className="broadcast-hint">{lang === "zh" ? "選擇收件人（可多選）" : "Select recipients"}</p>
+            <div className="broadcast-recipient-list">
+              {otherProfiles.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`broadcast-recipient${broadcastRecipients.has(p.id) ? " is-selected" : ""}`}
+                  onClick={() => setBroadcastRecipients((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                    return next;
+                  })}
+                >
+                  <span className="avatar" style={{ ...profileAccent(p), width: 32, height: 32, fontSize: "0.68rem" } as CSSProperties}>{p.avatar_initials}</span>
+                  <span>{p.display_name}</span>
+                  {broadcastRecipients.has(p.id) && <span className="broadcast-check">✓</span>}
+                </button>
+              ))}
+            </div>
+            <textarea
+              className="broadcast-textarea"
+              value={broadcastDraft}
+              maxLength={500}
+              rows={3}
+              placeholder={lang === "zh" ? "輸入廣播訊息…" : "Write broadcast message…"}
+              onChange={(e) => setBroadcastDraft(e.target.value)}
+            />
+            <div className="broadcast-actions">
+              <button type="button" className="btn-cancel" onClick={() => { setBroadcastMode(false); setBroadcastDraft(""); setBroadcastRecipients(new Set()); }}>
+                {lang === "zh" ? "取消" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                disabled={broadcastRecipients.size === 0 || !broadcastDraft.trim() || broadcastSent}
+                onClick={() => void sendBroadcast()}
+              >
+                {broadcastSent ? (lang === "zh" ? "已發送 ✓" : "Sent ✓") : (lang === "zh" ? `發送給 ${broadcastRecipients.size} 人` : `Send to ${broadcastRecipients.size}`)}
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="messages-body">
           <aside className="messages-list">
             {conversations.map(({ profile, last, unread }) => (
@@ -2978,6 +3108,7 @@ function MessagesPanel({
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -3067,6 +3198,20 @@ function SocialApp() {
     saveNotifications(session.profileId, updated);
     setNotifications(updated);
   }, [session, guestMode]);
+
+  // ----- bookmarks -----
+  const [bookmarkIds, setBookmarkIds] = useState<Set<string>>(() => loadBookmarkIds());
+  useEffect(() => {
+    const handler = () => setBookmarkIds(loadBookmarkIds());
+    window.addEventListener("clawbook:bookmarks-changed", handler);
+    return () => window.removeEventListener("clawbook:bookmarks-changed", handler);
+  }, []);
+  const toggleBookmark = useCallback((postId: string) => {
+    const next = new Set(loadBookmarkIds());
+    if (next.has(postId)) next.delete(postId); else next.add(postId);
+    saveBookmarkIds(next);
+  }, []);
+  const bookmarkCtxValue = useMemo(() => ({ bookmarks: bookmarkIds, toggle: toggleBookmark }), [bookmarkIds, toggleBookmark]);
 
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
@@ -3560,6 +3705,7 @@ function SocialApp() {
   return (
     <NowContext.Provider value={now}>
     <LangContext.Provider value={langValue}>
+    <BookmarkContext.Provider value={bookmarkCtxValue}>
       <SyncingContext.Provider value={isSyncing}>
       <ReadOnlyContext.Provider value={guestMode}>
       <div className="app-shell" data-testid="app">
@@ -3623,6 +3769,7 @@ function SocialApp() {
       </div>
       </ReadOnlyContext.Provider>
       </SyncingContext.Provider>
+    </BookmarkContext.Provider>
     </LangContext.Provider>
     </NowContext.Provider>
   );
