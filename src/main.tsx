@@ -47,7 +47,7 @@ type ComposerTarget = {
 const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
 const SESSION_PROFILES = profiles;
 const POST_MAX_LENGTH = 640;
-const COMMENT_MAX_LENGTH = 260;
+const COMMENT_MAX_LENGTH = 500;
 const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂"];
 
 const PAGE_SIZE = 20;
@@ -1584,6 +1584,8 @@ function SocialPostCard({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
   const [showAllComments, setShowAllComments] = useState(false);
+  const [postBodyExpanded, setPostBodyExpanded] = useState(false);
+  const POST_BODY_FOLD = 300;
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   const author = getProfile(post.author_id);
@@ -1599,6 +1601,7 @@ function SocialPostCard({
     count: reactions.filter((r) => r.emoji === emoji && r.comment_id === null).length,
     active: reactions.some((r) => r.emoji === emoji && r.author_id === currentProfile.id && r.comment_id === null),
   }));
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   function submitComment() {
     const safe = sanitizeText(commentDraft, COMMENT_MAX_LENGTH);
@@ -1704,7 +1707,24 @@ function SocialPostCard({
         </div>
       ) : (
         <>
-          {post.body ? <p className="post-body"><Linkified text={post.body} /></p> : null}
+          {post.body ? (
+            <div className="post-body-wrap">
+              <p className={`post-body${!postBodyExpanded && post.body.length > POST_BODY_FOLD ? " post-body-clamped" : ""}`}>
+                <Linkified text={!postBodyExpanded && post.body.length > POST_BODY_FOLD ? post.body.slice(0, POST_BODY_FOLD) : post.body} />
+              </p>
+              {post.body.length > POST_BODY_FOLD && (
+                <button
+                  type="button"
+                  className="post-body-toggle"
+                  onClick={() => setPostBodyExpanded((v) => !v)}
+                >
+                  {postBodyExpanded
+                    ? (lang === "zh" ? "收起" : "Show less")
+                    : (lang === "zh" ? `展開全文（${post.body.length} 字）` : `Read more (${post.body.length} chars)`)}
+                </button>
+              )}
+            </div>
+          ) : null}
           {post.image_url ? (
             <div className="post-media-grid">
               <img
@@ -1753,19 +1773,45 @@ function SocialPostCard({
       )}
 
       <div className="reaction-row">
-        {groupedReactions.map((r) => (
+        {groupedReactions.filter((r) => r.count > 0 || r.active).map((r) => (
           <button
             key={r.emoji}
             type="button"
             className={r.active ? "is-active" : ""}
             data-testid="reaction-button"
             disabled={readOnly}
-            onClick={() => !readOnly && onReaction(post.id, r.emoji)}
+            onClick={() => { if (!readOnly) { onReaction(post.id, r.emoji); setPickerOpen(false); } }}
           >
             <span>{r.emoji}</span>
-            {r.count > 0 && <strong>{r.count}</strong>}
+            <strong>{r.count}</strong>
           </button>
         ))}
+        {!readOnly && (
+          <div className="reaction-picker-wrap">
+            <button
+              type="button"
+              className={`reaction-add-btn${pickerOpen ? " is-open" : ""}`}
+              onClick={() => setPickerOpen((v) => !v)}
+              title={lang === "zh" ? "新增反應" : "Add reaction"}
+            >
+              😊 +
+            </button>
+            {pickerOpen && (
+              <div className="reaction-picker-dropdown">
+                {REACTION_OPTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    className={groupedReactions.find((r) => r.emoji === emoji)?.active ? "is-active" : ""}
+                    onClick={() => { onReaction(post.id, emoji); setPickerOpen(false); }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {comments.length > 0 && (
           <button
             type="button"

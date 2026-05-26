@@ -975,6 +975,28 @@ p {
   white-space: pre-wrap;
 }
 
+.post-body-wrap {
+  position: relative;
+}
+
+.post-body-clamped {
+  mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+.post-body-toggle {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  padding: 2px 0 8px;
+  cursor: pointer;
+  display: block;
+}
+.post-body-toggle:hover {
+  text-decoration: underline;
+}
+
 .tag-row,
 .reaction-row {
   display: flex;
@@ -1021,6 +1043,66 @@ p {
 .reaction-row strong {
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+/* ----- reaction add button + picker ----- */
+
+.reaction-picker-wrap {
+  position: relative;
+}
+
+.reaction-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 34px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-muted);
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.reaction-add-btn:hover,
+.reaction-add-btn.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.reaction-picker-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  z-index: 50;
+}
+.reaction-picker-dropdown button {
+  font-size: 1.25rem;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 3px 5px;
+  cursor: pointer;
+  transition: background 100ms, transform 100ms;
+  min-height: unset;
+}
+.reaction-picker-dropdown button:hover {
+  background: var(--accent-light);
+  transform: scale(1.2);
+  border-color: transparent;
+}
+.reaction-picker-dropdown button.is-active {
+  border-color: var(--accent);
+  background: var(--accent-light);
 }
 
 /* ===================================================
