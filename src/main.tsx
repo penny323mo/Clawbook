@@ -1727,6 +1727,11 @@ function SocialPostCard({
     };
   });
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reactionDetailOpen, setReactionDetailOpen] = useState(false);
+  const commentComposeRef = useRef<HTMLDivElement>(null);
+  const totalReactions = groupedReactions.reduce((s, r) => s + r.count, 0);
+  const activeEmojis = groupedReactions.filter((r) => r.count > 0).sort((a, b) => b.count - a.count).map((r) => r.emoji);
+  const myReaction = groupedReactions.find((r) => r.active)?.emoji ?? null;
 
   function submitComment() {
     const safe = sanitizeText(commentDraft, COMMENT_MAX_LENGTH);
@@ -1791,14 +1796,6 @@ function SocialPostCard({
         {!editingPost && (
           <div className="post-actions">
             <BookmarkBtn postId={post.id} lang={lang} />
-            {!readOnly && onQuotePost && (
-              <button
-                type="button"
-                className={`post-action-btn${quoteMode ? " is-active" : ""}`}
-                onClick={() => setQuoteMode((v) => !v)}
-                title={lang === "zh" ? "引用帖子" : "Quote post"}
-              >🔁</button>
-            )}
             {currentProfile.id === "penny" && onPinPost && (
               <button
                 type="button"
@@ -1990,31 +1987,82 @@ function SocialPostCard({
         </div>
       )}
 
-      <div className="reaction-row">
-        {groupedReactions.filter((r) => r.count > 0 || r.active).map((r) => (
-          <button
-            key={r.emoji}
-            type="button"
-            className={r.active ? "is-active" : ""}
-            data-testid="reaction-button"
-            disabled={readOnly}
-            title={r.names.join(", ")}
-            onClick={() => { if (!readOnly) { onReaction(post.id, r.emoji); setPickerOpen(false); } }}
-          >
-            <span>{r.emoji}</span>
-            <strong>{r.count}</strong>
-          </button>
-        ))}
+      {/* Stats bar — reaction summary + comment count */}
+      {(totalReactions > 0 || comments.length > 0) && (
+        <div className="post-stats-bar">
+          {totalReactions > 0 && (
+            <div className="reaction-summary-wrap">
+              <button
+                type="button"
+                className="reaction-summary-btn"
+                onClick={() => setReactionDetailOpen((v) => !v)}
+                title={lang === "zh" ? "查看反應" : "See reactions"}
+              >
+                <span className="reaction-bubbles">
+                  {activeEmojis.slice(0, 3).map((e) => (
+                    <span key={e} className="reaction-bubble">{e}</span>
+                  ))}
+                </span>
+                <span className="reaction-total">{totalReactions}</span>
+              </button>
+              {reactionDetailOpen && (
+                <div className="reaction-detail-popover">
+                  {groupedReactions.filter((r) => r.count > 0).map((r) => (
+                    <div key={r.emoji} className="reaction-detail-row">
+                      <span className="reaction-detail-emoji">{r.emoji}</span>
+                      <span className="reaction-detail-names">{r.names.join("、")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {comments.length > 0 && (
+            <button
+              type="button"
+              className="comment-stat-link"
+              onClick={() => {
+                const latest = comments[comments.length - 1];
+                if (!latest) return;
+                const el = document.getElementById(`cmt-${latest.id}`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                  el.classList.add("comment-highlight");
+                  setTimeout(() => el.classList.remove("comment-highlight"), 1800);
+                } else {
+                  setShowAllComments(true);
+                  setTimeout(() => {
+                    const el2 = document.getElementById(`cmt-${latest.id}`);
+                    if (el2) { el2.scrollIntoView({ behavior: "smooth", block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
+                  }, 80);
+                }
+              }}
+            >
+              {comments.length} {lang === "zh" ? "則留言" : "comments"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Action bar — Like / Comment / Quote */}
+      <div className="post-action-bar">
         {!readOnly && (
           <div className="reaction-picker-wrap">
             <button
               type="button"
-              className={`reaction-add-btn${pickerOpen ? " is-open" : ""}`}
-              onClick={() => setPickerOpen((v) => !v)}
-              title={lang === "zh" ? "新增反應" : "Add reaction"}
+              data-testid="reaction-button"
+              className={`post-action-btn like-action-btn${myReaction ? " is-active" : ""}`}
+              onClick={() => { onReaction(post.id, myReaction ?? "👍"); setPickerOpen(false); }}
             >
-              😊 +
+              <span className="like-btn-emoji">{myReaction ?? "👍"}</span>
+              <span>{myReaction ? (lang === "zh" ? "已讚" : "Liked") : (lang === "zh" ? "讚" : "Like")}</span>
             </button>
+            <button
+              type="button"
+              className="like-more-btn"
+              onClick={() => setPickerOpen((v) => !v)}
+              title={lang === "zh" ? "選擇反應" : "Choose reaction"}
+            >▾</button>
             {pickerOpen && (
               <div className="reaction-picker-dropdown">
                 {REACTION_OPTIONS.map((emoji) => (
@@ -2031,29 +2079,26 @@ function SocialPostCard({
             )}
           </div>
         )}
-        {comments.length > 0 && (
+        <button
+          type="button"
+          className="post-action-btn"
+          onClick={() => {
+            setShowAllComments(true);
+            setTimeout(() => {
+              commentComposeRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              commentComposeRef.current?.querySelector("textarea")?.focus();
+            }, 60);
+          }}
+        >
+          💬 <span>{lang === "zh" ? "留言" : "Comment"}</span>
+        </button>
+        {!readOnly && onQuotePost && (
           <button
             type="button"
-            className="comment-count-badge"
-            onClick={() => {
-              const latest = comments[comments.length - 1];
-              if (!latest) return;
-              const el = document.getElementById(`cmt-${latest.id}`);
-              if (el) {
-                el.scrollIntoView({ behavior: "smooth", block: "center" });
-                el.classList.add("comment-highlight");
-                setTimeout(() => el.classList.remove("comment-highlight"), 1800);
-              } else {
-                setShowAllComments(true);
-                setTimeout(() => {
-                  const el2 = document.getElementById(`cmt-${latest.id}`);
-                  if (el2) { el2.scrollIntoView({ behavior: "smooth", block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
-                }, 80);
-              }
-            }}
-            title={lang === "zh" ? "跳至最新留言" : "Jump to latest comment"}
+            className={`post-action-btn${quoteMode ? " is-active" : ""}`}
+            onClick={() => { setQuoteMode((v) => !v); setQuoteDraft(""); }}
           >
-            💬 {comments.length}
+            🔁 <span>{lang === "zh" ? "引用" : "Quote"}</span>
           </button>
         )}
       </div>
@@ -2152,7 +2197,7 @@ function SocialPostCard({
       </section>
 
       {!readOnly && (
-        <div className="comment-composer">
+        <div className="comment-composer" ref={commentComposeRef}>
           {replyingTo && (
             <div className="replying-to-bar">
               <span>↩ {lang === "zh" ? "回覆" : "Replying to"} <strong>{getProfile(replyingTo.author_id).display_name}</strong></span>
