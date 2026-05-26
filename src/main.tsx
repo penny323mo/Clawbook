@@ -3201,7 +3201,12 @@ function MessagesPanel({
                 <div className="messages-conv-info">
                   <strong>{profile.display_name}</strong>
                   <span className="messages-conv-preview">
-                    {last ? last.body.slice(0, 40) + (last.body.length > 40 ? "…" : "") : (lang === "zh" ? "尚無訊息" : "No messages yet")}
+                    {last
+                      ? (last.from_id === currentProfile.id
+                          ? (lang === "zh" ? "你：" : "You: ")
+                          : `${profile.display_name}：`)
+                        + last.body.slice(0, 36) + (last.body.length > 36 ? "…" : "")
+                      : (lang === "zh" ? "尚無訊息" : "No messages yet")}
                   </span>
                 </div>
                 {unread > 0 && <span className="messages-unread-badge">{unread}</span>}
@@ -3222,12 +3227,25 @@ function MessagesPanel({
                   {activeThread.length === 0 ? (
                     <p className="messages-empty">{t.noMessages}</p>
                   ) : (
-                    activeThread.map((m) => {
+                    activeThread.map((m, i) => {
                       const isMine = m.from_id === currentProfile.id;
+                      const sender = isMine ? currentProfile : activeWith;
+                      const prevMsg = activeThread[i - 1];
+                      const showSender = !isMine && (i === 0 || prevMsg?.from_id !== m.from_id);
                       return (
                         <div key={m.id} className={`message-bubble-wrap ${isMine ? "is-mine" : "is-theirs"}`}>
-                          <div className="message-bubble">{m.body}</div>
-                          <span className="message-time">{formatTime(m.created_at, lang)}</span>
+                          {!isMine && (
+                            <span className="msg-sender-avatar" style={profileAccent(sender) as CSSProperties}>
+                              {sender.avatar_initials}
+                            </span>
+                          )}
+                          <div className="msg-bubble-col">
+                            {showSender && (
+                              <span className="msg-sender-name">{sender.display_name}</span>
+                            )}
+                            <div className="message-bubble">{m.body}</div>
+                            <span className="message-time">{formatTime(m.created_at, lang)}</span>
+                          </div>
                         </div>
                       );
                     })
