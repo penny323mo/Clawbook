@@ -1717,11 +1717,15 @@ function SocialPostCard({
       : post.target_id === currentProfile.id
         ? lang === "zh" ? "我的版面" : "My wall"
         : t.wall(getProfile(post.target_id).display_name);
-  const groupedReactions = REACTION_OPTIONS.map((emoji) => ({
-    emoji,
-    count: reactions.filter((r) => r.emoji === emoji && r.comment_id === null).length,
-    active: reactions.some((r) => r.emoji === emoji && r.author_id === currentProfile.id && r.comment_id === null),
-  }));
+  const groupedReactions = REACTION_OPTIONS.map((emoji) => {
+    const rs = reactions.filter((r) => r.emoji === emoji && r.comment_id === null);
+    return {
+      emoji,
+      count: rs.length,
+      active: rs.some((r) => r.author_id === currentProfile.id),
+      names: rs.map((r) => getProfile(r.author_id).display_name),
+    };
+  });
   const [pickerOpen, setPickerOpen] = useState(false);
 
   function submitComment() {
@@ -1994,6 +1998,7 @@ function SocialPostCard({
             className={r.active ? "is-active" : ""}
             data-testid="reaction-button"
             disabled={readOnly}
+            title={r.names.join(", ")}
             onClick={() => { if (!readOnly) { onReaction(post.id, r.emoji); setPickerOpen(false); } }}
           >
             <span>{r.emoji}</span>
