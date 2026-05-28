@@ -1834,6 +1834,16 @@ function SocialPostCard({
             placeholder="Tags"
             onChange={(e) => setEditTags(e.target.value)}
           />
+          {post.poll_options && post.poll_options.length > 0 && (
+            <div className="poll-edit-readonly">
+              <span className="poll-edit-label">
+                {lang === "zh" ? "📊 投票選項（不可修改）" : "📊 Poll options (locked)"}
+              </span>
+              {post.poll_options.map((opt, i) => (
+                <div key={i} className="poll-edit-option">{opt}</div>
+              ))}
+            </div>
+          )}
           <div className="post-edit-actions">
             <button type="button" className="btn-save" onClick={savePostEdit} disabled={saving}>
               {saving ? t.savingShort : t.save}
