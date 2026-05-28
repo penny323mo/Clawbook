@@ -168,6 +168,8 @@ export async function persistPost(post: Post, newMedia: Media[]): Promise<Servic
     tags: post.tags,
     visibility: post.visibility,
     image_url: post.image_url ?? null,
+    poll_options: post.poll_options ?? null,
+    quote_post_id: post.quote_post_id ?? null,
   });
   if (postErr) return { data: null, error: postErr.message };
 
