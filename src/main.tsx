@@ -1124,9 +1124,7 @@ function Topbar({
             aria-label={lang === "zh" ? "設定" : "Settings"}
             title={lang === "zh" ? "設定" : "Settings"}
           >
-            {!guestMode
-              ? <Avatar profile={currentProfile} className="topbar-avatar" />
-              : "⚙️"}
+            ⚙️
           </button>
           {settingsOpen && (
             <div className="settings-popover">
