@@ -125,7 +125,7 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
       supabase.from("posts").select("*").order("created_at", { ascending: false }),
-      supabase.from("comments").select("*").order("created_at"),
+      supabase.from("comments").select("*").order("created_at").range(0, 4999),
       supabase.from("reactions").select("*"),
       supabase.from("media").select("*").order("created_at"),
     ]);
