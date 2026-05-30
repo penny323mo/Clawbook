@@ -1159,9 +1159,10 @@ function Topbar({
               </div>
               <div className="settings-row">
                 <span className="settings-label">{lang === "zh" ? "語言" : "Lang"}</span>
-                <button className="settings-toggle" type="button" onClick={() => setLang(lang === "en" ? "zh" : "en")}>
-                  {lang === "en" ? "中文" : "English"}
-                </button>
+                <div className="settings-lang-row">
+                  <button className={`lang-btn${lang === "zh" ? " is-active" : ""}`} type="button" onClick={() => setLang("zh")}>中文</button>
+                  <button className={`lang-btn${lang === "en" ? " is-active" : ""}`} type="button" onClick={() => setLang("en")}>EN</button>
+                </div>
               </div>
               <div className="settings-row">
                 <span className="settings-label">{lang === "zh" ? "字體" : "Font"}</span>

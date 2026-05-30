@@ -3543,6 +3543,27 @@ p {
   background: var(--accent-light);
 }
 
+.settings-lang-row {
+  display: flex;
+  gap: 4px;
+}
+.lang-btn {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  transition: border-color 120ms, color 120ms;
+}
+.lang-btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
 .activity-header {
   display: flex;
   align-items: center;
