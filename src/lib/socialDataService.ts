@@ -16,6 +16,22 @@ const SUPABASE_ANON = (
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
 )?.trim() ?? "";
 
+async function fetchAllRows<T>(
+  queryBuilder: { range(from: number, to: number): Promise<{ data: T[] | null; error: unknown }> }
+): Promise<T[]> {
+  const PAGE = 1000;
+  const all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await queryBuilder.range(from, from + PAGE - 1);
+    if (error || !data?.length) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 // ----- result type -----
 
 export type ServiceResult<T> = { data: T; error: null } | { data: null; error: string };
@@ -120,18 +136,21 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   }
 
   try {
-    const [profRes, grpRes, gmRes, postRes, cmtRes, rxRes, mediaRes] = await Promise.all([
+    const [profRes, grpRes, gmRes, postRes, mediaRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
       supabase.from("posts").select("*").order("created_at", { ascending: false }),
-      supabase.from("comments").select("*").order("created_at").range(0, 4999),
-      supabase.from("reactions").select("*").range(0, 4999),
       supabase.from("media").select("*").order("created_at"),
     ]);
 
-    const firstErr = [profRes, grpRes, gmRes, postRes, cmtRes, rxRes, mediaRes].find((r) => r.error)?.error;
+    const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes].find((r) => r.error)?.error;
     if (firstErr) return { data: null, error: firstErr.message };
+
+    const [comments, reactions] = await Promise.all([
+      fetchAllRows<Comment>(supabase.from("comments").select("*").order("created_at") as never),
+      fetchAllRows<Reaction>(supabase.from("reactions").select("*") as never),
+    ]);
 
     return {
       data: {
@@ -139,8 +158,8 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
         groups: (grpRes.data ?? []) as Group[],
         groupMembers: (gmRes.data ?? []) as GroupMember[],
         posts: (postRes.data ?? []) as Post[],
-        comments: (cmtRes.data ?? []) as Comment[],
-        reactions: (rxRes.data ?? []) as Reaction[],
+        comments,
+        reactions,
         media: (mediaRes.data ?? []) as Media[],
       },
       error: null,
