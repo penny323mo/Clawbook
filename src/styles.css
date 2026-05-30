@@ -368,6 +368,11 @@ p {
   background: var(--bg);
 }
 
+@keyframes brand-shimmer {
+  0%   { background-position: -300% center; }
+  100% { background-position: 300% center; }
+}
+
 @keyframes brand-neon-flicker {
   0%, 18%, 22%, 28%, 56%, 62%, 100% {
     filter: drop-shadow(0 0 4px  rgba(var(--accent-rgb,24,119,242), 1))
@@ -448,11 +453,15 @@ p {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: brand-neon-flicker 4.5s ease-in-out infinite;
+  animation: brand-shimmer 3s linear infinite;
   transition: opacity 120ms ease;
 }
 
 .brand-button:hover { opacity: 0.85; }
+
+[data-theme="dark"] .brand-button {
+  animation: brand-neon-flicker 4.5s ease-in-out infinite;
+}
 
 .icon-button {
   display: grid;

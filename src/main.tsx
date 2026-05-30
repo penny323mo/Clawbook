@@ -3220,12 +3220,6 @@ function HomePage({
 
   return (
     <div className="surface">
-      <section className="home-intro">
-        <p className="network-label">{readOnly ? t.networkLabel : t.personalizedFeed}</p>
-        <h1>{readOnly ? t.guestWelcome : t.welcomeBack(currentProfile.display_name)}</h1>
-        {!readOnly && <p>{isSupabaseConfigured ? t.supabaseActive : t.supabaseInactive}</p>}
-      </section>
-
       <div className="feed-search-bar">
         <input
           type="search"
