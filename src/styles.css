@@ -1049,11 +1049,19 @@ p {
 
 .social-post-card {
   padding: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
   transition: box-shadow 150ms ease;
 }
 
 .social-post-card:hover {
-  box-shadow: var(--lg-highlight), 0 6px 20px rgba(0, 0, 0, 0.13);
+  box-shadow: var(--lg-highlight), 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.search-result-count {
+  margin: 0;
+  padding: 2px 16px 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
 .post-header {
@@ -3287,10 +3295,12 @@ p {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 16px 10px;
-  flex-wrap: wrap;
+  padding: 6px 16px 10px;
+  flex-wrap: nowrap;
   overflow-x: auto;
+  scrollbar-width: none;
 }
+.feed-author-filter::-webkit-scrollbar { display: none; }
 .feed-author-filter-label {
   font-size: 0.78rem;
   color: var(--text-muted);
@@ -3301,8 +3311,8 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px 3px 5px;
-  border: 1.5px solid var(--border);
+  padding: 2px 2px;
+  border: 1.5px solid transparent;
   border-radius: 20px;
   background: transparent;
   color: var(--text-secondary);
@@ -3311,20 +3321,31 @@ p {
   cursor: pointer;
   transition: all 0.15s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
-.feed-author-chip:hover { border-color: var(--accent); color: var(--accent); }
-.feed-author-chip.is-active { background: var(--accent-light); }
+.feed-author-chip:hover .feed-author-chip-avatar { opacity: 0.8; }
+.feed-author-chip.is-active {
+  padding: 2px 8px 2px 2px;
+  background: var(--accent-light);
+  border-color: var(--accent);
+}
 .feed-author-chip-avatar {
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.feed-author-chip-name {
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 600;
 }
 .feed-group-filter {
   position: sticky;
@@ -3962,13 +3983,13 @@ p {
 .poll-option-bar {
   position: absolute;
   inset: 0;
-  background: rgba(102,227,255,0.12);
+  background: rgba(var(--accent-rgb,24,119,242), 0.1);
   border-radius: 8px;
   transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
   pointer-events: none;
 }
 .poll-option.is-voted .poll-option-bar {
-  background: rgba(102,227,255,0.22);
+  background: rgba(var(--accent-rgb,24,119,242), 0.2);
 }
 .poll-option-label {
   position: relative;

@@ -3212,6 +3212,13 @@ function HomePage({
     ? posts.filter((p) => bookmarks.has(p.id))
     : needsReplyOnly ? needsReplyPosts : filteredByGroup;
 
+  const searchResultCount = searchQuery.trim()
+    ? displayFeedPosts.filter((p) => {
+        const q = searchQuery.toLowerCase().trim();
+        return p.body.toLowerCase().includes(q) || p.tags.some((t) => t.includes(q));
+      }).length
+    : null;
+
   useEffect(() => {
     if (readOnly) return;
     const handler = () => setComposerOpen(true);
@@ -3232,6 +3239,11 @@ function HomePage({
           <button type="button" onClick={() => setSearchQuery("")} aria-label="Clear search">✕</button>
         )}
       </div>
+      {searchQuery && searchResultCount !== null && (
+        <p className="search-result-count">
+          {lang === "zh" ? `找到 ${searchResultCount} 個帖` : `${searchResultCount} result${searchResultCount !== 1 ? "s" : ""}`}
+        </p>
+      )}
 
       <div className="needs-reply-filter">
         {currentProfile.id === "penny" && (
@@ -3297,12 +3309,12 @@ function HomePage({
               key={p.id}
               type="button"
               className={`feed-author-chip${feedAuthorFilter === p.id ? " is-active" : ""}`}
-              style={feedAuthorFilter === p.id ? { borderColor: p.accent, color: p.accent } : {}}
+              style={feedAuthorFilter === p.id ? { borderColor: p.accent, boxShadow: `0 0 0 2px ${p.accent}33` } : {}}
               onClick={() => setFeedAuthorFilter(feedAuthorFilter === p.id ? null : p.id)}
               title={p.display_name}
             >
               <span className="feed-author-chip-avatar" style={{ background: p.accent }}>{p.avatar_initials}</span>
-              {p.display_name}
+              {feedAuthorFilter === p.id && <span className="feed-author-chip-name">{p.display_name}</span>}
             </button>
           ))}
         </div>
