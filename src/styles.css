@@ -368,17 +368,20 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
   border-bottom: 1px solid var(--lg-border);
   background: var(--lg-bg-strong);
   backdrop-filter: var(--lg-blur-strong);
   -webkit-backdrop-filter: var(--lg-blur-strong);
-  padding: 0 16px;
+  padding: 0 12px;
   height: 56px;
   box-shadow: var(--lg-highlight), var(--lg-shadow-float);
 }
 
+/* Center brand absolutely so left/right groups don't affect its position */
 .brand-button {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -388,6 +391,8 @@ p {
   padding: 6px 8px;
   letter-spacing: -0.01em;
   transition: background 120ms ease;
+  white-space: nowrap;
+  pointer-events: auto;
 }
 
 .brand-button:hover {
@@ -1435,30 +1440,27 @@ p {
 /* legacy palette-wrapper kept as alias */
 .palette-wrapper { position: relative; }
 
-/* settings button — single dot replaces 3 separate buttons */
+/* settings button — gear icon, opens theme/lang/colour popover */
 .settings-wrapper {
   position: relative;
 }
 .settings-btn {
-  width: 32px;
-  height: 32px;
-  border: 1.5px solid var(--border);
+  width: 36px;
+  height: 36px;
+  border: 0;
   border-radius: 50%;
   background: var(--surface-2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 120ms;
+  font-size: 1.1rem;
+  transition: background 120ms;
   padding: 0;
 }
-.settings-btn:hover { border-color: var(--accent); }
-.settings-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  display: block;
-}
+.settings-btn:hover { background: var(--border); }
+/* hide unused dot span */
+.settings-dot { display: none; }
 .settings-popover {
   position: absolute;
   top: calc(100% + 8px);

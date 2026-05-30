@@ -1064,7 +1064,7 @@ function Topbar({
             aria-label={lang === "zh" ? "設定" : "Settings"}
             title={lang === "zh" ? "設定" : "Settings"}
           >
-            <span className="settings-dot" style={{ background: COLOR_THEMES.find((t) => t.id === colorTheme)?.swatch ?? "#1877f2" }} />
+            ⚙️
           </button>
           {settingsOpen && (
             <div className="settings-popover">
