@@ -1058,60 +1058,6 @@ function Topbar({
       </div>
       <div className="topbar-right">
         <ConnectionBadge syncing={syncing} />
-        <div className="settings-wrapper" ref={settingsRef}>
-          <button
-            className="icon-button settings-btn"
-            type="button"
-            onClick={() => setSettingsOpen((v) => !v)}
-            aria-label={lang === "zh" ? "設定" : "Settings"}
-            title={lang === "zh" ? "設定" : "Settings"}
-          >
-            ⚙️
-          </button>
-          {settingsOpen && (
-            <div className="settings-popover">
-              <div className="settings-row">
-                <span className="settings-label">{lang === "zh" ? "外觀" : "Theme"}</span>
-                <button
-                  className="settings-toggle"
-                  type="button"
-                  onClick={() => setDarkMode((v) => !v)}
-                  aria-label="Toggle dark mode"
-                >
-                  {darkMode ? "☀️ " : "🌙 "}
-                  {darkMode ? (lang === "zh" ? "淺色" : "Light") : (lang === "zh" ? "深色" : "Dark")}
-                </button>
-              </div>
-              <div className="settings-row">
-                <span className="settings-label">{lang === "zh" ? "語言" : "Lang"}</span>
-                <button
-                  className="settings-toggle"
-                  type="button"
-                  onClick={() => setLang(lang === "en" ? "zh" : "en")}
-                  aria-label="Toggle language"
-                >
-                  {lang === "en" ? "中文" : "English"}
-                </button>
-              </div>
-              <div className="settings-row">
-                <span className="settings-label">{lang === "zh" ? "顏色" : "Colour"}</span>
-              </div>
-              <div className="settings-palette-grid">
-                {COLOR_THEMES.map((ct) => (
-                  <button
-                    key={ct.id}
-                    type="button"
-                    className={`palette-swatch${colorTheme === ct.id ? " is-active" : ""}`}
-                    style={{ background: ct.swatch }}
-                    onClick={() => { setColorTheme(ct.id); }}
-                    title={ct.label}
-                    aria-label={ct.label}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
         {!guestMode && notifications && (
           <div className="notif-wrapper" ref={notifRef}>
             <button
@@ -1169,11 +1115,70 @@ function Topbar({
           </button>
         )}
         {guestMode && <span className="guest-badge">{t.guestLabel}</span>}
-        <div className="topbar-profile" style={profileAccent(currentProfile)}>
-          {!guestMode && <Avatar profile={currentProfile} className="topbar-avatar" />}
-          <button type="button" onClick={onLogout}>
-            {guestMode ? t.signIn : t.switchIdentity}
+        {/* Settings — always last / rightmost */}
+        <div className="settings-wrapper" ref={settingsRef}>
+          <button
+            className="icon-button settings-btn"
+            type="button"
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-label={lang === "zh" ? "設定" : "Settings"}
+            title={lang === "zh" ? "設定" : "Settings"}
+          >
+            {!guestMode
+              ? <Avatar profile={currentProfile} className="topbar-avatar" />
+              : "⚙️"}
           </button>
+          {settingsOpen && (
+            <div className="settings-popover">
+              {!guestMode && (
+                <div className="settings-profile-row">
+                  <Avatar profile={currentProfile} className="settings-profile-avatar" />
+                  <div>
+                    <p className="settings-profile-name">{currentProfile.display_name}</p>
+                    <p className="settings-profile-role">{currentProfile.role}</p>
+                  </div>
+                </div>
+              )}
+              <div className="settings-divider" />
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "外觀" : "Theme"}</span>
+                <button className="settings-toggle" type="button" onClick={() => setDarkMode((v) => !v)}>
+                  {darkMode ? "☀️ " : "🌙 "}
+                  {darkMode ? (lang === "zh" ? "淺色" : "Light") : (lang === "zh" ? "深色" : "Dark")}
+                </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "語言" : "Lang"}</span>
+                <button className="settings-toggle" type="button" onClick={() => setLang(lang === "en" ? "zh" : "en")}>
+                  {lang === "en" ? "中文" : "English"}
+                </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "顏色" : "Colour"}</span>
+              </div>
+              <div className="settings-palette-grid">
+                {COLOR_THEMES.map((ct) => (
+                  <button
+                    key={ct.id}
+                    type="button"
+                    className={`palette-swatch${colorTheme === ct.id ? " is-active" : ""}`}
+                    style={{ background: ct.swatch }}
+                    onClick={() => setColorTheme(ct.id)}
+                    title={ct.label}
+                    aria-label={ct.label}
+                  />
+                ))}
+              </div>
+              <div className="settings-divider" />
+              <button
+                className="settings-logout-btn"
+                type="button"
+                onClick={() => { setSettingsOpen(false); onLogout(); }}
+              >
+                {guestMode ? (lang === "zh" ? "登入" : "Sign in") : (lang === "zh" ? "登出" : "Log out")}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -1471,26 +1471,31 @@ p {
 /* legacy palette-wrapper kept as alias */
 .palette-wrapper { position: relative; }
 
-/* settings button — gear icon, opens theme/lang/colour popover */
+/* settings button — shows user avatar, opens profile+settings popover */
 .settings-wrapper {
   position: relative;
 }
 .settings-btn {
-  width: 36px;
-  height: 36px;
-  border: 0;
+  width: 40px;
+  height: 40px;
+  border: 2px solid transparent;
   border-radius: 50%;
-  background: var(--surface-2);
+  background: transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
-  transition: background 120ms;
   padding: 0;
+  transition: border-color 150ms;
+  overflow: hidden;
 }
-.settings-btn:hover { background: var(--border); }
-/* hide unused dot span */
+.settings-btn:hover { border-color: var(--accent); }
+.settings-btn .avatar,
+.settings-btn .topbar-avatar {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 0.85rem !important;
+}
 .settings-dot { display: none; }
 .settings-popover {
   position: absolute;
@@ -1536,7 +1541,50 @@ p {
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-top: 2px;
+  margin-bottom: 4px;
 }
+.settings-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0 10px;
+}
+.settings-profile-avatar {
+  width: 38px !important;
+  height: 38px !important;
+  font-size: 0.95rem !important;
+  flex-shrink: 0;
+}
+.settings-profile-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+.settings-profile-role {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+.settings-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+.settings-logout-btn {
+  width: 100%;
+  padding: 7px 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms;
+}
+.settings-logout-btn:hover { background: rgba(250,62,62,0.08); }
 .palette-swatch {
   width: 30px;
   height: 30px;
