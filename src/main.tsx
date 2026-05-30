@@ -2998,6 +2998,7 @@ function HomePage({
   const [composerOpen, setComposerOpen] = useState(false);
   const [needsReplyOnly, setNeedsReplyOnly] = useState(false);
   const [showBookmarked, setShowBookmarked] = useState(false);
+  const [feedGroupFilter, setFeedGroupFilter] = useState<"all" | "my-wall" | "public-discussion" | "builders-corner">("all");
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
@@ -3009,6 +3010,12 @@ function HomePage({
           (p.target_type === "profile" && p.target_id === currentProfile.id) ||
           p.target_type === "group",
       );
+
+  const filteredByGroup = feedGroupFilter === "all"
+    ? feedPosts
+    : feedGroupFilter === "my-wall"
+    ? feedPosts.filter((p) => p.target_type === "profile")
+    : feedPosts.filter((p) => p.target_type === "group" && p.target_id === feedGroupFilter);
 
   const needsReplyPosts = currentProfile.id === "penny"
     ? feedPosts.filter((p) => {
@@ -3022,7 +3029,7 @@ function HomePage({
 
   const displayFeedPosts = showBookmarked
     ? posts.filter((p) => bookmarks.has(p.id))
-    : needsReplyOnly ? needsReplyPosts : feedPosts;
+    : needsReplyOnly ? needsReplyPosts : filteredByGroup;
 
   return (
     <div className="surface">
@@ -3068,6 +3075,30 @@ function HomePage({
           </button>
         )}
       </div>
+
+      {!showBookmarked && !needsReplyOnly && (
+        <div className="feed-group-filter">
+          {(["all", "my-wall", "public-discussion", "builders-corner"] as const).map((f) => {
+            const label = f === "all"
+              ? (lang === "zh" ? "全部" : "All")
+              : f === "my-wall"
+              ? (lang === "zh" ? "我的版面" : "My Wall")
+              : f === "public-discussion"
+              ? (lang === "zh" ? "公開討論" : "Public")
+              : (lang === "zh" ? "Builders" : "Builders");
+            return (
+              <button
+                key={f}
+                type="button"
+                className={`feed-group-chip${feedGroupFilter === f ? " is-active" : ""}`}
+                onClick={() => setFeedGroupFilter(f)}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {!readOnly && (
         <div className="composer-toggle-bar">

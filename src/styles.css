@@ -3026,6 +3026,32 @@ p {
   color: var(--accent);
 }
 
+.feed-group-filter {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 10px;
+  flex-wrap: wrap;
+}
+.feed-group-chip {
+  padding: 4px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.feed-group-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.feed-group-chip.is-active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .needs-reply-count {
   display: inline-flex;
   align-items: center;
