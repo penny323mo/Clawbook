@@ -136,22 +136,21 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   }
 
   try {
-    const [profRes, grpRes, gmRes, postRes, mediaRes] = await Promise.all([
+    const [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
       supabase.from("posts").select("*").order("created_at", { ascending: false }),
       supabase.from("media").select("*").order("created_at"),
+      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(500),
+      supabase.from("reactions").select("*").order("created_at", { ascending: false }).limit(1000),
     ]);
 
-    const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes].find((r) => r.error)?.error;
+    const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes].find((r) => r.error)?.error;
     if (firstErr) return { data: null, error: firstErr.message };
 
-    const [commentRes, reactions] = await Promise.all([
-      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(500),
-      fetchAllRows<Reaction>(supabase.from("reactions").select("*") as never),
-    ]);
     const comments = ((commentRes.data ?? []) as Comment[]).reverse();
+    const reactions = (reactRes.data ?? []) as Reaction[];
 
     return {
       data: {

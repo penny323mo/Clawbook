@@ -1770,8 +1770,15 @@ p {
 
 @media (max-width: 640px) {
   .connection-badge {
-    display: none;
+    padding: 0;
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    border-radius: 50%;
+    font-size: 0;       /* hide text */
+    gap: 0;
   }
+  .connection-badge::before { display: none; } /* hide dot prefix if any */
 
   .profile-cover,
   .group-cover {

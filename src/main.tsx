@@ -1139,6 +1139,10 @@ function Topbar({
               )}
               <div className="settings-divider" />
               <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "連接" : "Status"}</span>
+                <ConnectionBadge syncing={syncing} />
+              </div>
+              <div className="settings-row">
                 <span className="settings-label">{lang === "zh" ? "外觀" : "Theme"}</span>
                 <button className="settings-toggle" type="button" onClick={() => setDarkMode((v) => !v)}>
                   {darkMode ? "☀️ " : "🌙 "}
