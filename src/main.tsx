@@ -1048,9 +1048,11 @@ function Topbar({
 
   return (
     <header className="app-topbar">
-      <button className="icon-button menu-button" type="button" onClick={onMenu} aria-label="Open navigation">
-        ☰
-      </button>
+      <div className="topbar-left">
+        <button className="icon-button menu-button" type="button" onClick={onMenu} aria-label="Open navigation">
+          ☰
+        </button>
+      </div>
       <button className="brand-button" type="button" onClick={() => navigate({ name: "home" })}>
         Clawbook
       </button>
