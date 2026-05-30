@@ -159,7 +159,10 @@ function saveNotifications(profileId: string, notifs: AppNotification[]): void {
 
 function pushNotification(profileId: string, n: Omit<AppNotification, "id" | "read">): void {
   const existing = loadNotifications(profileId);
-  const dedup = existing.some((e) => e.type === n.type && e.from_id === n.from_id && e.post_id === n.post_id);
+  // Deduplicate: same type + same commenter + same post + same snippet (prevents double-fire on re-render)
+  const dedup = existing.some(
+    (e) => e.type === n.type && e.from_id === n.from_id && e.post_id === n.post_id && e.snippet === n.snippet,
+  );
   if (dedup) return;
   saveNotifications(profileId, [{ ...n, id: `notif-${Date.now()}`, read: false }, ...existing].slice(0, 50));
 }
@@ -1010,8 +1013,8 @@ function Topbar({
   const [colorTheme, setColorTheme] = useState(() =>
     localStorage.getItem("clawbook:color") ?? "blue"
   );
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const paletteRef = useRef<HTMLDivElement>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? "dark" : "";
@@ -1024,13 +1027,13 @@ function Topbar({
   }, [colorTheme]);
 
   useEffect(() => {
-    if (!paletteOpen) return;
+    if (!settingsOpen) return;
     function handleClick(e: MouseEvent) {
-      if (paletteRef.current && !paletteRef.current.contains(e.target as Node)) setPaletteOpen(false);
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setSettingsOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [paletteOpen]);
+  }, [settingsOpen]);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -1053,36 +1056,52 @@ function Topbar({
       </button>
       <div className="topbar-right">
         <ConnectionBadge syncing={syncing} />
-        <button
-          className="lang-toggle"
-          type="button"
-          onClick={() => setDarkMode((v) => !v)}
-          aria-label="Toggle dark mode"
-          title={darkMode ? (lang === "zh" ? "切換淺色" : "Light mode") : (lang === "zh" ? "切換深色" : "Dark mode")}
-        >
-          {darkMode ? "☀️" : "🌙"}
-        </button>
-        <div className="palette-wrapper" ref={paletteRef}>
+        <div className="settings-wrapper" ref={settingsRef}>
           <button
-            className="palette-btn"
+            className="icon-button settings-btn"
             type="button"
-            onClick={() => setPaletteOpen((v) => !v)}
-            aria-label="Change colour theme"
-            title={lang === "zh" ? "顏色主題" : "Colour theme"}
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-label={lang === "zh" ? "設定" : "Settings"}
+            title={lang === "zh" ? "設定" : "Settings"}
           >
-            <span className="palette-dot" style={{ background: COLOR_THEMES.find((t) => t.id === colorTheme)?.swatch ?? "#1877f2" }} />
+            <span className="settings-dot" style={{ background: COLOR_THEMES.find((t) => t.id === colorTheme)?.swatch ?? "#1877f2" }} />
           </button>
-          {paletteOpen && (
-            <div className="palette-popover">
-              <p className="palette-title">{lang === "zh" ? "顏色主題" : "Colour"}</p>
-              <div className="palette-grid">
+          {settingsOpen && (
+            <div className="settings-popover">
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "外觀" : "Theme"}</span>
+                <button
+                  className="settings-toggle"
+                  type="button"
+                  onClick={() => setDarkMode((v) => !v)}
+                  aria-label="Toggle dark mode"
+                >
+                  {darkMode ? "☀️ " : "🌙 "}
+                  {darkMode ? (lang === "zh" ? "淺色" : "Light") : (lang === "zh" ? "深色" : "Dark")}
+                </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "語言" : "Lang"}</span>
+                <button
+                  className="settings-toggle"
+                  type="button"
+                  onClick={() => setLang(lang === "en" ? "zh" : "en")}
+                  aria-label="Toggle language"
+                >
+                  {lang === "en" ? "中文" : "English"}
+                </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "顏色" : "Colour"}</span>
+              </div>
+              <div className="settings-palette-grid">
                 {COLOR_THEMES.map((ct) => (
                   <button
                     key={ct.id}
                     type="button"
                     className={`palette-swatch${colorTheme === ct.id ? " is-active" : ""}`}
                     style={{ background: ct.swatch }}
-                    onClick={() => { setColorTheme(ct.id); setPaletteOpen(false); }}
+                    onClick={() => { setColorTheme(ct.id); }}
                     title={ct.label}
                     aria-label={ct.label}
                   />
@@ -1091,14 +1110,6 @@ function Topbar({
             </div>
           )}
         </div>
-        <button
-          className="lang-toggle"
-          type="button"
-          onClick={() => setLang(lang === "en" ? "zh" : "en")}
-          aria-label="Toggle language"
-        >
-          {lang === "en" ? "中文" : "EN"}
-        </button>
         {!guestMode && notifications && (
           <div className="notif-wrapper" ref={notifRef}>
             <button
@@ -3793,6 +3804,55 @@ function SocialApp() {
     const unsubscribe = subscribeToSocialChanges(() => void syncAllData());
     return unsubscribe;
   }, [syncAllData]);
+
+  // Detect new comments arriving via Realtime sync and push notifications
+  const seenCommentIdsRef = useRef<Set<string>>(new Set());
+  const commentsSeedDoneRef = useRef(false);
+  useEffect(() => {
+    if (!session || guestMode) return;
+    // First batch: seed without notifying (these are historical comments)
+    if (!commentsSeedDoneRef.current) {
+      comments.forEach((c) => seenCommentIdsRef.current.add(c.id));
+      if (comments.length > 0) commentsSeedDoneRef.current = true;
+      return;
+    }
+    const myId = session.profileId;
+    const newComments = comments.filter(
+      (c) => !c.id.startsWith("comment-local-") && !seenCommentIdsRef.current.has(c.id),
+    );
+    if (newComments.length === 0) return;
+    let needRefresh = false;
+    newComments.forEach((c) => {
+      seenCommentIdsRef.current.add(c.id);
+      if (c.author_id === myId) return; // own comment — skip
+      const parentPost = posts.find((p) => p.id === c.post_id);
+      if (!parentPost) return;
+      if (parentPost.author_id === myId) {
+        pushNotification(myId, {
+          type: "comment",
+          from_id: c.author_id,
+          post_id: c.post_id,
+          snippet: c.body,
+          created_at: c.created_at,
+        });
+        needRefresh = true;
+        return;
+      }
+      // Thread-follow: I previously commented on this post
+      const iParticipated = comments.some((prev) => prev.post_id === c.post_id && prev.author_id === myId);
+      if (iParticipated) {
+        pushNotification(myId, {
+          type: "thread",
+          from_id: c.author_id,
+          post_id: c.post_id,
+          snippet: c.body,
+          created_at: c.created_at,
+        });
+        needRefresh = true;
+      }
+    });
+    if (needRefresh) refreshNotifications();
+  }, [comments, session, guestMode, posts, refreshNotifications]);
 
   useEffect(() => {
     const handler = () => setRoute(routeFromLocation());

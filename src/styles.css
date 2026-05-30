@@ -1432,10 +1432,14 @@ p {
   color: var(--text-primary);
 }
 
-.palette-wrapper {
+/* legacy palette-wrapper kept as alias */
+.palette-wrapper { position: relative; }
+
+/* settings button — single dot replaces 3 separate buttons */
+.settings-wrapper {
   position: relative;
 }
-.palette-btn {
+.settings-btn {
   width: 32px;
   height: 32px;
   border: 1.5px solid var(--border);
@@ -1448,41 +1452,61 @@ p {
   transition: border-color 120ms;
   padding: 0;
 }
-.palette-btn:hover { border-color: var(--accent); }
-.palette-dot {
-  width: 18px;
-  height: 18px;
+.settings-btn:hover { border-color: var(--accent); }
+.settings-dot {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   display: block;
 }
-.palette-popover {
+.settings-popover {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 12px;
+  padding: 12px 14px;
   box-shadow: var(--lg-shadow-float);
   z-index: 200;
-  min-width: 160px;
+  min-width: 180px;
 }
-.palette-title {
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.settings-label {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-muted);
-  margin: 0 0 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
-.palette-grid {
+.settings-toggle {
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 120ms;
+}
+.settings-toggle:hover { border-color: var(--accent); }
+.settings-palette-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+  margin-top: 2px;
 }
 .palette-swatch {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: 2.5px solid transparent;
   cursor: pointer;
