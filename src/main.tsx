@@ -13,6 +13,7 @@ import { clearIdentitySession, loadIdentitySession, saveIdentitySession } from "
 import {
   deleteComment,
   deletePost,
+  fetchAllCommentsForPost,
   pinPost,
   loadAllSocialData,
   loadDirectMessages,
@@ -1671,6 +1672,7 @@ function SocialPostCard({
   onPollVote,
   onQuotePost,
   allPosts,
+  onLoadComments,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -1691,6 +1693,7 @@ function SocialPostCard({
   onPollVote?: (postId: string, optionIdx: number) => void;
   onQuotePost?: (quotedPost: Post, body: string) => void;
   allPosts?: Post[];
+  onLoadComments?: (postId: string) => Promise<void>;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -1702,6 +1705,7 @@ function SocialPostCard({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
   const [showAllComments, setShowAllComments] = useState(false);
+  const [allCommentsFetched, setAllCommentsFetched] = useState(false);
   const [postBodyExpanded, setPostBodyExpanded] = useState(false);
   const POST_BODY_FOLD = 300;
   const [quoteMode, setQuoteMode] = useState(false);
@@ -2157,9 +2161,15 @@ function SocialPostCard({
           <button
             type="button"
             className="show-all-comments-btn"
-            onClick={() => setShowAllComments(true)}
+            onClick={async () => {
+              if (!allCommentsFetched && onLoadComments) {
+                await onLoadComments(post.id);
+                setAllCommentsFetched(true);
+              }
+              setShowAllComments(true);
+            }}
           >
-            {lang === "zh" ? `查看全部 ${comments.length} 條留言` : `View all ${comments.length} comments`}
+            {lang === "zh" ? "查看全部留言" : "View all comments"}
           </button>
         )}
         {(showAllComments ? comments : comments.slice(-3)).map((comment) => {
@@ -2307,6 +2317,7 @@ function Feed({
   onPollVote,
   allPosts,
   onQuotePost,
+  onLoadComments,
 }: {
   posts: Post[];
   currentProfile: Profile;
@@ -2327,6 +2338,7 @@ function Feed({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onLoadComments?: (postId: string) => Promise<void>;
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
@@ -2453,6 +2465,7 @@ function Feed({
           onPollVote={onPollVote}
           allPosts={allPosts}
           onQuotePost={onQuotePost}
+          onLoadComments={onLoadComments}
         />
       ))}
       {visibleCount < allDisplayPosts.length && (
@@ -2493,6 +2506,7 @@ function ProfilePage({
   onPollVote,
   allPosts,
   onQuotePost,
+  onLoadComments,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -2516,6 +2530,7 @@ function ProfilePage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onLoadComments?: (postId: string) => Promise<void>;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2738,6 +2753,7 @@ function ProfilePage({
         onPollVote={onPollVote}
         allPosts={allPosts}
         onQuotePost={onQuotePost}
+        onLoadComments={onLoadComments}
       />
     </div>
   );
@@ -2766,6 +2782,7 @@ function PublicGroupPage({
   onPollVote,
   allPosts,
   onQuotePost,
+  onLoadComments,
 }: {
   groupId: string;
   currentProfile: Profile;
@@ -2787,6 +2804,7 @@ function PublicGroupPage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onLoadComments?: (postId: string) => Promise<void>;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2888,6 +2906,7 @@ function PublicGroupPage({
         onPollVote={onPollVote}
         allPosts={allPosts}
         onQuotePost={onQuotePost}
+        onLoadComments={onLoadComments}
       />
     </div>
   );
@@ -2915,6 +2934,7 @@ function HomePage({
   onPollVote,
   allPosts,
   onQuotePost,
+  onLoadComments,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -2935,6 +2955,7 @@ function HomePage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onLoadComments?: (postId: string) => Promise<void>;
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -3076,6 +3097,7 @@ function HomePage({
         onPollVote={onPollVote}
         allPosts={allPosts}
         onQuotePost={onQuotePost}
+        onLoadComments={onLoadComments}
       />
     </div>
   );
@@ -3682,6 +3704,14 @@ function SocialApp() {
     }
   }
 
+  async function handleLoadComments(postId: string) {
+    const all = await fetchAllCommentsForPost(postId);
+    setComments((prev) => {
+      const without = prev.filter((c) => c.post_id !== postId);
+      return [...without, ...all];
+    });
+  }
+
   async function addComment(postId: string, body: string, replyToId?: string | null) {
     if (!session) return;
     const createdAt = new Date().toISOString();
@@ -3939,6 +3969,7 @@ function SocialApp() {
       onPollVote={voteOnPoll}
       allPosts={visiblePosts}
       onQuotePost={handleQuotePost}
+      onLoadComments={handleLoadComments}
     />
   );
 
@@ -3979,6 +4010,7 @@ function SocialApp() {
           setMessagesInitWith(target);
           setMessagesOpen(true);
         }}
+        onLoadComments={handleLoadComments}
       />
     );
   }
@@ -4006,6 +4038,7 @@ function SocialApp() {
         onPollVote={voteOnPoll}
         allPosts={visiblePosts}
         onQuotePost={handleQuotePost}
+        onLoadComments={handleLoadComments}
       />
     );
   }

@@ -147,10 +147,11 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
     const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes].find((r) => r.error)?.error;
     if (firstErr) return { data: null, error: firstErr.message };
 
-    const [comments, reactions] = await Promise.all([
-      fetchAllRows<Comment>(supabase.from("comments").select("*").order("created_at") as never),
+    const [commentRes, reactions] = await Promise.all([
+      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(500),
       fetchAllRows<Reaction>(supabase.from("reactions").select("*") as never),
     ]);
+    const comments = ((commentRes.data ?? []) as Comment[]).reverse();
 
     return {
       data: {
@@ -266,6 +267,15 @@ export async function deletePost(postId: string): Promise<ServiceResult<{ delete
   const { error } = await supabase.from("posts").delete().eq("id", postId);
   if (error) return { data: null, error: error.message };
   return { data: { deleted: true }, error: null };
+}
+
+export async function fetchAllCommentsForPost(postId: string): Promise<Comment[]> {
+  if (!isSupabaseConfigured || !supabase) {
+    return loadMock().comments.filter((c) => c.post_id === postId);
+  }
+  return fetchAllRows<Comment>(
+    supabase.from("comments").select("*").eq("post_id", postId).order("created_at") as never
+  );
 }
 
 export async function persistComment(comment: Comment): Promise<ServiceResult<Comment>> {
