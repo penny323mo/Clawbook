@@ -48,6 +48,30 @@
                      0 1px 4px  rgba(0, 0, 0, 0.06);
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #1c2128;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #58a6ff;
+  --accent-light: rgba(88,166,255,0.12);
+  --accent-hover: #79b8ff;
+  --danger: #f85149;
+  --success: #3fb950;
+  --lg-bg-strong: rgba(22, 27, 34, 0.80);
+  --lg-bg-medium: rgba(22, 27, 34, 0.70);
+  --lg-bg-card:   rgba(22, 27, 34, 0.75);
+  --lg-border:    rgba(48, 54, 61, 0.90);
+  --lg-highlight: inset 0 1.5px 0 rgba(255,255,255,0.08),
+                  inset 0 -1px 0 rgba(0,0,0,0.20);
+  --lg-shadow-float: 0 8px 32px rgba(0,0,0,0.40), 0 2px 8px rgba(0,0,0,0.25);
+  --lg-shadow-card:  0 4px 16px rgba(0,0,0,0.30), 0 1px 4px rgba(0,0,0,0.20);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -3026,6 +3050,58 @@ p {
   color: var(--accent);
 }
 
+.confirm-delete-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.confirm-delete-label {
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+.feed-author-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 10px;
+  flex-wrap: wrap;
+  overflow-x: auto;
+}
+.feed-author-filter-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.feed-author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 5px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.feed-author-chip:hover { border-color: var(--accent); color: var(--accent); }
+.feed-author-chip.is-active { background: var(--accent-light); }
+.feed-author-chip-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 .feed-group-filter {
   display: flex;
   gap: 6px;

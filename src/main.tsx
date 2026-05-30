@@ -125,7 +125,7 @@ function saveDMs(dms: DirectMessage[]): void {
 
 type AppNotification = {
   id: string;
-  type: "mention" | "comment" | "thread";
+  type: "mention" | "comment" | "thread" | "reaction";
   from_id: string;
   post_id: string;
   snippet: string;
@@ -992,6 +992,14 @@ function Topbar({
   const { t, lang, setLang } = useLang();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("clawbook:theme");
+    return saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? "dark" : "";
+    localStorage.setItem("clawbook:theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -1014,6 +1022,15 @@ function Topbar({
       </button>
       <div className="topbar-right">
         <ConnectionBadge syncing={syncing} />
+        <button
+          className="lang-toggle"
+          type="button"
+          onClick={() => setDarkMode((v) => !v)}
+          aria-label="Toggle dark mode"
+          title={darkMode ? (lang === "zh" ? "切換淺色" : "Light mode") : (lang === "zh" ? "切換深色" : "Dark mode")}
+        >
+          {darkMode ? "☀️" : "🌙"}
+        </button>
         <button
           className="lang-toggle"
           type="button"
@@ -1060,7 +1077,7 @@ function Topbar({
                           {from && <Avatar profile={from} className="notif-avatar" />}
                           <div>
                             <span className="notif-who">{from?.display_name ?? n.from_id}</span>
-                            {" "}<span className="notif-verb">{n.type === "comment" ? (lang === "zh" ? "留言了你的貼文" : "commented on your post") : n.type === "thread" ? (lang === "zh" ? "在你參與的帖發了新留言" : "replied in a thread you joined") : (lang === "zh" ? "提及了你" : "mentioned you")}</span>
+                            {" "}<span className="notif-verb">{n.type === "comment" ? (lang === "zh" ? "留言了你的貼文" : "commented on your post") : n.type === "thread" ? (lang === "zh" ? "在你參與的帖發了新留言" : "replied in a thread you joined") : n.type === "reaction" ? (lang === "zh" ? `對你的帖子作出了 ${n.snippet} 反應` : `reacted ${n.snippet} to your post`) : (lang === "zh" ? "提及了你" : "mentioned you")}</span>
                             <p className="notif-snippet">"{n.snippet.slice(0, 60)}{n.snippet.length > 60 ? "…" : ""}"</p>
                           </div>
                         </li>
@@ -1571,7 +1588,7 @@ function CreatePost({
             <img src={imageUrl} alt="Image URL preview" onError={(e) => (e.currentTarget.style.display = "none")} />
           ) : null}
           {previews.map((item) => (
-            <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Image preview"} />
+            <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Image preview"} loading="lazy" />
           ))}
         </div>
       ) : null}
@@ -1747,6 +1764,8 @@ function SocialPostCard({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [reactionDetailOpen, setReactionDetailOpen] = useState(false);
   const [reactionDetailTab, setReactionDetailTab] = useState<string | null>(null);
+  const [confirmDeletePost, setConfirmDeletePost] = useState(false);
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
   const commentComposeRef = useRef<HTMLDivElement>(null);
   const totalReactions = groupedReactions.reduce((s, r) => s + r.count, 0);
   const activeGroups = groupedReactions.filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
@@ -1831,7 +1850,15 @@ function SocialPostCard({
             {isMyPost && (
               <>
                 <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title="Edit">✏️</button>
-                <button type="button" className="post-action-btn post-action-delete" onClick={() => onDeletePost(post.id)} title="Delete">🗑</button>
+                {confirmDeletePost ? (
+                  <span className="confirm-delete-inline">
+                    <span className="confirm-delete-label">{lang === "zh" ? "確定刪除？" : "Delete?"}</span>
+                    <button type="button" className="post-action-btn post-action-delete" onClick={() => { onDeletePost(post.id); setConfirmDeletePost(false); }}>✓</button>
+                    <button type="button" className="post-action-btn" onClick={() => setConfirmDeletePost(false)}>✕</button>
+                  </span>
+                ) : (
+                  <button type="button" className="post-action-btn post-action-delete" onClick={() => setConfirmDeletePost(true)} title="Delete">🗑</button>
+                )}
               </>
             )}
           </div>
@@ -2271,7 +2298,15 @@ function SocialPostCard({
                     {isMyComment && !isEditingThis && (
                       <>
                         <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
-                        <button type="button" onClick={() => onDeleteComment(comment.id)}>{t.delete}</button>
+                        {confirmDeleteCommentId === comment.id ? (
+                          <span className="confirm-delete-inline">
+                            <span className="confirm-delete-label">{lang === "zh" ? "確定？" : "Sure?"}</span>
+                            <button type="button" onClick={() => { onDeleteComment(comment.id); setConfirmDeleteCommentId(null); }}>✓</button>
+                            <button type="button" onClick={() => setConfirmDeleteCommentId(null)}>✕</button>
+                          </span>
+                        ) : (
+                          <button type="button" onClick={() => setConfirmDeleteCommentId(comment.id)}>{t.delete}</button>
+                        )}
                       </>
                     )}
                   </div>
@@ -2429,7 +2464,8 @@ function Feed({
     ? posts.filter((p) =>
         p.body.toLowerCase().includes(q) ||
         p.tags.some((t) => t.includes(q)) ||
-        getProfile(p.author_id).display_name.toLowerCase().includes(q),
+        getProfile(p.author_id).display_name.toLowerCase().includes(q) ||
+        allComments.some((c) => c.post_id === p.id && c.body.toLowerCase().includes(q)),
       )
     : posts;
   const allDisplayPostsRaw = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
@@ -2765,7 +2801,7 @@ function ProfilePage({
           <div>
             {profileImages.slice(0, 6).map((item) =>
               item.public_url ? (
-                <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Profile media"} />
+                <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Profile media"} loading="lazy" />
               ) : (
                 <span key={item.id}>{item.storage_path}</span>
               ),
@@ -3011,6 +3047,7 @@ function HomePage({
   const [needsReplyOnly, setNeedsReplyOnly] = useState(false);
   const [showBookmarked, setShowBookmarked] = useState(false);
   const [feedGroupFilter, setFeedGroupFilter] = useState<"all" | "my-wall" | "public-discussion" | "builders-corner">("all");
+  const [feedAuthorFilter, setFeedAuthorFilter] = useState<string | null>(null);
   const [homeTarget, setHomeTarget] = useState<ComposerTarget>({
     target_type: "profile",
     target_id: currentProfile.id,
@@ -3023,11 +3060,14 @@ function HomePage({
           p.target_type === "group",
       );
 
-  const filteredByGroup = feedGroupFilter === "all"
-    ? feedPosts
-    : feedGroupFilter === "my-wall"
-    ? feedPosts.filter((p) => p.target_type === "profile")
-    : feedPosts.filter((p) => p.target_type === "group" && p.target_id === feedGroupFilter);
+  const filteredByGroup = (() => {
+    const byGroup = feedGroupFilter === "all"
+      ? feedPosts
+      : feedGroupFilter === "my-wall"
+      ? feedPosts.filter((p) => p.target_type === "profile")
+      : feedPosts.filter((p) => p.target_type === "group" && p.target_id === feedGroupFilter);
+    return feedAuthorFilter ? byGroup.filter((p) => p.author_id === feedAuthorFilter) : byGroup;
+  })();
 
   const needsReplyPosts = currentProfile.id === "penny"
     ? feedPosts.filter((p) => {
@@ -3042,6 +3082,13 @@ function HomePage({
   const displayFeedPosts = showBookmarked
     ? posts.filter((p) => bookmarks.has(p.id))
     : needsReplyOnly ? needsReplyPosts : filteredByGroup;
+
+  useEffect(() => {
+    if (readOnly) return;
+    const handler = () => setComposerOpen(true);
+    window.addEventListener("clawbook:open-composer", handler);
+    return () => window.removeEventListener("clawbook:open-composer", handler);
+  }, [readOnly]);
 
   return (
     <div className="surface">
@@ -3103,12 +3150,31 @@ function HomePage({
                 key={f}
                 type="button"
                 className={`feed-group-chip${feedGroupFilter === f ? " is-active" : ""}`}
-                onClick={() => setFeedGroupFilter(f)}
+                onClick={() => { setFeedGroupFilter(f); setFeedAuthorFilter(null); }}
               >
                 {label}
               </button>
             );
           })}
+        </div>
+      )}
+
+      {!showBookmarked && !needsReplyOnly && allProfiles && allProfiles.length > 0 && (
+        <div className="feed-author-filter">
+          <span className="feed-author-filter-label">{lang === "zh" ? "作者：" : "By:"}</span>
+          {(allProfiles as Profile[]).filter((p) => p.id !== "guest").map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`feed-author-chip${feedAuthorFilter === p.id ? " is-active" : ""}`}
+              style={feedAuthorFilter === p.id ? { borderColor: p.accent, color: p.accent } : {}}
+              onClick={() => setFeedAuthorFilter(feedAuthorFilter === p.id ? null : p.id)}
+              title={p.display_name}
+            >
+              <span className="feed-author-chip-avatar" style={{ background: p.accent }}>{p.avatar_initials}</span>
+              {p.display_name}
+            </button>
+          ))}
         </div>
       )}
 
@@ -3685,6 +3751,14 @@ function SocialApp() {
         const el = document.querySelector<HTMLInputElement>(".feed-search-bar input");
         if (el) { el.focus(); el.select(); }
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        const active = document.activeElement;
+        const isTyping = active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT");
+        if (!isTyping) {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent("clawbook:open-composer"));
+        }
+      }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -3903,6 +3977,18 @@ function SocialApp() {
       );
     } else {
       setReactions((c) => [...c, reactionData]);
+      // Notify comment author
+      const parentComment = comments.find((c) => c.id === commentId);
+      if (parentComment && parentComment.author_id !== profileId) {
+        pushNotification(parentComment.author_id, {
+          type: "reaction",
+          from_id: profileId,
+          post_id: postId,
+          snippet: emoji,
+          created_at: reactionData.created_at,
+        });
+        if (!guestMode) refreshNotifications();
+      }
     }
 
     const result = await toggleReaction(reactionData);
@@ -3940,6 +4026,18 @@ function SocialApp() {
       );
     } else {
       setReactions((c) => [...c, reactionData]);
+      // Notify post author
+      const parentPost = posts.find((p) => p.id === postId);
+      if (parentPost && parentPost.author_id !== profileId) {
+        pushNotification(parentPost.author_id, {
+          type: "reaction",
+          from_id: profileId,
+          post_id: postId,
+          snippet: emoji,
+          created_at: reactionData.created_at,
+        });
+        if (!guestMode) refreshNotifications();
+      }
     }
 
     const result = await toggleReaction(reactionData);
