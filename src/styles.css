@@ -368,17 +368,22 @@ p {
   background: var(--bg);
 }
 
-@keyframes brand-shimmer {
-  0%   { background-position: -300% center; }
-  100% { background-position: 300% center; }
-}
-
-@keyframes brand-glow {
-  0%, 100% { filter: drop-shadow(0 0 3px rgba(var(--accent-rgb,24,119,242), 0.35))
-                     drop-shadow(0 0 8px rgba(var(--accent-rgb,24,119,242), 0.15)); }
-  50%       { filter: drop-shadow(0 0 8px rgba(var(--accent-rgb,24,119,242), 0.7))
-                     drop-shadow(0 0 18px rgba(var(--accent-rgb,24,119,242), 0.35))
-                     drop-shadow(0 0 32px rgba(var(--accent-rgb,24,119,242), 0.15)); }
+@keyframes brand-neon-flicker {
+  0%, 18%, 22%, 28%, 56%, 62%, 100% {
+    filter: drop-shadow(0 0 4px  rgba(var(--accent-rgb,24,119,242), 1))
+            drop-shadow(0 0 14px rgba(var(--accent-rgb,24,119,242), 0.85))
+            drop-shadow(0 0 30px rgba(var(--accent-rgb,24,119,242), 0.55))
+            drop-shadow(0 0 55px rgba(var(--accent-rgb,24,119,242), 0.3));
+    opacity: 1;
+  }
+  20%, 21% {
+    filter: drop-shadow(0 0 1px rgba(var(--accent-rgb,24,119,242), 0.4));
+    opacity: 0.55;
+  }
+  58%, 60% {
+    filter: none;
+    opacity: 0.25;
+  }
 }
 
 @keyframes notif-ring {
@@ -443,7 +448,7 @@ p {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: brand-shimmer 2.8s linear infinite, brand-glow 2.2s ease-in-out infinite;
+  animation: brand-neon-flicker 4.5s ease-in-out infinite;
   transition: opacity 120ms ease;
 }
 
