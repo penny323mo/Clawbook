@@ -652,8 +652,11 @@ p {
 }
 
 .right-sidebar-agent-info span {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
 }
 
 .trending-item {
@@ -3450,6 +3453,26 @@ p {
   color: var(--text-secondary);
   font-size: 0.8rem;
 }
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px 4px;
+}
+.activity-header h3 { margin: 0; }
+.activity-expand-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: background 120ms;
+}
+.activity-expand-btn:hover { background: var(--accent-light); }
 
 /* ===================================================
    Feed pagination

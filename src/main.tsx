@@ -1192,18 +1192,18 @@ type ActivityItem =
 
 function buildActivityFeed(posts: Post[], comments: Comment[], reactions: Reaction[]): ActivityItem[] {
   const items: ActivityItem[] = [];
-  posts.slice(0, 15).forEach((p) => items.push({ kind: "post", post: p, at: p.created_at }));
+  posts.slice(0, 40).forEach((p) => items.push({ kind: "post", post: p, at: p.created_at }));
   [...comments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 15).forEach((c) => {
+    .slice(0, 40).forEach((c) => {
       const post = posts.find((p) => p.id === c.post_id);
       if (post) items.push({ kind: "comment", comment: c, post, at: c.created_at });
     });
   [...reactions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 15).forEach((r) => {
+    .slice(0, 40).forEach((r) => {
       const post = posts.find((p) => p.id === r.post_id);
       if (post) items.push({ kind: "reaction", reaction: r, post, at: r.created_at });
     });
-  return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 10);
+  return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 60);
 }
 
 function RightSidebar({
@@ -1224,12 +1224,19 @@ function RightSidebar({
   const { lang } = useLang();
   const readOnly = useReadOnly();
   const now = useNow();
+  const [activityExpanded, setActivityExpanded] = useState(false);
 
   function lastPostAt(profileId: string): string | null {
-    const authored = posts
+    const lastPost = posts
       .filter((p) => p.author_id === profileId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    return authored[0]?.created_at ?? null;
+      .reduce<string | null>((max, p) => !max || p.created_at > max ? p.created_at : max, null);
+    const lastComment = comments
+      .filter((c) => c.author_id === profileId)
+      .reduce<string | null>((max, c) => !max || c.created_at > max ? c.created_at : max, null);
+    if (!lastPost && !lastComment) return null;
+    if (!lastPost) return lastComment;
+    if (!lastComment) return lastPost;
+    return lastPost > lastComment ? lastPost : lastComment;
   }
 
   const activityFeed = buildActivityFeed(posts, comments, reactions);
@@ -1239,7 +1246,9 @@ function RightSidebar({
       <div className="right-sidebar-card">
         <h3>{lang === "zh" ? "活躍代理" : "Active Agents"}</h3>
         {allProfiles.map((profile) => {
-          const lastAt = lastPostAt(profile.id);
+          const lastPostTime = posts.filter((p) => p.author_id === profile.id).reduce<string | null>((m, p) => !m || p.created_at > m ? p.created_at : m, null);
+          const lastCommentTime = comments.filter((c) => c.author_id === profile.id).reduce<string | null>((m, c) => !m || c.created_at > m ? c.created_at : m, null);
+          const lastAt = !lastPostTime ? lastCommentTime : !lastCommentTime ? lastPostTime : lastPostTime > lastCommentTime ? lastPostTime : lastCommentTime;
           const isRecent = lastAt ? (now - new Date(lastAt).getTime()) < 24 * 3600_000 : false;
           return (
             <div key={profile.id} className="right-sidebar-agent">
@@ -1252,9 +1261,9 @@ function RightSidebar({
                 <div className="right-sidebar-agent-info">
                   <strong>{profile.display_name}</strong>
                   <span className={isRecent ? "agent-status-active" : "agent-status-idle"}>
-                    {lastAt
-                      ? (lang === "zh" ? `最後：${relativeTime(lastAt, lang, now)}` : `Last: ${relativeTime(lastAt, lang, now)}`)
-                      : (lang === "zh" ? "從未發言" : "No posts yet")}
+                    {lastPostTime && <span>{lang === "zh" ? "帖：" : "Post: "}{relativeTime(lastPostTime, lang, now)}</span>}
+                    {lastCommentTime && <span>{lang === "zh" ? " · 留言：" : " · Cmt: "}{relativeTime(lastCommentTime, lang, now)}</span>}
+                    {!lastAt && (lang === "zh" ? "從未發言" : "No activity")}
                   </span>
                 </div>
               </button>
@@ -1301,13 +1310,26 @@ function RightSidebar({
 
       {activityFeed.length > 0 ? (
         <div className="right-sidebar-card">
-          <h3>{lang === "zh" ? "最新動態" : "Recent Activity"}</h3>
-          {activityFeed.map((item, idx) => {
+          <div className="activity-header">
+            <h3>{lang === "zh" ? "最新動態" : "Recent Activity"}</h3>
+            {activityFeed.length > 8 && (
+              <button
+                type="button"
+                className="activity-expand-btn"
+                onClick={() => setActivityExpanded((v) => !v)}
+              >
+                {activityExpanded
+                  ? (lang === "zh" ? "收起" : "Less")
+                  : (lang === "zh" ? `全部 ${activityFeed.length}` : `All ${activityFeed.length}`)}
+              </button>
+            )}
+          </div>
+          {(activityExpanded ? activityFeed : activityFeed.slice(0, 8)).map((item, idx) => {
             const actorId = item.kind === "post" ? item.post.author_id
               : item.kind === "comment" ? item.comment.author_id
               : item.reaction.author_id;
             const actor = getProfile(actorId);
-            const targetPost = item.kind === "post" ? item.post : item.post;
+            const targetPost = item.post;
             const label = item.kind === "post"
               ? (lang === "zh" ? "發帖" : "posted")
               : item.kind === "comment"
@@ -2825,10 +2847,12 @@ function ProfilePage({
           <>
             {profile.status && <p className="profile-status-line">{profile.status}</p>}
             {profile.kind === "agent" && (() => {
-              const lastPost = [...authoredPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-              return lastPost
-                ? <p className="agent-last-active">⏱ {lang === "zh" ? "上次活動：" : "Last active: "}{relativeTime(lastPost.created_at, lang, now)}</p>
-                : <p className="agent-last-active">{lang === "zh" ? "尚未發過帖" : "No posts yet"}</p>;
+              const lastPostAt = authoredPosts.reduce<string | null>((m, p) => !m || p.created_at > m ? p.created_at : m, null);
+              const lastCommentAt = comments.filter((c) => c.author_id === profile.id).reduce<string | null>((m, c) => !m || c.created_at > m ? c.created_at : m, null);
+              const lastAt = !lastPostAt ? lastCommentAt : !lastCommentAt ? lastPostAt : lastPostAt > lastCommentAt ? lastPostAt : lastCommentAt;
+              return lastAt
+                ? <p className="agent-last-active">⏱ {lang === "zh" ? "上次活動：" : "Last active: "}{relativeTime(lastAt, lang, now)}</p>
+                : <p className="agent-last-active">{lang === "zh" ? "尚未活動" : "No activity yet"}</p>;
             })()}
             <p className="profile-bio">{profile.bio}</p>
           </>
