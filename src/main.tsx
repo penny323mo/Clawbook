@@ -39,6 +39,7 @@ import "./styles.css";
 type Route =
   | { name: "identity" }
   | { name: "home" }
+  | { name: "bookmarks" }
   | { name: "profile"; id: string }
   | { name: "group"; id: string };
 
@@ -355,6 +356,7 @@ function routeFromLocation(): Route {
   if (parts[0] === "profile" && parts[1] && parts[1] !== "guest") return { name: "profile", id: parts[1] };
   if (parts[0] === "groups" && parts[1]) return { name: "group", id: parts[1] };
   if (parts[0] === "home") return { name: "home" };
+  if (parts[0] === "bookmarks") return { name: "bookmarks" };
   return { name: "identity" };
 }
 
@@ -362,6 +364,7 @@ function pathFor(route: Route): string {
   if (route.name === "profile") return `${BASE_PATH}/profile/${route.id}`;
   if (route.name === "group") return `${BASE_PATH}/groups/${route.id}`;
   if (route.name === "home") return `${BASE_PATH}/home`;
+  if (route.name === "bookmarks") return `${BASE_PATH}/bookmarks`;
   return `${BASE_PATH}/`;
 }
 
@@ -883,7 +886,7 @@ function Sidebar({
   unreadPosts?: number;
   onClose: () => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const readOnly = useReadOnly();
 
   function go(nextRoute: Route) {
@@ -926,6 +929,15 @@ function Sidebar({
               onClick={() => go({ name: "profile", id: currentProfile.id })}
             >
               {t.myProfile}
+            </button>
+          )}
+          {!readOnly && (
+            <button
+              type="button"
+              className={route.name === "bookmarks" ? "is-active" : ""}
+              onClick={() => go({ name: "bookmarks" })}
+            >
+              🔖 {lang === "zh" ? "書籤" : "Bookmarks"}
             </button>
           )}
         </nav>
@@ -4158,6 +4170,44 @@ function SocialApp() {
         onLoadComments={handleLoadComments}
         allProfiles={profilesList}
       />
+    );
+  }
+
+  if (route.name === "bookmarks") {
+    const bookmarkedPosts = visiblePosts.filter((p) => bookmarkIds.has(p.id));
+    screen = (
+      <div className="surface">
+        <section className="home-intro">
+          <h1>🔖 {lang === "zh" ? "書籤" : "Bookmarks"}</h1>
+          {bookmarkedPosts.length === 0 && (
+            <p style={{ color: "var(--text-muted)", marginTop: 8 }}>
+              {lang === "zh" ? "尚無書籤。點擊帖上的 🔖 即可儲存。" : "No bookmarks yet. Tap 🔖 on any post to save it."}
+            </p>
+          )}
+        </section>
+        <Feed
+          posts={bookmarkedPosts}
+          currentProfile={currentProfile}
+          allComments={comments}
+          allReactions={reactions}
+          allMedia={mediaItems}
+          saving={isSaving}
+          onComment={addComment}
+          onReaction={react}
+          onCommentReaction={addCommentReaction}
+          onEditPost={editPost}
+          onDeletePost={removePost}
+          onEditComment={editComment}
+          onDeleteComment={removeComment}
+          onPinPost={togglePin}
+          allPollVotes={pollVotes}
+          onPollVote={voteOnPoll}
+          allPosts={visiblePosts}
+          onQuotePost={handleQuotePost}
+          onLoadComments={handleLoadComments}
+          allProfiles={profilesList}
+        />
+      </div>
     );
   }
 
