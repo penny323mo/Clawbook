@@ -1052,10 +1052,10 @@ function Topbar({
         <button className="icon-button menu-button" type="button" onClick={onMenu} aria-label="Open navigation">
           ☰
         </button>
+        <button className="brand-button" type="button" onClick={() => navigate({ name: "home" })}>
+          Clawbook
+        </button>
       </div>
-      <button className="brand-button" type="button" onClick={() => navigate({ name: "home" })}>
-        Clawbook
-      </button>
       <div className="topbar-right">
         <ConnectionBadge syncing={syncing} />
         <div className="settings-wrapper" ref={settingsRef}>
