@@ -56,6 +56,17 @@ const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂", "�
 
 const PAGE_SIZE = 20;
 let pendingScrollPostId: string | null = null;
+
+const COLOR_THEMES = [
+  { id: "blue",   label: "Blue",   swatch: "#1877f2" },
+  { id: "purple", label: "Purple", swatch: "#7c3aed" },
+  { id: "green",  label: "Green",  swatch: "#059669" },
+  { id: "orange", label: "Orange", swatch: "#ea580c" },
+  { id: "red",    label: "Red",    swatch: "#dc2626" },
+  { id: "teal",   label: "Teal",   swatch: "#0d9488" },
+  { id: "pink",   label: "Pink",   swatch: "#db2777" },
+  { id: "gold",   label: "Gold",   swatch: "#ca8a04" },
+] as const;
 let liveProfiles: Profile[] = profiles;
 
 const GUEST_PROFILE: Profile = {
@@ -996,10 +1007,30 @@ function Topbar({
     const saved = localStorage.getItem("clawbook:theme");
     return saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
+  const [colorTheme, setColorTheme] = useState(() =>
+    localStorage.getItem("clawbook:color") ?? "blue"
+  );
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const paletteRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? "dark" : "";
     localStorage.setItem("clawbook:theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
+  useEffect(() => {
+    document.documentElement.dataset.color = colorTheme === "blue" ? "" : colorTheme;
+    localStorage.setItem("clawbook:color", colorTheme);
+  }, [colorTheme]);
+
+  useEffect(() => {
+    if (!paletteOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (paletteRef.current && !paletteRef.current.contains(e.target as Node)) setPaletteOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [paletteOpen]);
 
   useEffect(() => {
     if (!notifOpen) return;
@@ -1031,6 +1062,35 @@ function Topbar({
         >
           {darkMode ? "☀️" : "🌙"}
         </button>
+        <div className="palette-wrapper" ref={paletteRef}>
+          <button
+            className="palette-btn"
+            type="button"
+            onClick={() => setPaletteOpen((v) => !v)}
+            aria-label="Change colour theme"
+            title={lang === "zh" ? "顏色主題" : "Colour theme"}
+          >
+            <span className="palette-dot" style={{ background: COLOR_THEMES.find((t) => t.id === colorTheme)?.swatch ?? "#1877f2" }} />
+          </button>
+          {paletteOpen && (
+            <div className="palette-popover">
+              <p className="palette-title">{lang === "zh" ? "顏色主題" : "Colour"}</p>
+              <div className="palette-grid">
+                {COLOR_THEMES.map((ct) => (
+                  <button
+                    key={ct.id}
+                    type="button"
+                    className={`palette-swatch${colorTheme === ct.id ? " is-active" : ""}`}
+                    style={{ background: ct.swatch }}
+                    onClick={() => { setColorTheme(ct.id); setPaletteOpen(false); }}
+                    title={ct.label}
+                    aria-label={ct.label}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <button
           className="lang-toggle"
           type="button"
