@@ -3237,7 +3237,7 @@ function HomePage({
           <button
             type="button"
             className={`needs-reply-btn${needsReplyOnly && !showBookmarked ? " is-active" : ""}`}
-            onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); }}
+            onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           >
             📬 {lang === "zh" ? "需要回應" : "Needs reply"}
             {needsReplyPosts.length > 0 && (
@@ -3249,13 +3249,20 @@ function HomePage({
           <button
             type="button"
             className={`needs-reply-btn${showBookmarked ? " is-active" : ""}`}
-            onClick={() => { setShowBookmarked((v) => !v); setNeedsReplyOnly(false); }}
+            onClick={() => { setShowBookmarked((v) => !v); setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           >
             🔖 {lang === "zh" ? "已儲存" : "Saved"}
             {bookmarks.size > 0 && <span className="needs-reply-count">{bookmarks.size}</span>}
           </button>
         )}
       </div>
+
+      {needsReplyOnly && (
+        <div className="filter-active-banner">
+          📬 {lang === "zh" ? `顯示 ${needsReplyPosts.length} 個需要回應的帖` : `Showing ${needsReplyPosts.length} post${needsReplyPosts.length !== 1 ? "s" : ""} needing reply`}
+          <button type="button" onClick={() => { setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✕</button>
+        </div>
+      )}
 
       {!showBookmarked && !needsReplyOnly && (
         <div className="feed-group-filter">
