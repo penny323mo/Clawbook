@@ -1673,6 +1673,7 @@ function SocialPostCard({
   onQuotePost,
   allPosts,
   onLoadComments,
+  allProfiles,
 }: {
   post: Post;
   currentProfile: Profile;
@@ -1694,6 +1695,7 @@ function SocialPostCard({
   onQuotePost?: (quotedPost: Post, body: string) => void;
   allPosts?: Post[];
   onLoadComments?: (postId: string) => Promise<void>;
+  allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -1932,17 +1934,30 @@ function SocialPostCard({
                   const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
                   const isMyChoice = myVote?.option_idx === i;
                   return (
-                    <button
-                      key={i}
-                      type="button"
-                      className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted ? " has-result" : ""}`}
-                      onClick={() => onPollVote?.(post.id, i)}
-                      disabled={readOnly}
-                    >
-                      <span className="poll-option-bar" style={{ width: hasVoted ? `${pct}%` : "0%" }} />
-                      <span className="poll-option-label">{opt}</span>
-                      {hasVoted && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
-                    </button>
+                    <div key={i} className="poll-option-row">
+                      <button
+                        type="button"
+                        className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted ? " has-result" : ""}`}
+                        onClick={() => onPollVote?.(post.id, i)}
+                        disabled={readOnly}
+                      >
+                        <span className="poll-option-bar" style={{ width: hasVoted ? `${pct}%` : "0%" }} />
+                        <span className="poll-option-label">{opt}</span>
+                        {hasVoted && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
+                      </button>
+                      {hasVoted && count > 0 && (
+                        <div className="poll-voter-list">
+                          {(pollVotes ?? []).filter((v) => v.option_idx === i).map((v) => {
+                            const voter = allProfiles?.find((p) => p.id === v.profile_id);
+                            return (
+                              <span key={v.profile_id} className="poll-voter-chip" style={{ color: voter?.accent ?? "var(--text-muted)" }}>
+                                {voter?.display_name ?? v.profile_id}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
                 <p className="poll-votes-total">
@@ -2318,6 +2333,7 @@ function Feed({
   allPosts,
   onQuotePost,
   onLoadComments,
+  allProfiles,
 }: {
   posts: Post[];
   currentProfile: Profile;
@@ -2339,6 +2355,7 @@ function Feed({
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onLoadComments?: (postId: string) => Promise<void>;
+  allProfiles?: Profile[];
 }) {
   const { lang } = useLang();
   const readOnly = useReadOnly();
@@ -2466,6 +2483,7 @@ function Feed({
           allPosts={allPosts}
           onQuotePost={onQuotePost}
           onLoadComments={onLoadComments}
+          allProfiles={allProfiles}
         />
       ))}
       {visibleCount < allDisplayPosts.length && (
@@ -2507,6 +2525,7 @@ function ProfilePage({
   allPosts,
   onQuotePost,
   onLoadComments,
+  allProfiles,
 }: {
   profile: Profile;
   currentProfile: Profile;
@@ -2531,6 +2550,7 @@ function ProfilePage({
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onLoadComments?: (postId: string) => Promise<void>;
+  allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2754,6 +2774,7 @@ function ProfilePage({
         allPosts={allPosts}
         onQuotePost={onQuotePost}
         onLoadComments={onLoadComments}
+        allProfiles={allProfiles}
       />
     </div>
   );
@@ -2783,6 +2804,7 @@ function PublicGroupPage({
   allPosts,
   onQuotePost,
   onLoadComments,
+  allProfiles,
 }: {
   groupId: string;
   currentProfile: Profile;
@@ -2805,6 +2827,7 @@ function PublicGroupPage({
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onLoadComments?: (postId: string) => Promise<void>;
+  allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -2907,6 +2930,7 @@ function PublicGroupPage({
         allPosts={allPosts}
         onQuotePost={onQuotePost}
         onLoadComments={onLoadComments}
+        allProfiles={allProfiles}
       />
     </div>
   );
@@ -2935,6 +2959,7 @@ function HomePage({
   allPosts,
   onQuotePost,
   onLoadComments,
+  allProfiles,
 }: {
   currentProfile: Profile;
   posts: Post[];
@@ -2956,6 +2981,7 @@ function HomePage({
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onLoadComments?: (postId: string) => Promise<void>;
+  allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
@@ -3098,6 +3124,7 @@ function HomePage({
         allPosts={allPosts}
         onQuotePost={onQuotePost}
         onLoadComments={onLoadComments}
+        allProfiles={allProfiles}
       />
     </div>
   );
@@ -3970,6 +3997,7 @@ function SocialApp() {
       allPosts={visiblePosts}
       onQuotePost={handleQuotePost}
       onLoadComments={handleLoadComments}
+      allProfiles={profilesList}
     />
   );
 
@@ -3996,6 +4024,7 @@ function SocialApp() {
         onPollVote={voteOnPoll}
         allPosts={visiblePosts}
         onQuotePost={handleQuotePost}
+        allProfiles={profilesList}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
@@ -4039,6 +4068,7 @@ function SocialApp() {
         allPosts={visiblePosts}
         onQuotePost={handleQuotePost}
         onLoadComments={handleLoadComments}
+        allProfiles={profilesList}
       />
     );
   }

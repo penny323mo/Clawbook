@@ -3539,6 +3539,27 @@ p {
   color: var(--accent);
   white-space: nowrap;
 }
+.poll-option-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.poll-option-row .poll-option {
+  width: 100%;
+}
+.poll-voter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 2px;
+}
+.poll-voter-chip {
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: var(--surface-2, rgba(255,255,255,0.06));
+  border-radius: 20px;
+  padding: 1px 8px;
+}
 .poll-votes-total {
   font-size: 0.78rem;
   color: var(--text-muted);
