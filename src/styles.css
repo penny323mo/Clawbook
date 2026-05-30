@@ -2731,7 +2731,7 @@ p {
 }
 
 .messages-panel {
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--surface);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
