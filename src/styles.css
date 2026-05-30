@@ -18,6 +18,7 @@
   --text-secondary: #65676b;
   --text-muted: #8a8d91;
   --accent: #1877f2;
+  --accent-rgb: 24, 119, 242;
   --accent-light: #e7f3ff;
   --accent-hover: #166fe5;
   --danger: #fa3e3e;
@@ -361,6 +362,25 @@ p {
   background: var(--bg);
 }
 
+@keyframes brand-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes notif-ring {
+  0%, 100% { transform: rotate(0deg); }
+  15%       { transform: rotate(14deg); }
+  30%       { transform: rotate(-12deg); }
+  45%       { transform: rotate(10deg); }
+  60%       { transform: rotate(-8deg); }
+  75%       { transform: rotate(5deg); }
+}
+
+@keyframes badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb, 24,119,242), 0.55); }
+  50%       { box-shadow: 0 0 0 5px rgba(var(--accent-rgb, 24,119,242), 0); }
+}
+
 .app-topbar {
   position: sticky;
   z-index: 30;
@@ -372,50 +392,63 @@ p {
   background: var(--lg-bg-strong);
   backdrop-filter: var(--lg-blur-strong);
   -webkit-backdrop-filter: var(--lg-blur-strong);
-  padding: 0 10px;
-  height: 62px;
+  padding: 0 12px;
+  height: 66px;
   box-shadow: var(--lg-highlight), var(--lg-shadow-float);
 }
 
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
+/* Gradient shimmer brand text */
 .brand-button {
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--accent);
   font-weight: 900;
-  font-size: 1.5rem;
+  font-size: 1.65rem;
   padding: 4px 6px;
-  letter-spacing: -0.02em;
-  transition: background 120ms ease;
+  letter-spacing: -0.03em;
   white-space: nowrap;
   cursor: pointer;
+  /* gradient text */
+  background-image: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 60%, #a78bfa) 40%,
+    var(--accent) 55%,
+    color-mix(in srgb, var(--accent) 70%, #ffffff) 70%,
+    var(--accent) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: brand-shimmer 4s linear infinite;
+  transition: opacity 120ms ease;
 }
 
-.brand-button:hover {
-  background: var(--accent-light);
-}
+.brand-button:hover { opacity: 0.85; }
 
 .icon-button {
   display: grid;
   place-items: center;
-  min-width: 40px;
-  min-height: 40px;
+  min-width: 42px;
+  min-height: 42px;
   border: 0;
   border-radius: 50%;
   background: var(--surface-2);
   color: var(--text-primary);
-  font-size: 1.1rem;
-  transition: background 120ms ease;
+  font-size: 1.2rem;
+  transition: background 120ms ease, transform 120ms ease;
 }
 
 .icon-button:hover {
   background: var(--border);
+  transform: scale(1.08);
 }
 
 .menu-button {
@@ -2154,13 +2187,14 @@ p {
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
+  min-width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 3px;
   pointer-events: none;
+  animation: badge-pulse 2s ease-in-out infinite;
 }
 
 /* ----- tag chips (clickable) ----- */
@@ -3478,6 +3512,11 @@ p {
 
 .notif-btn {
   position: relative;
+}
+/* Bell rings when there are unread notifications */
+.notif-btn.has-unread {
+  animation: notif-ring 2.4s ease-in-out infinite;
+  transform-origin: 50% 4px;
 }
 
 .notif-panel {

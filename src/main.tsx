@@ -1115,7 +1115,7 @@ function Topbar({
         {!guestMode && notifications && (
           <div className="notif-wrapper" ref={notifRef}>
             <button
-              className="icon-button notif-btn"
+              className={`icon-button notif-btn${(unreadNotifs ?? 0) > 0 ? " has-unread" : ""}`}
               type="button"
               aria-label="Notifications"
               onClick={() => { setNotifOpen((o) => !o); if (!notifOpen) onNotifRead?.(); }}
