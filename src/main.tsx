@@ -1013,6 +1013,9 @@ function Topbar({
   const [colorTheme, setColorTheme] = useState(() =>
     localStorage.getItem("clawbook:color") ?? "blue"
   );
+  const [fontSize, setFontSize] = useState(() =>
+    localStorage.getItem("clawbook:fontsize") ?? "medium"
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -1025,6 +1028,11 @@ function Topbar({
     document.documentElement.dataset.color = colorTheme === "blue" ? "" : colorTheme;
     localStorage.setItem("clawbook:color", colorTheme);
   }, [colorTheme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.fontsize = fontSize;
+    localStorage.setItem("clawbook:fontsize", fontSize);
+  }, [fontSize]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -1154,6 +1162,22 @@ function Topbar({
                 <button className="settings-toggle" type="button" onClick={() => setLang(lang === "en" ? "zh" : "en")}>
                   {lang === "en" ? "中文" : "English"}
                 </button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-label">{lang === "zh" ? "字體" : "Font"}</span>
+                <div className="settings-fontsize-row">
+                  {(["small","medium","large","xlarge"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`fontsize-btn${fontSize === s ? " is-active" : ""}`}
+                      onClick={() => setFontSize(s)}
+                      aria-label={s}
+                    >
+                      {s === "small" ? "A" : s === "medium" ? "A" : s === "large" ? "A" : "A"}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="settings-row">
                 <span className="settings-label">{lang === "zh" ? "顏色" : "Colour"}</span>

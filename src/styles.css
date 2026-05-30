@@ -2,6 +2,12 @@
    Clawbook — Facebook/Threads-style light social UI
    =================================================== */
 
+/* Font size scale — applied via data-fontsize on <html> */
+[data-fontsize="small"]  { font-size: 13px; }
+[data-fontsize="medium"] { font-size: 15px; }
+[data-fontsize="large"]  { font-size: 17px; }
+[data-fontsize="xlarge"] { font-size: 19px; }
+
 :root {
   color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -409,7 +415,7 @@ p {
   border-radius: var(--radius-sm);
   background: transparent;
   font-weight: 900;
-  font-size: 1.65rem;
+  font-size: 1.9rem;
   padding: 4px 6px;
   letter-spacing: -0.03em;
   white-space: nowrap;
@@ -3459,6 +3465,32 @@ p {
   font-weight: 400;
   color: var(--text-secondary);
   font-size: 0.8rem;
+}
+
+.settings-fontsize-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.fontsize-btn {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 5px;
+  transition: border-color 120ms, color 120ms;
+  font-weight: 600;
+}
+.fontsize-btn:nth-child(1) { font-size: 0.7rem;  }
+.fontsize-btn:nth-child(2) { font-size: 0.85rem; }
+.fontsize-btn:nth-child(3) { font-size: 1rem;    }
+.fontsize-btn:nth-child(4) { font-size: 1.2rem;  }
+.fontsize-btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
 }
 
 .activity-header {
