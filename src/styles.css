@@ -3171,6 +3171,9 @@ p {
    Feed pagination
    =================================================== */
 
+.feed-sentinel {
+  height: 40px;
+}
 .feed-load-more {
   display: block;
   width: 100%;

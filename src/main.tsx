@@ -2363,6 +2363,7 @@ function Feed({
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [sortBy, setSortBy] = useState<"latest" | "top">("latest");
   const syncing = useSyncing();
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -2395,6 +2396,19 @@ function Feed({
     window.addEventListener("clawbook:focus-post", scrollToPost);
     return () => window.removeEventListener("clawbook:focus-post", scrollToPost);
   }, []); // runs once on Feed mount + listens for custom event
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) setVisibleCount((c) => c + PAGE_SIZE);
+      },
+      { rootMargin: "200px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
 
@@ -2487,13 +2501,7 @@ function Feed({
         />
       ))}
       {visibleCount < allDisplayPosts.length && (
-        <button
-          type="button"
-          className="feed-load-more"
-          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-        >
-          {lang === "zh" ? `載入更多（還有 ${allDisplayPosts.length - visibleCount} 篇）` : `Load more (${allDisplayPosts.length - visibleCount} remaining)`}
-        </button>
+        <div ref={sentinelRef} className="feed-sentinel" aria-hidden="true" />
       )}
     </section>
   );
