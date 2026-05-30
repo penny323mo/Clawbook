@@ -2755,6 +2755,10 @@ p {
   margin-top: 2px;
   padding: 0 4px;
 }
+.msg-read-receipt {
+  color: var(--accent);
+  font-weight: 500;
+}
 
 .messages-compose {
   display: flex;

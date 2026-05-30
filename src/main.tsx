@@ -3192,6 +3192,29 @@ function MessagesPanel({
     });
   }, [currentProfile.id]);
 
+  // Realtime: read receipts — update read=true when recipient reads my sent DMs
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel(`dm-read-receipts-${currentProfile.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "direct_messages", filter: `from_id=eq.${currentProfile.id}` },
+        (payload) => {
+          const updated = payload.new as DirectMessage;
+          if (updated.read) {
+            setDms((prev) => {
+              const next = prev.map((m) => m.id === updated.id ? { ...m, read: true } : m);
+              saveDMs(next);
+              return next;
+            });
+          }
+        },
+      )
+      .subscribe();
+    return () => { void supabase!.removeChannel(channel); };
+  }, [currentProfile.id]);
+
   const otherProfiles = allProfiles.filter((p) => p.id !== currentProfile.id && p.id !== "guest");
 
   const conversations = otherProfiles.map((p) => {
@@ -3375,28 +3398,36 @@ function MessagesPanel({
                   {activeThread.length === 0 ? (
                     <p className="messages-empty">{t.noMessages}</p>
                   ) : (
-                    activeThread.map((m, i) => {
-                      const isMine = m.from_id === currentProfile.id;
-                      const sender = isMine ? currentProfile : activeWith;
-                      const prevMsg = activeThread[i - 1];
-                      const showSender = !isMine && (i === 0 || prevMsg?.from_id !== m.from_id);
-                      return (
-                        <div key={m.id} className={`message-bubble-wrap ${isMine ? "is-mine" : "is-theirs"}`}>
-                          {!isMine && (
-                            <span className="msg-sender-avatar" style={profileAccent(sender) as CSSProperties}>
-                              {sender.avatar_initials}
-                            </span>
-                          )}
-                          <div className="msg-bubble-col">
-                            {showSender && (
-                              <span className="msg-sender-name">{sender.display_name}</span>
+                    (() => {
+                      const lastReadIdx = activeThread.reduce((best, m, i) =>
+                        m.from_id === currentProfile.id && m.read ? i : best, -1);
+                      return activeThread.map((m, i) => {
+                        const isMine = m.from_id === currentProfile.id;
+                        const sender = isMine ? currentProfile : activeWith;
+                        const prevMsg = activeThread[i - 1];
+                        const showSender = !isMine && (i === 0 || prevMsg?.from_id !== m.from_id);
+                        const showRead = isMine && i === lastReadIdx;
+                        return (
+                          <div key={m.id} className={`message-bubble-wrap ${isMine ? "is-mine" : "is-theirs"}`}>
+                            {!isMine && (
+                              <span className="msg-sender-avatar" style={profileAccent(sender) as CSSProperties}>
+                                {sender.avatar_initials}
+                              </span>
                             )}
-                            <div className="message-bubble">{m.body}</div>
-                            <span className="message-time">{formatTime(m.created_at, lang)}</span>
+                            <div className="msg-bubble-col">
+                              {showSender && (
+                                <span className="msg-sender-name">{sender.display_name}</span>
+                              )}
+                              <div className="message-bubble">{m.body}</div>
+                              <span className="message-time">
+                                {formatTime(m.created_at, lang)}
+                                {showRead && <span className="msg-read-receipt">{lang === "zh" ? " · 已讀" : " · Read"}</span>}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      });
+                    })()
                   )}
                   <div ref={threadEndRef} />
                 </div>
