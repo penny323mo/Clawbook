@@ -124,7 +124,7 @@ function saveDMs(dms: DirectMessage[]): void {
 
 type AppNotification = {
   id: string;
-  type: "mention" | "comment";
+  type: "mention" | "comment" | "thread";
   from_id: string;
   post_id: string;
   snippet: string;
@@ -1048,7 +1048,7 @@ function Topbar({
                           {from && <Avatar profile={from} className="notif-avatar" />}
                           <div>
                             <span className="notif-who">{from?.display_name ?? n.from_id}</span>
-                            {" "}<span className="notif-verb">{n.type === "comment" ? (lang === "zh" ? "留言了你的貼文" : "commented on your post") : (lang === "zh" ? "提及了你" : "mentioned you")}</span>
+                            {" "}<span className="notif-verb">{n.type === "comment" ? (lang === "zh" ? "留言了你的貼文" : "commented on your post") : n.type === "thread" ? (lang === "zh" ? "在你參與的帖發了新留言" : "replied in a thread you joined") : (lang === "zh" ? "提及了你" : "mentioned you")}</span>
                             <p className="notif-snippet">"{n.snippet.slice(0, 60)}{n.snippet.length > 60 ? "…" : ""}"</p>
                           </div>
                         </li>
@@ -3823,8 +3823,9 @@ function SocialApp() {
     };
     setComments((c) => [...c, comment]);
 
-    // Notify post author when someone else comments
+    // Notify post author + previous thread participants when someone else comments
     const parentPost = posts.find((p) => p.id === postId);
+    const notified = new Set<string>([session.profileId]);
     if (parentPost && parentPost.author_id !== session.profileId) {
       pushNotification(parentPost.author_id, {
         type: "comment",
@@ -3833,8 +3834,25 @@ function SocialApp() {
         snippet: body,
         created_at: createdAt,
       });
-      if (!guestMode) refreshNotifications();
+      notified.add(parentPost.author_id);
     }
+    // Notify others who previously commented on this post
+    const threadParticipants = [...new Set(
+      comments.filter((c) => c.post_id === postId).map((c) => c.author_id),
+    )];
+    threadParticipants.forEach((participantId) => {
+      if (!notified.has(participantId)) {
+        pushNotification(participantId, {
+          type: "thread",
+          from_id: session!.profileId,
+          post_id: postId,
+          snippet: body,
+          created_at: createdAt,
+        });
+        notified.add(participantId);
+      }
+    });
+    if (!guestMode) refreshNotifications();
 
     setIsSaving(true);
     try {
