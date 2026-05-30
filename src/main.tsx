@@ -3919,6 +3919,27 @@ function SocialApp() {
     return () => window.removeEventListener("popstate", handler);
   }, []);
 
+  // Pull-to-refresh
+  useEffect(() => {
+    let startY = 0;
+    let canPull = false;
+    const THRESHOLD = 75;
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) { startY = e.touches[0].clientY; canPull = true; }
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!canPull) return;
+      canPull = false;
+      if (e.changedTouches[0].clientY - startY > THRESHOLD) void syncAllData();
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [syncAllData]);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [route]);

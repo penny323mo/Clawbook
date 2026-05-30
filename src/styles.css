@@ -3327,11 +3327,21 @@ p {
   flex-shrink: 0;
 }
 .feed-group-filter {
+  position: sticky;
+  top: 66px;
+  z-index: 20;
   display: flex;
   gap: 6px;
-  padding: 0 16px 10px;
-  flex-wrap: wrap;
+  padding: 8px 16px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--lg-bg-strong);
+  backdrop-filter: var(--lg-blur-strong);
+  -webkit-backdrop-filter: var(--lg-blur-strong);
+  border-bottom: 1px solid var(--lg-border);
 }
+.feed-group-filter::-webkit-scrollbar { display: none; }
 .feed-group-chip {
   padding: 4px 12px;
   border: 1.5px solid var(--border);
@@ -3820,9 +3830,13 @@ p {
    =================================================== */
 
 .feed-sort-bar {
+  position: sticky;
+  top: 112px;
+  z-index: 19;
   display: flex;
   gap: 6px;
-  padding: 6px 0 2px;
+  padding: 8px 0 4px;
+  background: var(--bg);
 }
 
 .feed-sort-btn {
@@ -3838,7 +3852,7 @@ p {
 }
 .feed-sort-btn.is-active {
   background: var(--accent);
-  color: #000;
+  color: #fff;
   border-color: transparent;
   font-weight: 700;
 }
