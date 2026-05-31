@@ -956,8 +956,10 @@ p {
   transition: background 0.15s;
 }
 
-.composer-toggle-btn:hover {
-  background: var(--accent-light);
+@media (hover: hover) {
+  .composer-toggle-btn:hover {
+    background: var(--accent-light);
+  }
 }
 
 .composer-toggle-btn.is-open {
@@ -1627,7 +1629,9 @@ p {
   white-space: nowrap;
   transition: border-color 120ms;
 }
-.settings-toggle:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .settings-toggle:hover { border-color: var(--accent); }
+}
 .settings-palette-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -3689,7 +3693,9 @@ p {
   border-radius: var(--radius-sm);
   transition: background 120ms;
 }
-.activity-expand-btn:hover { background: var(--accent-light); }
+@media (hover: hover) {
+  .activity-expand-btn:hover { background: var(--accent-light); }
+}
 
 /* ===================================================
    Feed pagination
@@ -4059,8 +4065,10 @@ p {
   transition: border-color 150ms;
   min-height: 44px;
 }
-.poll-option:hover:not(:disabled) {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .poll-option:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
 }
 .poll-option.is-voted {
   border-color: var(--accent);
@@ -4123,7 +4131,9 @@ p {
   cursor: pointer;
   padding: 0;
 }
-.poll-change-vote:hover { color: var(--accent); }
+@media (hover: hover) {
+  .poll-change-vote:hover { color: var(--accent); }
+}
 
 /* Poll composer (in CreatePost) */
 
@@ -4156,7 +4166,9 @@ p {
   padding: 4px 6px;
   border-radius: 4px;
 }
-.poll-remove-option:hover { color: var(--danger); }
+@media (hover: hover) {
+  .poll-remove-option:hover { color: var(--danger); }
+}
 .poll-add-option {
   background: none;
   border: 1px dashed var(--border);
@@ -4167,7 +4179,9 @@ p {
   cursor: pointer;
   transition: border-color 120ms, color 120ms;
 }
-.poll-add-option:hover { border-color: var(--accent); color: var(--accent); }
+@media (hover: hover) {
+  .poll-add-option:hover { border-color: var(--accent); color: var(--accent); }
+}
 .poll-toggle-btn {
   background: none;
   border: 1px solid var(--border);
@@ -4177,10 +4191,15 @@ p {
   cursor: pointer;
   transition: border-color 120ms, background 120ms;
 }
-.poll-toggle-btn:hover,
 .poll-toggle-btn.is-active {
   border-color: var(--accent);
   background: var(--accent-light);
+}
+@media (hover: hover) {
+  .poll-toggle-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
 }
 
 /* ===================================================
@@ -4218,7 +4237,9 @@ p {
   transition: border-color 120ms, background 120ms;
   font-size: 0.9rem;
 }
-.broadcast-recipient:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .broadcast-recipient:hover { border-color: var(--accent); }
+}
 .broadcast-recipient.is-selected {
   border-color: var(--accent);
   background: var(--accent-light);
@@ -4269,7 +4290,9 @@ p {
   border-radius: 4px;
   transition: color 0.15s, background 0.15s;
 }
-.reply-btn:hover { color: var(--accent); background: var(--hover-bg); }
+@media (hover: hover) {
+  .reply-btn:hover { color: var(--accent); background: var(--hover-bg); }
+}
 .replying-to-bar {
   display: flex;
   align-items: center;
@@ -4310,7 +4333,9 @@ p {
   color: var(--text-primary);
   font: inherit;
 }
-.quote-post-preview:hover { border-color: var(--accent); }
+@media (hover: hover) {
+  .quote-post-preview:hover { border-color: var(--accent); }
+}
 .quote-post-meta {
   display: flex;
   align-items: center;
