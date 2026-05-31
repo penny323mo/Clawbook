@@ -1379,7 +1379,9 @@ p {
   border-radius: 0 6px 6px 0;
   transition: background 120ms, color 120ms;
 }
-.like-more-btn:hover { background: var(--hover-bg); color: var(--accent); }
+@media (hover: hover) {
+  .like-more-btn:hover { background: var(--hover-bg); color: var(--accent); }
+}
 
 /* ----- reaction picker dropdown ----- */
 .reaction-picker-wrap {
@@ -2371,9 +2373,11 @@ p {
   transition: background 0.12s, border-color 0.12s;
 }
 
-.tag-chip:hover {
-  background: var(--accent-light);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .tag-chip:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+  }
 }
 
 /* ----- tag filter bar ----- */
@@ -2628,9 +2632,11 @@ p {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.home-target-picker button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .home-target-picker button:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .home-target-picker button.is-active {
@@ -2912,9 +2918,13 @@ p {
   position: relative;
 }
 
-.messages-conv-item:hover,
 .messages-conv-item.is-active {
   background: var(--accent-light);
+}
+@media (hover: hover) {
+  .messages-conv-item:hover {
+    background: var(--accent-light);
+  }
 }
 
 .messages-conv-avatar {
@@ -3251,9 +3261,11 @@ p {
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
-.vis-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .vis-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .vis-btn.is-active {
