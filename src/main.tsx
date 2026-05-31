@@ -769,6 +769,7 @@ function IdentityEntry({
                 <input
                   data-testid="identity-password-input"
                   type="password"
+                  aria-label={lang === "zh" ? "輸入密碼" : "Access code"}
                   autoComplete="off"
                   readOnly={activeInput !== profile.id}
                   onPointerDown={() => setActiveInput(profile.id)}
@@ -819,6 +820,7 @@ function IdentityEntry({
             <h3>{lang === "zh" ? "新增用戶" : "Add user"}</h3>
             <form onSubmit={(e) => { void handleRegister(e); }} className="identity-admin-form">
               <input
+                aria-label={lang === "zh" ? "顯示名稱" : "Display name"}
                 placeholder={lang === "zh" ? "顯示名稱" : "Display name"}
                 value={regName}
                 onChange={(e) => setRegName(e.target.value)}
@@ -826,6 +828,7 @@ function IdentityEntry({
               />
               <input
                 type="password"
+                aria-label={lang === "zh" ? "用戶密碼" : "Password"}
                 placeholder={lang === "zh" ? "用戶密碼" : "Password"}
                 value={regPass}
                 onChange={(e) => setRegPass(e.target.value)}
@@ -833,6 +836,7 @@ function IdentityEntry({
               />
               <input
                 type="password"
+                aria-label={lang === "zh" ? "管理員密碼" : "Admin code"}
                 placeholder={lang === "zh" ? "管理員密碼" : "Admin code"}
                 value={regAdminCode}
                 onChange={(e) => setRegAdminCode(e.target.value)}
@@ -882,6 +886,7 @@ function IdentityEntry({
                 </p>
                 <input
                   type="password"
+                  aria-label={lang === "zh" ? "管理員密碼" : "Admin code"}
                   placeholder={lang === "zh" ? "管理員密碼" : "Admin code"}
                   value={delAdminCode}
                   onChange={(e) => setDelAdminCode(e.target.value)}
@@ -1846,7 +1851,7 @@ function LightboxOverlay({ src, onClose }: { src: string; onClose: () => void })
   return (
     <div className="lightbox-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Image preview">
       <img src={src} alt="Full size" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
-      <button type="button" className="lightbox-close" onClick={onClose} aria-label="Close lightbox">✕</button>
+      <button type="button" className="lightbox-close" onClick={onClose} aria-label="Close lightbox" autoFocus>✕</button>
     </div>
   );
 }
@@ -2653,50 +2658,63 @@ function Feed({
     return () => obs.disconnect();
   }, []);
 
-  if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
+  const mediaByPost = useMemo(() => {
+    const map = new Map<string, Media[]>();
+    allMedia.forEach((m) => { if (!m.post_id) return; const arr = map.get(m.post_id) ?? []; arr.push(m); map.set(m.post_id, arr); });
+    return map;
+  }, [allMedia]);
+  const commentsByPost = useMemo(() => {
+    const map = new Map<string, Comment[]>();
+    allComments.forEach((c) => { const arr = map.get(c.post_id) ?? []; arr.push(c); map.set(c.post_id, arr); });
+    return map;
+  }, [allComments]);
+  const reactionsByPost = useMemo(() => {
+    const map = new Map<string, Reaction[]>();
+    allReactions.forEach((r) => { const arr = map.get(r.post_id) ?? []; arr.push(r); map.set(r.post_id, arr); });
+    return map;
+  }, [allReactions]);
+  const pollVotesByPost = useMemo(() => {
+    const map = new Map<string, PollVote[]>();
+    (allPollVotes ?? []).forEach((v) => { const arr = map.get(v.post_id) ?? []; arr.push(v); map.set(v.post_id, arr); });
+    return map;
+  }, [allPollVotes]);
 
   const q = searchQuery?.toLowerCase().trim() ?? "";
-  const filteredBySearch = q
-    ? (() => {
-        const commentIndex = new Map<string, string>();
-        allComments.forEach((c) => {
-          const prev = commentIndex.get(c.post_id) ?? "";
-          commentIndex.set(c.post_id, prev + " " + c.body.toLowerCase());
-        });
-        return posts.filter((p) =>
-          p.body.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.includes(q)) ||
-          getProfile(p.author_id).display_name.toLowerCase().includes(q) ||
-          (commentIndex.get(p.id) ?? "").includes(q),
-        );
-      })()
-    : posts;
-  const allDisplayPostsRaw = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
-  const allDisplayPostsSorted = sortBy === "top"
-    ? (() => {
-        const reactionCount = new Map<string, number>();
-        allReactions.forEach((r) => { if (!r.comment_id) reactionCount.set(r.post_id, (reactionCount.get(r.post_id) ?? 0) + 1); });
-        return [...allDisplayPostsRaw].sort((a, b) =>
-          ((reactionCount.get(b.id) ?? 0) - (reactionCount.get(a.id) ?? 0)) ||
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      })()
-    : allDisplayPostsRaw;
-  // Pinned posts always float to top
-  const pinnedPosts = allDisplayPostsSorted.filter((p) => p.is_pinned);
-  const unpinnedPosts = allDisplayPostsSorted.filter((p) => !p.is_pinned);
-  const allDisplayPosts = [...pinnedPosts, ...unpinnedPosts];
-  const displayPosts = allDisplayPosts.slice(0, visibleCount);
+  const allDisplayPosts = useMemo(() => {
+    const filtered = q
+      ? (() => {
+          const commentIndex = new Map<string, string>();
+          allComments.forEach((c) => {
+            const prev = commentIndex.get(c.post_id) ?? "";
+            commentIndex.set(c.post_id, prev + " " + c.body.toLowerCase());
+          });
+          return posts.filter((p) =>
+            p.body.toLowerCase().includes(q) ||
+            p.tags.some((t) => t.includes(q)) ||
+            getProfile(p.author_id).display_name.toLowerCase().includes(q) ||
+            (commentIndex.get(p.id) ?? "").includes(q),
+          );
+        })()
+      : posts;
+    const byTag = activeTag ? filtered.filter((p) => p.tags.includes(activeTag)) : filtered;
+    const sorted = sortBy === "top"
+      ? (() => {
+          const reactionCount = new Map<string, number>();
+          allReactions.forEach((r) => { if (!r.comment_id) reactionCount.set(r.post_id, (reactionCount.get(r.post_id) ?? 0) + 1); });
+          return [...byTag].sort((a, b) =>
+            ((reactionCount.get(b.id) ?? 0) - (reactionCount.get(a.id) ?? 0)) ||
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        })()
+      : byTag;
+    const pinned = sorted.filter((p) => p.is_pinned);
+    const unpinned = sorted.filter((p) => !p.is_pinned);
+    return [...pinned, ...unpinned];
+  }, [posts, q, allComments, activeTag, sortBy, allReactions]);
 
-  // Pre-build lookup maps so per-card filtering is O(1) instead of O(n)
-  const mediaByPost = new Map<string, Media[]>();
-  allMedia.forEach((m) => { if (!m.post_id) return; const arr = mediaByPost.get(m.post_id) ?? []; arr.push(m); mediaByPost.set(m.post_id, arr); });
-  const commentsByPost = new Map<string, Comment[]>();
-  allComments.forEach((c) => { const arr = commentsByPost.get(c.post_id) ?? []; arr.push(c); commentsByPost.set(c.post_id, arr); });
-  const reactionsByPost = new Map<string, Reaction[]>();
-  allReactions.forEach((r) => { const arr = reactionsByPost.get(r.post_id) ?? []; arr.push(r); reactionsByPost.set(r.post_id, arr); });
-  const pollVotesByPost = new Map<string, PollVote[]>();
-  (allPollVotes ?? []).forEach((v) => { const arr = pollVotesByPost.get(v.post_id) ?? []; arr.push(v); pollVotesByPost.set(v.post_id, arr); });
+  if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
+
+  const displayPosts = allDisplayPosts.slice(0, visibleCount);
 
   if (posts.length === 0) {
     return (
@@ -2902,6 +2920,8 @@ function ProfilePage({
                 ref={avatarInputRef}
                 type="file"
                 accept="image/*"
+                aria-hidden="true"
+                tabIndex={-1}
                 className="visually-hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -3325,6 +3345,7 @@ function HomePage({
       <div className="feed-search-bar">
         <input
           type="search"
+          aria-label={lang === "zh" ? "搜尋帖子" : "Search posts"}
           placeholder={lang === "zh" ? "搜尋帖子、作者、標籤… (⌘K)" : "Search posts, authors, tags… (⌘K)"}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -3635,14 +3656,15 @@ function MessagesPanel({
     setDraft("");
     if (composeRef.current) composeRef.current.style.height = "auto";
     setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
-    const result = await persistDirectMessage(msg);
-    if (result?.error) {
+    try {
+      const result = await persistDirectMessage(msg);
+      if (result?.error) {
+        setDmSendError("Failed to send message");
+        setDms((prev) => { const next = prev.filter((m) => m.id !== msg.id); saveDMs(next); return next; });
+      }
+    } catch {
       setDmSendError("Failed to send message");
-      setDms((prev) => {
-        const next = prev.filter((m) => m.id !== msg.id);
-        saveDMs(next);
-        return next;
-      });
+      setDms((prev) => { const next = prev.filter((m) => m.id !== msg.id); saveDMs(next); return next; });
     }
   }
 
@@ -3692,7 +3714,7 @@ function MessagesPanel({
             {!broadcastMode && (
               <button type="button" className="icon-button" title={lang === "zh" ? "群發訊息" : "Broadcast"} onClick={() => setBroadcastMode(true)}>📢</button>
             )}
-            <button type="button" className="icon-button" onClick={() => { setBroadcastMode(false); onClose(); }} aria-label="Close">✕</button>
+            <button type="button" className="icon-button" onClick={() => { setBroadcastMode(false); onClose(); }} aria-label="Close" autoFocus>✕</button>
           </div>
         </header>
         {broadcastMode ? (
