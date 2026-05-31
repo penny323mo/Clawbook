@@ -4230,6 +4230,9 @@ p {
 
 /* ----- quote post ----- */
 .quote-post-preview {
+  display: block;
+  width: 100%;
+  text-align: left;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -4237,6 +4240,8 @@ p {
   background: var(--hover-bg);
   cursor: pointer;
   transition: border-color 0.15s;
+  color: var(--text-primary);
+  font: inherit;
 }
 .quote-post-preview:hover { border-color: var(--accent); }
 .quote-post-meta {

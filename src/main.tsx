@@ -1282,18 +1282,13 @@ function RightSidebar({
   const now = useNow();
   const [activityExpanded, setActivityExpanded] = useState(false);
 
-  function lastPostAt(profileId: string): string | null {
-    const lastPost = posts
-      .filter((p) => p.author_id === profileId)
-      .reduce<string | null>((max, p) => !max || p.created_at > max ? p.created_at : max, null);
-    const lastComment = comments
-      .filter((c) => c.author_id === profileId)
-      .reduce<string | null>((max, c) => !max || c.created_at > max ? c.created_at : max, null);
-    if (!lastPost && !lastComment) return null;
-    if (!lastPost) return lastComment;
-    if (!lastComment) return lastPost;
-    return lastPost > lastComment ? lastPost : lastComment;
-  }
+  const authorLastActivity = useMemo(() => {
+    const map = new Map<string, string>();
+    const consider = (id: string, ts: string) => { if (!map.has(id) || ts > map.get(id)!) map.set(id, ts); };
+    posts.forEach((p) => consider(p.author_id, p.created_at));
+    comments.forEach((c) => consider(c.author_id, c.created_at));
+    return map;
+  }, [posts, comments]);
 
   const activityFeed = useMemo(
     () => buildActivityFeed(posts, comments, reactions),
@@ -1305,9 +1300,7 @@ function RightSidebar({
       <div className="right-sidebar-card">
         <h3>{lang === "zh" ? "活躍代理" : "Active Agents"}</h3>
         {allProfiles.map((profile) => {
-          const lastPostTime = posts.filter((p) => p.author_id === profile.id).reduce<string | null>((m, p) => !m || p.created_at > m ? p.created_at : m, null);
-          const lastCommentTime = comments.filter((c) => c.author_id === profile.id).reduce<string | null>((m, c) => !m || c.created_at > m ? c.created_at : m, null);
-          const lastAt = !lastPostTime ? lastCommentTime : !lastCommentTime ? lastPostTime : lastPostTime > lastCommentTime ? lastPostTime : lastCommentTime;
+          const lastAt = authorLastActivity.get(profile.id) ?? null;
           const isRecent = lastAt ? (now - new Date(lastAt).getTime()) < 24 * 3600_000 : false;
           return (
             <div key={profile.id} className="right-sidebar-agent">
@@ -1320,9 +1313,7 @@ function RightSidebar({
                 <div className="right-sidebar-agent-info">
                   <strong>{profile.display_name}</strong>
                   <span className={isRecent ? "agent-status-active" : "agent-status-idle"}>
-                    {lastPostTime && <span>{lang === "zh" ? "帖：" : "Post: "}{relativeTime(lastPostTime, lang, now)}</span>}
-                    {lastCommentTime && <span>{lang === "zh" ? " · 留言：" : " · Cmt: "}{relativeTime(lastCommentTime, lang, now)}</span>}
-                    {!lastAt && (lang === "zh" ? "從未發言" : "No activity")}
+                    {lastAt ? relativeTime(lastAt, lang, now) : (lang === "zh" ? "從未發言" : "No activity")}
                   </span>
                 </div>
               </button>
@@ -2186,10 +2177,10 @@ function SocialPostCard({
             if (!qp) return null;
             const qAuthor = getProfile(qp.author_id);
             return (
-              <div className="quote-post-preview" onClick={() => { pendingScrollPostId = qp.id; navigate({ name: "home" }); window.dispatchEvent(new CustomEvent("clawbook:focus-post")); }}>
+              <button type="button" className="quote-post-preview" onClick={() => { pendingScrollPostId = qp.id; navigate({ name: "home" }); window.dispatchEvent(new CustomEvent("clawbook:focus-post")); }} aria-label={`View quoted post by ${qAuthor.display_name}`}>
                 <span className="quote-post-author" style={{ color: qAuthor.accent }}>🔁 {qAuthor.display_name}</span>
                 <p className="quote-post-body">{qp.body.slice(0, 120)}{qp.body.length > 120 ? "…" : ""}</p>
-              </div>
+              </button>
             );
           })()}
         </>
@@ -3922,6 +3913,8 @@ function SocialApp() {
   const bookmarkCtxValue = useMemo(() => ({ bookmarks: bookmarkIds, toggle: toggleBookmark }), [bookmarkIds, toggleBookmark]);
 
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
+  // Keep the module-level lookup table in sync strictly via post-commit effect
+  useEffect(() => { liveProfiles = profilesList; }, [profilesList]);
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
   const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
   const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
@@ -3950,7 +3943,6 @@ function SocialApp() {
       return;
     }
     setSyncError(null);
-    liveProfiles = result.data.profiles;
     setProfilesList(result.data.profiles);
     // Preserve optimistic (in-flight) local writes that haven't reached DB yet
     const incomingPostIds = new Set(result.data.posts.map((p) => p.id));
@@ -4103,13 +4095,17 @@ function SocialApp() {
   }, []);
 
   const sortedPosts = useMemo(() => {
-    const lastActivity = (postId: string, postTime: string) => {
-      const t = comments
-        .filter((c) => c.post_id === postId)
-        .reduce((max, c) => Math.max(max, new Date(c.created_at).getTime()), new Date(postTime).getTime());
-      return t;
-    };
-    return [...posts].sort((a, b) => lastActivity(b.id, b.created_at) - lastActivity(a.id, a.created_at));
+    const lastCommentTime = new Map<string, number>();
+    comments.forEach((c) => {
+      const prev = lastCommentTime.get(c.post_id) ?? 0;
+      const t = new Date(c.created_at).getTime();
+      if (t > prev) lastCommentTime.set(c.post_id, t);
+    });
+    return [...posts].sort((a, b) => {
+      const ta = Math.max(new Date(a.created_at).getTime(), lastCommentTime.get(a.id) ?? 0);
+      const tb = Math.max(new Date(b.created_at).getTime(), lastCommentTime.get(b.id) ?? 0);
+      return tb - ta;
+    });
   }, [posts, comments]);
 
   const visiblePosts = useMemo(() => {
@@ -4587,11 +4583,9 @@ function SocialApp() {
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
           if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
-          setProfilesList((c) => {
-            const updated = c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p);
-            liveProfiles = updated;
-            return updated;
-          });
+          setProfilesList((c) =>
+            c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p),
+          );
         }}
         onMessage={() => {
           const target = profilesList.find((p) => p.id === route.id) ?? getProfile(route.id);
