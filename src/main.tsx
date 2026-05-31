@@ -483,6 +483,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
           <h2>Something went wrong</h2>
           <p className="error-boundary-msg">{this.state.message}</p>
           <button
+            type="button"
             className="btn-primary"
             onClick={() => { this.setState({ hasError: false, message: "" }); window.location.reload(); }}
           >
