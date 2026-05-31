@@ -23,7 +23,7 @@ export function saveIdentitySession(profile: Profile) {
     displayName: profile.display_name,
     startedAt: new Date().toISOString(),
   };
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  try { window.localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
   return session;
 }
 
