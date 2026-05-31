@@ -376,11 +376,13 @@ p {
   transition: background 120ms ease;
 }
 
-.identity-body button:hover,
-.composer-actions button:hover,
-.comment-composer button:hover,
-.topbar-profile button:hover {
-  background: var(--accent-hover);
+@media (hover: hover) {
+  .identity-body button:hover,
+  .composer-actions button:hover,
+  .comment-composer button:hover,
+  .topbar-profile button:hover {
+    background: var(--accent-hover);
+  }
 }
 
 /* ===================================================
@@ -480,7 +482,9 @@ p {
   transition: opacity 120ms ease;
 }
 
-.brand-button:hover { opacity: 0.85; }
+@media (hover: hover) {
+  .brand-button:hover { opacity: 0.85; }
+}
 
 [data-theme="dark"] .brand-button {
   animation: brand-neon-flicker 4.5s ease-in-out infinite;
@@ -701,8 +705,10 @@ p {
   border-bottom: 0;
 }
 
-.right-sidebar-agent:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .right-sidebar-agent:hover {
+    background: var(--surface-2);
+  }
 }
 
 .agent-online-dot {
@@ -748,8 +754,10 @@ p {
   transition: background 0.12s;
 }
 
-.trending-item:hover {
-  background: var(--bg);
+@media (hover: hover) {
+  .trending-item:hover {
+    background: var(--bg);
+  }
 }
 
 .trending-item:last-child {
@@ -1047,8 +1055,10 @@ p {
   transition: background 120ms ease;
 }
 
-.upload-button:hover {
-  background: var(--border);
+@media (hover: hover) {
+  .upload-button:hover {
+    background: var(--border);
+  }
 }
 
 .upload-button input {
@@ -1088,7 +1098,9 @@ p {
   padding: 0;
   line-height: 1;
 }
-.image-preview-remove:hover { background: rgba(0,0,0,0.80); }
+@media (hover: hover) {
+  .image-preview-remove:hover { background: rgba(0,0,0,0.80); }
+}
 
 .image-preview-grid img,
 .image-preview-item img,
@@ -1126,8 +1138,10 @@ p {
   transition: box-shadow 150ms ease;
 }
 
-.social-post-card:hover {
-  box-shadow: var(--lg-highlight), 0 6px 20px rgba(0, 0, 0, 0.14);
+@media (hover: hover) {
+  .social-post-card:hover {
+    box-shadow: var(--lg-highlight), 0 6px 20px rgba(0, 0, 0, 0.14);
+  }
 }
 
 .search-result-count {
@@ -1153,8 +1167,10 @@ p {
   transition: opacity 120ms ease;
 }
 
-.post-author:hover {
-  opacity: 0.8;
+@media (hover: hover) {
+  .post-author:hover {
+    opacity: 0.8;
+  }
 }
 
 .post-body {
@@ -1183,8 +1199,10 @@ p {
   cursor: pointer;
   display: block;
 }
-.post-body-toggle:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .post-body-toggle:hover {
+    text-decoration: underline;
+  }
 }
 
 .tag-row,
@@ -1218,7 +1236,9 @@ p {
   border-radius: 4px;
   transition: color 120ms;
 }
-.stat-count-btn:hover { color: var(--text-primary); text-decoration: underline; }
+@media (hover: hover) {
+  .stat-count-btn:hover { color: var(--text-primary); text-decoration: underline; }
+}
 
 /* emoji type bubbles (right side of stats bar) */
 .reaction-summary-wrap { position: relative; }
@@ -1283,7 +1303,9 @@ p {
   white-space: nowrap;
   transition: color 120ms, border-color 120ms;
 }
-.reaction-detail-tab:hover { color: var(--text-primary); }
+@media (hover: hover) {
+  .reaction-detail-tab:hover { color: var(--text-primary); }
+}
 .reaction-detail-tab.is-active {
   color: var(--accent);
   border-bottom-color: var(--accent);
@@ -1302,7 +1324,9 @@ p {
   padding: 7px 14px;
   transition: background 100ms;
 }
-.reaction-detail-person:hover { background: var(--hover-bg); }
+@media (hover: hover) {
+  .reaction-detail-person:hover { background: var(--hover-bg); }
+}
 .reaction-detail-avatar-wrap {
   position: relative;
   width: 36px;
@@ -1368,7 +1392,9 @@ p {
   cursor: pointer;
   transition: background 120ms, color 120ms;
 }
-.post-action-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+@media (hover: hover) {
+  .post-action-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+}
 .post-action-btn.is-active { color: var(--accent); }
 .like-action-btn { flex: 1; border-radius: 6px 0 0 6px; }
 .like-btn-emoji { font-size: 1.05rem; }
@@ -1415,10 +1441,12 @@ p {
   transition: background 100ms, transform 100ms;
   min-height: unset;
 }
-.reaction-picker-dropdown button:hover {
-  background: var(--accent-light);
-  transform: scale(1.2);
-  border-color: transparent;
+@media (hover: hover) {
+  .reaction-picker-dropdown button:hover {
+    background: var(--accent-light);
+    transform: scale(1.2);
+    border-color: transparent;
+  }
 }
 .reaction-picker-dropdown button.is-active {
   border-color: var(--accent);
@@ -1584,9 +1612,11 @@ p {
   transition: background 120ms ease, color 120ms ease;
 }
 
-.lang-toggle:hover {
-  background: var(--border);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .lang-toggle:hover {
+    background: var(--border);
+    color: var(--text-primary);
+  }
 }
 
 /* legacy palette-wrapper kept as alias */
@@ -1703,7 +1733,9 @@ p {
   text-align: left;
   transition: background 120ms;
 }
-.settings-logout-btn:hover { background: rgba(250,62,62,0.08); }
+@media (hover: hover) {
+  .settings-logout-btn:hover { background: rgba(250,62,62,0.08); }
+}
 .palette-swatch {
   width: 30px;
   height: 30px;
@@ -1790,8 +1822,10 @@ p {
   opacity: 0.7;
 }
 
-.save-error-toast button:hover {
-  opacity: 1;
+@media (hover: hover) {
+  .save-error-toast button:hover {
+    opacity: 1;
+  }
 }
 
 /* ===================================================
@@ -1954,9 +1988,11 @@ p {
   transition: background 0.15s;
 }
 
-.post-action-delete:hover {
-  background: var(--error-bg);
-  color: var(--danger);
+@media (hover: hover) {
+  .post-action-delete:hover {
+    background: var(--error-bg);
+    color: var(--danger);
+  }
 }
 
 .post-edit-form {
@@ -2042,8 +2078,10 @@ p {
   transition: background 0.15s;
 }
 
-.btn-cancel:hover {
-  background: var(--border);
+@media (hover: hover) {
+  .btn-cancel:hover {
+    background: var(--border);
+  }
 }
 
 /* ----- comment body wrap + edit ----- */
@@ -2089,12 +2127,13 @@ p {
   transition: color 0.15s;
 }
 
-.comment-actions button:hover {
-  color: var(--accent);
-}
-
-.comment-actions button:last-child:hover {
-  color: var(--danger);
+@media (hover: hover) {
+  .comment-actions button:hover {
+    color: var(--accent);
+  }
+  .comment-actions button:last-child:hover {
+    color: var(--danger);
+  }
 }
 
 .comment-edit-form {
@@ -2183,8 +2222,10 @@ p {
   word-break: break-all;
 }
 
-.post-link:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .post-link:hover {
+    text-decoration: underline;
+  }
 }
 
 /* ----- char counter ----- */
@@ -2237,10 +2278,12 @@ p {
   line-height: 1.4;
 }
 
-.comment-react-btn:hover:not(:disabled) {
-  background: var(--surface-2);
-  border-color: var(--accent);
-  color: var(--text);
+@media (hover: hover) {
+  .comment-react-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--accent);
+    color: var(--text);
+  }
 }
 
 .comment-react-btn.is-active {
@@ -2292,9 +2335,11 @@ p {
   opacity: 0.85;
 }
 
-.back-to-top:hover {
-  background: var(--surface-2);
-  opacity: 1;
+@media (hover: hover) {
+  .back-to-top:hover {
+    background: var(--surface-2);
+    opacity: 1;
+  }
 }
 
 /* ----- feed skeleton ----- */
@@ -2427,9 +2472,11 @@ p {
   border-radius: 6px;
   transition: background 0.15s, color 0.15s;
 }
-.comment-count-badge:hover {
-  background: rgba(var(--accent-rgb),0.10);
-  color: var(--accent);
+@media (hover: hover) {
+  .comment-count-badge:hover {
+    background: rgba(var(--accent-rgb),0.10);
+    color: var(--accent);
+  }
 }
 
 /* ----- show all comments button ----- */
@@ -2447,8 +2494,10 @@ p {
   cursor: pointer;
   transition: color 0.15s;
 }
-.show-all-comments-btn:hover {
-  color: var(--accent);
+@media (hover: hover) {
+  .show-all-comments-btn:hover {
+    color: var(--accent);
+  }
 }
 
 /* ----- profile copy link button ----- */
@@ -2468,9 +2517,11 @@ p {
   line-height: 1;
 }
 
-.profile-copy-link-btn:hover {
-  background: var(--accent-light);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .profile-copy-link-btn:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+  }
 }
 
 
@@ -2528,14 +2579,15 @@ p {
   cursor: pointer;
 }
 
-.right-sidebar-agent:hover .sidebar-dm-btn {
-  opacity: 1;
-}
-
-.sidebar-dm-btn:hover {
-  background: var(--accent-light);
-  color: var(--accent);
-  border-color: var(--accent);
+@media (hover: hover) {
+  .right-sidebar-agent:hover .sidebar-dm-btn {
+    opacity: 1;
+  }
+  .sidebar-dm-btn:hover {
+    background: var(--accent-light);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 /* ----- profile message button ----- */
@@ -2555,9 +2607,11 @@ p {
   transition: background 0.15s, color 0.15s;
 }
 
-.profile-message-btn:hover {
-  background: var(--accent);
-  color: #fff;
+@media (hover: hover) {
+  .profile-message-btn:hover {
+    background: var(--accent);
+    color: #fff;
+  }
 }
 
 /* ----- passcode input ----- */
@@ -2683,8 +2737,10 @@ p {
   padding: 2px 0;
 }
 
-.identity-show-all-btn:hover {
-  color: var(--text-secondary);
+@media (hover: hover) {
+  .identity-show-all-btn:hover {
+    color: var(--text-secondary);
+  }
 }
 
 .guest-enter-btn {
@@ -2698,9 +2754,11 @@ p {
   transition: border-color 0.15s, color 0.15s;
 }
 
-.guest-enter-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .guest-enter-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 /* ----- identity admin panel ----- */
@@ -2780,8 +2838,10 @@ p {
   cursor: pointer;
 }
 
-.identity-admin-cancel:hover {
-  border-color: var(--text-muted);
+@media (hover: hover) {
+  .identity-admin-cancel:hover {
+    border-color: var(--text-muted);
+  }
 }
 
 .identity-admin-success {
@@ -2826,9 +2886,11 @@ p {
   transition: background 0.15s, color 0.15s;
 }
 
-.identity-admin-delete-btn:hover {
-  background: var(--danger);
-  color: #fff;
+@media (hover: hover) {
+  .identity-admin-delete-btn:hover {
+    background: var(--danger);
+    color: #fff;
+  }
 }
 
 .identity-admin-delete-btn:disabled {
@@ -3224,8 +3286,10 @@ p {
   padding: 2px 4px;
 }
 
-.feed-search-bar button:hover {
-  color: var(--text-primary);
+@media (hover: hover) {
+  .feed-search-bar button:hover {
+    color: var(--text-primary);
+  }
 }
 
 /* ===================================================
@@ -3244,8 +3308,10 @@ p {
   text-decoration: none;
 }
 
-.mention-link:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .mention-link:hover {
+    text-decoration: underline;
+  }
 }
 
 /* ===================================================
@@ -3432,7 +3498,9 @@ p {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.feed-author-chip:hover .feed-author-chip-avatar { opacity: 0.8; }
+@media (hover: hover) {
+  .feed-author-chip:hover .feed-author-chip-avatar { opacity: 0.8; }
+}
 .feed-author-chip.is-active {
   padding: 2px 8px 2px 2px;
   background: var(--accent-light);
@@ -3516,7 +3584,9 @@ p {
   border-radius: 50%;
   line-height: 1;
 }
-.filter-active-banner button:hover { background: var(--accent-light); filter: brightness(0.9); }
+@media (hover: hover) {
+  .filter-active-banner button:hover { background: var(--accent-light); filter: brightness(0.9); }
+}
 
 .needs-reply-count {
   display: inline-flex;
@@ -3598,8 +3668,10 @@ p {
   transition: background 0.1s;
 }
 
-.mention-dropdown-item:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .mention-dropdown-item:hover {
+    background: var(--surface-2);
+  }
 }
 
 .mention-dropdown-avatar {
@@ -3751,7 +3823,9 @@ p {
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s;
 }
-.feed-load-more:hover { background: rgba(255,255,255,0.18); }
+@media (hover: hover) {
+  .feed-load-more:hover { background: rgba(255,255,255,0.18); }
+}
 
 /* ===================================================
    Error boundary fallback
@@ -3814,7 +3888,9 @@ p {
   opacity: 0;
   transition: opacity 0.15s;
 }
-.profile-edit-avatar-btn:hover .profile-edit-avatar-overlay { opacity: 1; }
+@media (hover: hover) {
+  .profile-edit-avatar-btn:hover .profile-edit-avatar-overlay { opacity: 1; }
+}
 
 .profile-edit-avatar-hint {
   font-size: 0.78rem;
@@ -3883,7 +3959,9 @@ p {
   transition: background 0.12s;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.notif-item:hover { background: rgba(255,255,255,0.07); }
+@media (hover: hover) {
+  .notif-item:hover { background: rgba(255,255,255,0.07); }
+}
 .notif-item.is-unread { background: rgba(var(--accent-rgb),0.08); }
 
 .notif-avatar {
@@ -3925,8 +4003,10 @@ p {
   width: 100%;
   transition: opacity 0.15s;
 }
-.post-media-btn:hover .post-media-clickable,
-.post-media-clickable:hover { opacity: 0.88; }
+@media (hover: hover) {
+  .post-media-btn:hover .post-media-clickable,
+  .post-media-clickable:hover { opacity: 0.88; }
+}
 
 .lightbox-overlay {
   position: fixed;
@@ -3961,7 +4041,9 @@ p {
   display: flex; align-items: center; justify-content: center;
   transition: background 0.15s;
 }
-.lightbox-close:hover { background: rgba(255,255,255,0.22); }
+@media (hover: hover) {
+  .lightbox-close:hover { background: rgba(255,255,255,0.22); }
+}
 
 /* topbar avatar */
 .topbar-avatar {
@@ -4047,9 +4129,11 @@ p {
   border-radius: 50%;
   transition: transform 0.12s, box-shadow 0.12s;
 }
-.group-member-avatar:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+@media (hover: hover) {
+  .group-member-avatar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+  }
 }
 .group-member-avatar .avatar,
 .group-member-avatar .avatar-img {
@@ -4347,7 +4431,9 @@ p {
   padding: 0 4px;
   line-height: 1;
 }
-.replying-to-bar button:hover { color: var(--text-primary); }
+@media (hover: hover) {
+  .replying-to-bar button:hover { color: var(--text-primary); }
+}
 
 /* ----- quote post ----- */
 .quote-post-preview {
