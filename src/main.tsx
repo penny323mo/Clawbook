@@ -504,14 +504,15 @@ function buildGroupCover(groupId = GROUP_PUBLIC) {
 }
 
 function Avatar({ profile, className, style }: { profile: Profile; className?: string; style?: CSSProperties }) {
-  if (profile.avatar_url) {
+  const [imgFailed, setImgFailed] = useState(false);
+  if (profile.avatar_url && !imgFailed) {
     return (
       <img
         src={profile.avatar_url}
         alt={profile.display_name}
         className={`avatar avatar-img${className ? ` ${className}` : ""}`}
         style={style}
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+        onError={() => setImgFailed(true)}
       />
     );
   }
@@ -1955,6 +1956,15 @@ function SocialPostCard({
     return () => document.removeEventListener("mousedown", h);
   }, [pickerOpen]);
   const [reactionDetailOpen, setReactionDetailOpen] = useState(false);
+  const reactionDetailRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!reactionDetailOpen) return;
+    const h = (e: MouseEvent) => {
+      if (reactionDetailRef.current && !reactionDetailRef.current.contains(e.target as Node)) setReactionDetailOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [reactionDetailOpen]);
   const [reactionDetailTab, setReactionDetailTab] = useState<string | null>(null);
   const [confirmDeletePost, setConfirmDeletePost] = useState(false);
   const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
@@ -2290,7 +2300,7 @@ function SocialPostCard({
             )}
           </div>
           {totalReactions > 0 && (
-            <div className="reaction-summary-wrap">
+            <div className="reaction-summary-wrap" ref={reactionDetailRef}>
               <button
                 type="button"
                 className="reaction-type-bubbles-btn"

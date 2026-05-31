@@ -3114,7 +3114,15 @@ p {
   font-size: 0.78rem;
   color: var(--danger);
   padding: 4px 12px 0;
+}
+.dm-send-error button {
+  background: none;
+  border: none;
+  color: inherit;
   cursor: pointer;
+  padding: 0 2px;
+  font-size: inherit;
+  vertical-align: middle;
 }
 
 @media (max-width: 480px) {
