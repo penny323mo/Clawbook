@@ -69,7 +69,6 @@ const COLOR_THEMES = [
 ] as const;
 let liveProfiles: Profile[] = profiles;
 // Profiles whose role includes "owner" can see all visibility levels
-const OWNER_IDS = new Set(profiles.filter((p) => p.role.toLowerCase().includes("owner")).map((p) => p.id));
 const GROUP_PUBLIC = "public-discussion";
 const GROUP_BUILDERS = "builders-corner";
 
@@ -359,10 +358,10 @@ function matchProfileSlug(pr: Profile, slug: string): boolean {
 
 // ----- visibility -----
 
-function canSeePost(post: Post, viewerId: string | null, viewerKind: string, guestMode: boolean): boolean {
+function canSeePost(post: Post, viewerId: string | null, viewerKind: string, viewerRole: string, guestMode: boolean): boolean {
   if (post.visibility === "public") return true;
   if (guestMode || !viewerId) return false;
-  if (post.visibility === "agents") return viewerKind === "agent" || OWNER_IDS.has(viewerId);
+  if (post.visibility === "agents") return viewerKind === "agent" || viewerRole.toLowerCase().includes("owner");
   if (post.visibility === "private") {
     return post.author_id === viewerId ||
       (post.target_type === "profile" && post.target_id === viewerId);
@@ -554,7 +553,7 @@ function MentionText({ text }: { text: string }) {
       {parts.map((part, i) => {
         if (part.startsWith("@")) {
           const slug = part.slice(1).toLowerCase();
-          const profile = SESSION_PROFILES.find((p) => matchProfileSlug(p, slug));
+          const profile = liveProfiles.find((p) => matchProfileSlug(p, slug));
           if (profile) {
             return (
               <button key={i} type="button" className="mention-link"
@@ -2663,6 +2662,16 @@ function Feed({
   const allDisplayPosts = [...pinnedPosts, ...unpinnedPosts];
   const displayPosts = allDisplayPosts.slice(0, visibleCount);
 
+  // Pre-build lookup maps so per-card filtering is O(1) instead of O(n)
+  const mediaByPost = new Map<string, Media[]>();
+  allMedia.forEach((m) => { if (!m.post_id) return; const arr = mediaByPost.get(m.post_id) ?? []; arr.push(m); mediaByPost.set(m.post_id, arr); });
+  const commentsByPost = new Map<string, Comment[]>();
+  allComments.forEach((c) => { const arr = commentsByPost.get(c.post_id) ?? []; arr.push(c); commentsByPost.set(c.post_id, arr); });
+  const reactionsByPost = new Map<string, Reaction[]>();
+  allReactions.forEach((r) => { const arr = reactionsByPost.get(r.post_id) ?? []; arr.push(r); reactionsByPost.set(r.post_id, arr); });
+  const pollVotesByPost = new Map<string, PollVote[]>();
+  (allPollVotes ?? []).forEach((v) => { const arr = pollVotesByPost.get(v.post_id) ?? []; arr.push(v); pollVotesByPost.set(v.post_id, arr); });
+
   if (posts.length === 0) {
     return (
       <section className="feed feed-empty" data-testid="feed">
@@ -2708,9 +2717,9 @@ function Feed({
           key={post.id}
           post={post}
           currentProfile={currentProfile}
-          mediaItems={allMedia.filter((m) => m.post_id === post.id)}
-          comments={allComments.filter((c) => c.post_id === post.id)}
-          reactions={allReactions.filter((r) => r.post_id === post.id)}
+          mediaItems={mediaByPost.get(post.id) ?? []}
+          comments={commentsByPost.get(post.id) ?? []}
+          reactions={reactionsByPost.get(post.id) ?? []}
           saving={saving}
           onComment={onComment}
           onReaction={onReaction}
@@ -2721,7 +2730,7 @@ function Feed({
           onDeleteComment={onDeleteComment}
           onTagClick={(tag) => setActiveTag(tag === activeTag ? null : tag)}
           onPinPost={onPinPost}
-          pollVotes={allPollVotes?.filter((v) => v.post_id === post.id)}
+          pollVotes={pollVotesByPost.get(post.id)}
           onPollVote={onPollVote}
           allPosts={allPosts}
           onQuotePost={onQuotePost}
@@ -3579,7 +3588,7 @@ function MessagesPanel({
     if (!activeWith || !draft.trim()) return;
     const now = new Date().toISOString();
     const msg: DirectMessage = {
-      id: `dm-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      id: uniqueId("dm-local"),
       from_id: currentProfile.id,
       to_id: activeWith.id,
       body: draft.trim().slice(0, 500),
@@ -3613,7 +3622,7 @@ function MessagesPanel({
     const body = broadcastDraft.trim().slice(0, 500);
     const now = new Date().toISOString();
     const newMsgs: DirectMessage[] = [...broadcastRecipients].map((toId) => ({
-      id: `dm-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      id: uniqueId("dm-local"),
       from_id: currentProfile.id,
       to_id: toId,
       body,
@@ -4115,10 +4124,10 @@ function SocialApp() {
 
   const visiblePosts = useMemo(() => {
     const viewerId = guestMode ? null : (session?.profileId ?? null);
-    const viewerKind = !guestMode && viewerId
-      ? (profilesList.find((p) => p.id === viewerId)?.kind ?? "human")
-      : "human";
-    return sortedPosts.filter((p) => canSeePost(p, viewerId, viewerKind, guestMode));
+    const viewerProfile = !guestMode && viewerId ? profilesList.find((p) => p.id === viewerId) : null;
+    const viewerKind = viewerProfile?.kind ?? "human";
+    const viewerRole = viewerProfile?.role ?? "";
+    return sortedPosts.filter((p) => canSeePost(p, viewerId, viewerKind, viewerRole, guestMode));
   }, [sortedPosts, guestMode, session, profilesList]);
 
   const profileLastActivity = useMemo(() => {
@@ -4424,9 +4433,15 @@ function SocialApp() {
       const newVote: PollVote = { post_id: postId, profile_id: currentProfile.id, option_idx: optionIdx, created_at: new Date().toISOString() };
       setPollVotes((c) => [...c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)), newVote]);
     }
-    const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx);
-    if (result.error) {
-      setSaveError(`Failed to record vote: ${result.error}`);
+    try {
+      const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx);
+      if (result.error) {
+        setSaveError(`Failed to record vote: ${result.error}`);
+        setPollVotes(prevVotes);
+        return;
+      }
+    } catch (err) {
+      setSaveError(`Failed to record vote: ${String(err)}`);
       setPollVotes(prevVotes);
       return;
     }
@@ -4436,10 +4451,15 @@ function SocialApp() {
 
   async function togglePin(postId: string, pinned: boolean) {
     setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: pinned } : p)));
-    const result = await pinPost(postId, pinned);
-    if (result.error) {
+    try {
+      const result = await pinPost(postId, pinned);
+      if (result.error) {
+        setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: !pinned } : p)));
+        setSaveError(`Failed to pin post: ${result.error}`);
+      }
+    } catch (err) {
       setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: !pinned } : p)));
-      setSaveError(`Failed to pin post: ${result.error}`);
+      setSaveError(`Failed to pin post: ${String(err)}`);
     }
   }
 
@@ -4455,6 +4475,9 @@ function SocialApp() {
         setSaveError(`Failed to update post: ${result.error}`);
         setPosts((c) => c.map((p) => (p.id === postId ? prev : p)));
       }
+    } catch (err) {
+      setSaveError(`Failed to update post: ${String(err)}`);
+      setPosts((c) => c.map((p) => (p.id === postId ? prev : p)));
     } finally {
       setIsSaving(false);
     }
@@ -4463,6 +4486,8 @@ function SocialApp() {
   async function removePost(postId: string) {
     const prev = posts.find((p) => p.id === postId);
     if (!prev) return;
+    const prevComments = comments.filter((c) => c.post_id === postId);
+    const prevReactions = reactions.filter((r) => r.post_id === postId);
     setPosts((c) => c.filter((p) => p.id !== postId));
     setComments((c) => c.filter((cm) => cm.post_id !== postId));
     setReactions((r) => r.filter((rx) => rx.post_id !== postId));
@@ -4472,7 +4497,14 @@ function SocialApp() {
       if (result.error) {
         setSaveError(`Failed to delete post: ${result.error}`);
         setPosts((c) => [prev, ...c]);
+        setComments((c) => [...c, ...prevComments]);
+        setReactions((c) => [...c, ...prevReactions]);
       }
+    } catch (err) {
+      setSaveError(`Failed to delete post: ${String(err)}`);
+      setPosts((c) => [prev, ...c]);
+      setComments((c) => [...c, ...prevComments]);
+      setReactions((c) => [...c, ...prevReactions]);
     } finally {
       setIsSaving(false);
     }
@@ -4490,6 +4522,9 @@ function SocialApp() {
         setSaveError(`Failed to update comment: ${result.error}`);
         setComments((c) => c.map((cm) => (cm.id === commentId ? prev : cm)));
       }
+    } catch (err) {
+      setSaveError(`Failed to update comment: ${String(err)}`);
+      setComments((c) => c.map((cm) => (cm.id === commentId ? prev : cm)));
     } finally {
       setIsSaving(false);
     }
@@ -4498,14 +4533,21 @@ function SocialApp() {
   async function removeComment(commentId: string) {
     const prev = comments.find((c) => c.id === commentId);
     if (!prev) return;
+    const prevReactions = reactions.filter((r) => r.comment_id === commentId);
     setComments((c) => c.filter((cm) => cm.id !== commentId));
+    setReactions((r) => r.filter((rx) => rx.comment_id !== commentId));
     setIsSaving(true);
     try {
       const result = await deleteComment(commentId);
       if (result.error) {
         setSaveError(`Failed to delete comment: ${result.error}`);
         setComments((c) => [...c, prev]);
+        setReactions((c) => [...c, ...prevReactions]);
       }
+    } catch (err) {
+      setSaveError(`Failed to delete comment: ${String(err)}`);
+      setComments((c) => [...c, prev]);
+      setReactions((c) => [...c, ...prevReactions]);
     } finally {
       setIsSaving(false);
     }
@@ -4592,11 +4634,15 @@ function SocialApp() {
         onQuotePost={handleQuotePost}
         allProfiles={profilesList}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
-          const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
-          if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
-          setProfilesList((c) =>
-            c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p),
-          );
+          try {
+            const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
+            if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
+            setProfilesList((c) =>
+              c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p),
+            );
+          } catch (err) {
+            setSaveError(`Failed to update profile: ${String(err)}`);
+          }
         }}
         onMessage={() => {
           const target = profilesList.find((p) => p.id === route.id) ?? getProfile(route.id);

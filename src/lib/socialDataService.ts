@@ -124,10 +124,9 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();
     const overrides = loadProfileOverrides();
-    const baseProfiles = seedProfiles.map((p) =>
-      overrides[p.id] ? { ...p, ...overrides[p.id] } : p,
-    );
-    const registered = loadRegisteredMock();
+    const applyOverride = (p: Profile) => overrides[p.id] ? { ...p, ...overrides[p.id] } : p;
+    const baseProfiles = seedProfiles.map(applyOverride);
+    const registered = loadRegisteredMock().map(applyOverride);
     return {
       data: {
         profiles: [...baseProfiles, ...registered],
@@ -569,7 +568,9 @@ export async function updateProfile(
 ): Promise<ServiceResult<Profile>> {
   if (!isSupabaseConfigured || !supabase) {
     saveProfileOverride(profileId, updates);
-    const base = seedProfiles.find((p) => p.id === profileId);
+    const base =
+      seedProfiles.find((p) => p.id === profileId) ??
+      loadRegisteredMock().find((p) => p.id === profileId);
     if (!base) return { data: null, error: "Profile not found" };
     return { data: { ...base, ...updates }, error: null };
   }
