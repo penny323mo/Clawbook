@@ -3343,9 +3343,11 @@ p {
   transition: all 0.15s;
 }
 
-.needs-reply-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .needs-reply-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 .needs-reply-btn.is-active {
@@ -3446,9 +3448,11 @@ p {
   cursor: pointer;
   transition: all 0.15s;
 }
-.feed-group-chip:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+  .feed-group-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 .feed-group-chip.is-active {
   background: var(--accent-light);
@@ -3957,7 +3961,9 @@ p {
   border-color: transparent;
   font-weight: 700;
 }
-.feed-sort-btn:hover:not(.is-active) { background: rgba(255,255,255,0.09); color: var(--text-primary); }
+@media (hover: hover) {
+  .feed-sort-btn:hover:not(.is-active) { background: rgba(255,255,255,0.09); color: var(--text-primary); }
+}
 
 /* ===================================================
    Post highlight on scroll-to
@@ -4376,7 +4382,9 @@ p {
   transition: border-color 0.15s, background 0.15s;
   text-align: left;
 }
-.trending-tag-chip:hover { border-color: var(--accent); background: var(--hover-bg); }
+@media (hover: hover) {
+  .trending-tag-chip:hover { border-color: var(--accent); background: var(--hover-bg); }
+}
 .trending-tag-name { color: var(--accent); font-weight: 600; }
 .trending-tag-count {
   font-size: 0.75rem;
