@@ -84,6 +84,7 @@ type MockStore = {
   comments: Comment[];
   reactions: Reaction[];
   media: Media[];
+  pollVotes: PollVote[];
 };
 
 function loadMock(): MockStore {
@@ -97,6 +98,7 @@ function loadMock(): MockStore {
           comments: parsed.comments ?? [],
           reactions: parsed.reactions ?? [],
           media: parsed.media ?? [],
+          pollVotes: parsed.pollVotes ?? [],
         };
       }
     }
@@ -106,6 +108,7 @@ function loadMock(): MockStore {
     comments: seedComments,
     reactions: seedReactions,
     media: seedMedia,
+    pollVotes: [],
   };
 }
 
@@ -589,7 +592,7 @@ export async function updateProfile(
 // ----- polls -----
 
 export async function loadPollVotes(): Promise<PollVote[]> {
-  if (!isSupabaseConfigured || !supabase) return [];
+  if (!isSupabaseConfigured || !supabase) return loadMock().pollVotes;
   const { data, error } = await supabase.from("poll_votes").select("*");
   if (error) return [];
   return (data ?? []) as PollVote[];
@@ -601,7 +604,19 @@ export async function castPollVote(
   optionIdx: number,
   currentVoteIdx: number | null,
 ): Promise<ServiceResult<null>> {
-  if (!isSupabaseConfigured || !supabase) return { data: null, error: "Not connected" };
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    if (currentVoteIdx === optionIdx) {
+      mock.pollVotes = mock.pollVotes.filter((v) => !(v.post_id === postId && v.profile_id === profileId));
+    } else {
+      mock.pollVotes = [
+        ...mock.pollVotes.filter((v) => !(v.post_id === postId && v.profile_id === profileId)),
+        { post_id: postId, profile_id: profileId, option_idx: optionIdx, created_at: new Date().toISOString() },
+      ];
+    }
+    saveMock(mock);
+    return { data: null, error: null };
+  }
   if (currentVoteIdx === optionIdx) {
     // Toggle off — remove vote
     const { error } = await supabase

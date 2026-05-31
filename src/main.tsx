@@ -2331,6 +2331,8 @@ function SocialPostCard({
               className="like-more-btn"
               onClick={() => setPickerOpen((v) => !v)}
               title={lang === "zh" ? "選擇反應" : "Choose reaction"}
+              aria-label={lang === "zh" ? "選擇反應" : "Choose reaction"}
+              aria-expanded={pickerOpen}
             >▾</button>
             {pickerOpen && (
               <div className="reaction-picker-dropdown">
@@ -2646,11 +2648,14 @@ function Feed({
     : posts;
   const allDisplayPostsRaw = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
   const allDisplayPostsSorted = sortBy === "top"
-    ? [...allDisplayPostsRaw].sort((a, b) => {
-        const ra = allReactions.filter((r) => r.post_id === a.id).length;
-        const rb = allReactions.filter((r) => r.post_id === b.id).length;
-        return rb - ra || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      })
+    ? (() => {
+        const reactionCount = new Map<string, number>();
+        allReactions.forEach((r) => { if (!r.comment_id) reactionCount.set(r.post_id, (reactionCount.get(r.post_id) ?? 0) + 1); });
+        return [...allDisplayPostsRaw].sort((a, b) =>
+          ((reactionCount.get(b.id) ?? 0) - (reactionCount.get(a.id) ?? 0)) ||
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      })()
     : allDisplayPostsRaw;
   // Pinned posts always float to top
   const pinnedPosts = allDisplayPostsSorted.filter((p) => p.is_pinned);
@@ -4412,15 +4417,21 @@ function SocialApp() {
     const myVote = pollVotes.find((v) => v.post_id === postId && v.profile_id === currentProfile.id);
     const currentVoteIdx = myVote?.option_idx ?? null;
     // Optimistic update
+    const prevVotes = pollVotes;
     if (currentVoteIdx === optionIdx) {
       setPollVotes((c) => c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)));
     } else {
       const newVote: PollVote = { post_id: postId, profile_id: currentProfile.id, option_idx: optionIdx, created_at: new Date().toISOString() };
       setPollVotes((c) => [...c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)), newVote]);
     }
-    await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx);
-    // Refresh to sync with real DB state
-    void loadPollVotes().then(setPollVotes);
+    const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx);
+    if (result.error) {
+      setSaveError(`Failed to record vote: ${result.error}`);
+      setPollVotes(prevVotes);
+      return;
+    }
+    // Resync from DB to pick up concurrent votes from other users
+    void loadPollVotes().then((votes) => { if (votes.length > 0 || isSupabaseConfigured) setPollVotes(votes); });
   }
 
   async function togglePin(postId: string, pinned: boolean) {
