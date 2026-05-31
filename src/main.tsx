@@ -445,7 +445,7 @@ function compactAgo(value: string, now = Date.now()): string {
   if (mins < 60) return `${mins}m`;
   if (hours < 24) return `${hours}h`;
   if (days < 30) return `${days}d`;
-  return "";
+  return "30d+";
 }
 
 function sanitizeText(value: string, limit: number) {
@@ -459,6 +459,18 @@ function sanitizeText(value: string, limit: number) {
 
 function uniqueId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`;
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function smoothScrollTo(options: ScrollToOptions) {
+  window.scrollTo({ ...options, behavior: prefersReducedMotion() ? "instant" : "smooth" });
+}
+
+function smoothScrollIntoView(el: Element, options?: ScrollIntoViewOptions) {
+  el.scrollIntoView(prefersReducedMotion() ? { block: options?.block ?? "nearest" } : { behavior: "smooth", ...options });
 }
 
 function buildCover(profile: Profile) {
@@ -2302,14 +2314,14 @@ function SocialPostCard({
                   if (!latest) return;
                   const el = document.getElementById(`cmt-${latest.id}`);
                   if (el) {
-                    el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    smoothScrollIntoView(el, { block: "center" });
                     el.classList.add("comment-highlight");
                     setTimeout(() => el.classList.remove("comment-highlight"), 1800);
                   } else {
                     setShowAllComments(true);
                     setTimeout(() => {
                       const el2 = document.getElementById(`cmt-${latest.id}`);
-                      if (el2) { el2.scrollIntoView({ behavior: "smooth", block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
+                      if (el2) { smoothScrollIntoView(el2, { block: "center" }); el2.classList.add("comment-highlight"); setTimeout(() => el2.classList.remove("comment-highlight"), 1800); }
                     }, 80);
                   }
                 }}
@@ -2423,7 +2435,7 @@ function SocialPostCard({
           onClick={() => {
             setShowAllComments(true);
             setTimeout(() => {
-              commentComposeRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              if (commentComposeRef.current) smoothScrollIntoView(commentComposeRef.current, { block: "nearest" });
               commentComposeRef.current?.querySelector("textarea")?.focus();
             }, 60);
           }}
@@ -2529,7 +2541,7 @@ function SocialPostCard({
                             setReplyingTo(comment);
                             setShowAllComments(true);
                             setTimeout(() => {
-                              commentComposeRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                              if (commentComposeRef.current) smoothScrollIntoView(commentComposeRef.current, { block: "nearest" });
                               (commentComposeRef.current?.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
                             }, 80);
                           }
@@ -2659,7 +2671,7 @@ function Feed({
     const handler = (e: Event) => {
       const tag = (e as CustomEvent<string>).detail;
       setActiveTag((prev) => prev === tag ? null : tag);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      smoothScrollTo({ top: 0 });
     };
     window.addEventListener("clawbook:filter-tag", handler);
     return () => window.removeEventListener("clawbook:filter-tag", handler);
@@ -2673,7 +2685,7 @@ function Feed({
       const attempt = (tries: number) => {
         const el = document.getElementById(`post-card-${targetId}`);
         if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          smoothScrollIntoView(el, { block: "center" });
           el.classList.add("post-highlight");
           setTimeout(() => el.classList.remove("post-highlight"), 2200);
         } else if (tries > 0) {
@@ -3416,7 +3428,7 @@ function HomePage({
             type="button"
             className={`needs-reply-btn${needsReplyOnly && !showBookmarked ? " is-active" : ""}`}
             aria-pressed={needsReplyOnly && !showBookmarked}
-            onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); smoothScrollTo({ top: 0 }); }}
           >
             📬 {lang === "zh" ? "需要回應" : "Needs reply"}
             {needsReplyPosts.length > 0 && (
@@ -3429,7 +3441,7 @@ function HomePage({
             type="button"
             className={`needs-reply-btn${showBookmarked ? " is-active" : ""}`}
             aria-pressed={showBookmarked}
-            onClick={() => { setShowBookmarked((v) => !v); setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onClick={() => { setShowBookmarked((v) => !v); setNeedsReplyOnly(false); smoothScrollTo({ top: 0 }); }}
           >
             🔖 {lang === "zh" ? "已儲存" : "Saved"}
             {bookmarks.size > 0 && <span className="needs-reply-count">{bookmarks.size}</span>}
@@ -3440,7 +3452,7 @@ function HomePage({
       {needsReplyOnly && (
         <div className="filter-active-banner">
           📬 {lang === "zh" ? `顯示 ${needsReplyPosts.length} 個需要回應的帖` : `Showing ${needsReplyPosts.length} post${needsReplyPosts.length !== 1 ? "s" : ""} needing reply`}
-          <button type="button" aria-label={lang === "zh" ? "清除篩選" : "Clear filter"} onClick={() => { setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✕</button>
+          <button type="button" aria-label={lang === "zh" ? "清除篩選" : "Clear filter"} onClick={() => { setNeedsReplyOnly(false); smoothScrollTo({ top: 0 }); }}>✕</button>
         </div>
       )}
 
@@ -3577,7 +3589,7 @@ function BackToTop() {
       type="button"
       className="back-to-top"
       aria-label="Back to top"
-      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      onClick={() => smoothScrollTo({ top: 0 })}
     >
       ↑
     </button>
@@ -3713,7 +3725,7 @@ function MessagesPanel({
     });
     setDraft("");
     if (composeRef.current) composeRef.current.style.height = "auto";
-    setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
+    setTimeout(() => { if (threadEndRef.current) smoothScrollIntoView(threadEndRef.current); }, 30);
     try {
       const result = await persistDirectMessage(msg);
       if (result?.error) {
@@ -3727,7 +3739,7 @@ function MessagesPanel({
   }
 
   useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (threadEndRef.current) smoothScrollIntoView(threadEndRef.current);
   }, [activeThread.length]);
 
   async function sendBroadcast() {
@@ -4225,7 +4237,7 @@ function SocialApp() {
   }, [syncAllData]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    smoothScrollTo({ top: 0 });
   }, [route]);
 
   useEffect(() => {
