@@ -187,6 +187,28 @@ p {
 }
 
 /* ===================================================
+   Skip navigation
+   =================================================== */
+
+.skip-nav {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border-radius: 0 0 var(--radius-sm) 0;
+  text-decoration: none;
+  z-index: 9999;
+  transition: top 0ms;
+}
+.skip-nav:focus {
+  top: 0;
+}
+
+/* ===================================================
    Labels
    =================================================== */
 
@@ -1386,6 +1408,7 @@ p {
   border: none;
   border-radius: 6px;
   padding: 8px 6px;
+  min-height: 44px;
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-secondary);
@@ -2414,8 +2437,10 @@ p {
 /* ----- tag chips (clickable) ----- */
 
 .tag-chip {
-  display: inline-block;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  min-height: 28px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface-2);

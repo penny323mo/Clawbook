@@ -782,7 +782,7 @@ function IdentityEntry({
                     setErrors((c) => ({ ...c, [profile.id]: false }));
                   }}
                 />
-                {errors[profile.id] && <span className="passcode-error">Incorrect code</span>}
+                {errors[profile.id] && <span className="passcode-error" role="alert">{lang === "zh" ? "密碼錯誤" : "Incorrect code"}</span>}
                 <button data-testid="identity-enter-button" type="submit">
                   {t.enterAs(profile.display_name)}
                 </button>
@@ -843,7 +843,7 @@ function IdentityEntry({
                 onChange={(e) => setRegAdminCode(e.target.value)}
                 autoComplete="off"
               />
-              {regError && <span className="passcode-error">{regError}</span>}
+              {regError && <span className="passcode-error" role="alert">{regError}</span>}
               {regSuccess && <span className="identity-admin-success">{lang === "zh" ? "✓ 成功加入！" : "✓ Registered!"}</span>}
               <div className="identity-admin-actions">
                 <button type="submit" disabled={regLoading} className="identity-admin-submit">
@@ -893,7 +893,7 @@ function IdentityEntry({
                   onChange={(e) => setDelAdminCode(e.target.value)}
                   autoComplete="off"
                 />
-                {delError && <span className="passcode-error">{delError}</span>}
+                {delError && <span className="passcode-error" role="alert">{delError}</span>}
                 <div className="identity-admin-actions">
                   <button type="submit" disabled={delLoading} className="identity-admin-delete-btn">
                     {delLoading ? "..." : (lang === "zh" ? "確認刪除" : "Confirm delete")}
@@ -1748,7 +1748,7 @@ function CreatePost({
           onChange={(e) => { setImageUrl(e.target.value); setImageUrlError(false); }}
         />
         {imageUrlError && (
-          <span className="input-error-msg">
+          <span className="input-error-msg" role="alert">
             {lang === "zh" ? "請輸入有效嘅圖片網址（https://...）" : "Please enter a valid image URL (https://…)"}
           </span>
         )}
@@ -2140,8 +2140,9 @@ function SocialPostCard({
               <button type="button" className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox(post.image_url!)}>
                 <img
                   src={post.image_url}
-                  alt="Post image"
+                  alt={post.body ? post.body.slice(0, 100) : (lang === "zh" ? "帖子圖片" : "Post image")}
                   className="post-media-clickable"
+                  loading="lazy"
                   onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
                 />
               </button>
@@ -2154,8 +2155,9 @@ function SocialPostCard({
                   <button type="button" key={item.id} className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox(item.public_url)}>
                     <img
                       src={item.public_url}
-                      alt={item.alt_text ?? "Post media"}
+                      alt={item.alt_text ?? (lang === "zh" ? "帖子媒體" : "Post media")}
                       className="post-media-clickable"
+                      loading="lazy"
                     />
                   </button>
                 ) : (
@@ -3770,7 +3772,7 @@ function MessagesPanel({
             {!broadcastMode && (
               <button type="button" className="icon-button" title={lang === "zh" ? "群發訊息" : "Broadcast"} aria-label={lang === "zh" ? "群發訊息" : "Broadcast message"} onClick={() => setBroadcastMode(true)}>📢</button>
             )}
-            <button type="button" className="icon-button" onClick={() => { setBroadcastMode(false); onClose(); }} aria-label="Close" autoFocus>✕</button>
+            <button type="button" className="icon-button" onClick={() => { setBroadcastMode(false); onClose(); }} aria-label={lang === "zh" ? "關閉訊息" : "Close messages"} autoFocus>✕</button>
           </div>
         </header>
         {broadcastMode ? (
@@ -3782,6 +3784,8 @@ function MessagesPanel({
                   key={p.id}
                   type="button"
                   className={`broadcast-recipient${broadcastRecipients.has(p.id) ? " is-selected" : ""}`}
+                  aria-pressed={broadcastRecipients.has(p.id)}
+                  aria-label={`${p.display_name}${broadcastRecipients.has(p.id) ? (lang === "zh" ? "（已選）" : " (selected)") : ""}`}
                   onClick={() => setBroadcastRecipients((prev) => {
                     const next = new Set(prev);
                     if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
@@ -3825,6 +3829,7 @@ function MessagesPanel({
                 type="button"
                 className={`messages-conv-item${activeWith?.id === profile.id ? " is-active" : ""}`}
                 aria-label={unread > 0 ? (lang === "zh" ? `${profile.display_name}，${unread} 則未讀訊息` : `${profile.display_name}, ${unread} unread`) : profile.display_name}
+                aria-current={activeWith?.id === profile.id ? true : undefined}
                 onClick={() => openThread(profile)}
               >
                 <span className="avatar messages-conv-avatar" style={{ ...profileAccent(profile), width: 38, height: 38, fontSize: "0.72rem" } as CSSProperties}>
@@ -3913,7 +3918,7 @@ function MessagesPanel({
                   </button>
                 </div>
                 {dmSendError && (
-                  <p className="dm-send-error">{dmSendError} <button type="button" onClick={() => setDmSendError(null)} aria-label="Dismiss">✕</button></p>
+                  <p className="dm-send-error" role="alert">{dmSendError} <button type="button" onClick={() => setDmSendError(null)} aria-label="Dismiss error">✕</button></p>
                 )}
               </>
             ) : (
@@ -4910,6 +4915,7 @@ function SocialApp() {
       <SyncingContext.Provider value={isSyncing}>
       <ReadOnlyContext.Provider value={guestMode}>
       <div className="app-shell" data-testid="app">
+        <a href="#main-content" className="skip-nav">{lang === "zh" ? "跳到主要內容" : "Skip to main content"}</a>
         <Topbar
           currentProfile={currentProfile}
           syncing={isSyncing}
@@ -4936,7 +4942,7 @@ function SocialApp() {
           {syncError ? (
             <div className="save-error-toast is-sync" role="alert">
               <span>Sync error: {syncError}</span>
-              <button type="button" onClick={() => setSyncError(null)} aria-label="Dismiss">
+              <button type="button" onClick={() => setSyncError(null)} aria-label="Dismiss error">
                 ✕
               </button>
             </div>
@@ -4946,7 +4952,7 @@ function SocialApp() {
           ) : null}
           <div className="social-layout">
             <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} unreadPosts={unreadPosts} lastActivityMap={profileLastActivity} onClose={() => setSidebarOpen(false)} />
-            <section className="main-column">{screen}</section>
+            <section className="main-column" id="main-content">{screen}</section>
             <RightSidebar
               profiles={profilesList.length > 0 ? profilesList : profiles}
               posts={sortedPosts}
