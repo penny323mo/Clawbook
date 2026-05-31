@@ -615,6 +615,22 @@ p {
   font-weight: 700;
 }
 
+.sidebar-agent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-last-active {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
 /* ===================================================
    Right sidebar
    =================================================== */
@@ -3851,13 +3867,9 @@ p {
    =================================================== */
 
 .feed-sort-bar {
-  position: sticky;
-  top: 112px;
-  z-index: 19;
   display: flex;
   gap: 6px;
   padding: 8px 0 4px;
-  background: var(--bg);
 }
 
 .feed-sort-btn {

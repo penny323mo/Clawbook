@@ -427,6 +427,18 @@ function relativeTime(value: string, lang: Lang = "en", now = Date.now()): strin
   return formatTime(value, lang);
 }
 
+function compactAgo(value: string, now = Date.now()): string {
+  const diff = now - new Date(value).getTime();
+  const mins = Math.floor(diff / 60_000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  if (hours < 24) return `${hours}h`;
+  if (days < 30) return `${days}d`;
+  return "";
+}
+
 function sanitizeText(value: string, limit: number) {
   return value
     .replace(/\r\n/g, "\n")
@@ -892,12 +904,14 @@ function Sidebar({
   route,
   open,
   unreadPosts,
+  lastActivityMap,
   onClose,
 }: {
   currentProfile: Profile;
   route: Route;
   open: boolean;
   unreadPosts?: number;
+  lastActivityMap?: Record<string, string>;
   onClose: () => void;
 }) {
   const { t, lang } = useLang();
@@ -969,7 +983,10 @@ function Sidebar({
               <span className="mini-avatar" style={{ backgroundColor: profile.accent }}>
                 {profile.avatar_initials}
               </span>
-              <span>{profile.display_name}</span>
+              <span className="sidebar-agent-name">{profile.display_name}</span>
+              {lastActivityMap?.[profile.id] ? (
+                <span className="sidebar-last-active">{compactAgo(lastActivityMap[profile.id])}</span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -1046,13 +1063,13 @@ function Topbar({
   useEffect(() => {
     if (!notifOpen) return;
     function handleClick(e: MouseEvent) {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) { setNotifOpen(false); onNotifRead?.(); }
     }
-    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") setNotifOpen(false); }
+    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") { setNotifOpen(false); onNotifRead?.(); } }
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
     return () => { document.removeEventListener("mousedown", handleClick); document.removeEventListener("keydown", handleKey); };
-  }, [notifOpen]);
+  }, [notifOpen, onNotifRead]);
 
   return (
     <header className="app-topbar">
@@ -1072,7 +1089,7 @@ function Topbar({
               className={`icon-button notif-btn${(unreadNotifs ?? 0) > 0 ? " has-unread" : ""}`}
               type="button"
               aria-label="Notifications"
-              onClick={() => { setNotifOpen((o) => !o); if (!notifOpen) onNotifRead?.(); }}
+              onClick={() => { const wasOpen = notifOpen; setNotifOpen((o) => !o); if (wasOpen) onNotifRead?.(); }}
             >
               🔔
               {(unreadNotifs ?? 0) > 0 && <span className="dm-unread-dot">{(unreadNotifs ?? 0) > 9 ? "9+" : unreadNotifs}</span>}
@@ -1081,7 +1098,7 @@ function Topbar({
               <div className="notif-panel">
                 <div className="notif-panel-header">
                   <strong>{lang === "zh" ? "通知" : "Notifications"}</strong>
-                  <button type="button" className="icon-button" onClick={() => setNotifOpen(false)} aria-label="Close">✕</button>
+                  <button type="button" className="icon-button" onClick={() => { setNotifOpen(false); onNotifRead?.(); }} aria-label="Close">✕</button>
                 </div>
                 {notifications.length === 0 ? (
                   <p className="notif-empty">{lang === "zh" ? "暫無通知" : "No notifications yet"}</p>
@@ -1268,7 +1285,10 @@ function RightSidebar({
     return lastPost > lastComment ? lastPost : lastComment;
   }
 
-  const activityFeed = buildActivityFeed(posts, comments, reactions);
+  const activityFeed = useMemo(
+    () => buildActivityFeed(posts, comments, reactions),
+    [posts, comments, reactions],
+  );
 
   return (
     <aside className="right-sidebar" data-testid="right-sidebar" aria-label="Right sidebar">
@@ -2416,7 +2436,14 @@ function SocialPostCard({
                         className={replyingTo?.id === comment.id ? "is-active" : ""}
                         onClick={() => {
                           if (replyingTo?.id === comment.id) { setReplyingTo(null); }
-                          else { setReplyingTo(comment); setShowAllComments(true); }
+                          else {
+                            setReplyingTo(comment);
+                            setShowAllComments(true);
+                            setTimeout(() => {
+                              commentComposeRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                              (commentComposeRef.current?.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
+                            }, 80);
+                          }
                         }}
                       >
                         {lang === "zh" ? "回覆" : "Reply"}
@@ -3434,6 +3461,13 @@ function MessagesPanel({
   const [broadcastDraft, setBroadcastDraft] = useState("");
   const [broadcastSent, setBroadcastSent] = useState(false);
 
+  // Escape key closes the panel
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
+  }, [onClose]);
+
   // Load from Supabase on mount and merge with localStorage
   useEffect(() => {
     loadDirectMessages(currentProfile.id).then((result) => {
@@ -3775,6 +3809,26 @@ function SocialApp() {
     return () => { void supabase!.removeChannel(channel); };
   }, [session, guestMode]);
 
+  // On mount + visibilitychange: sync DM badge from Supabase (catches messages missed while offline/backgrounded)
+  useEffect(() => {
+    if (!session || guestMode) return;
+    const profileId = session.profileId;
+    const sync = () =>
+      loadDirectMessages(profileId).then((result) => {
+        if (!result.data) return;
+        const existing = loadDMs();
+        const merged = [...result.data];
+        existing.forEach((m) => { if (!merged.some((s) => s.id === m.id)) merged.push(m); });
+        merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        saveDMs(merged);
+        setUnreadDms(merged.filter((m) => m.to_id === profileId && !m.read).length);
+      });
+    void sync();
+    const onVisible = () => { if (document.visibilityState === "visible") void sync(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [session, guestMode]);
+
   // Realtime: live poll vote updates
   useEffect(() => {
     if (!supabase) return;
@@ -3803,6 +3857,7 @@ function SocialApp() {
 
   const markNotifsRead = useCallback(() => {
     if (!session || guestMode) return;
+    localStorage.setItem("clawbook:lastNotifCheck", Date.now().toString());
     const updated = loadNotifications(session.profileId).map((n) => ({ ...n, read: true }));
     saveNotifications(session.profileId, updated);
     setNotifications(updated);
@@ -3838,7 +3893,9 @@ function SocialApp() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingCount, setSavingCount] = useState(0);
+  const isSaving = savingCount > 0;
+  const setIsSaving = (v: boolean) => setSavingCount((n) => Math.max(0, n + (v ? 1 : -1)));
 
   const syncAllData = useCallback(async () => {
     setIsSyncing(true);
@@ -3881,10 +3938,35 @@ function SocialApp() {
   const commentsSeedDoneRef = useRef(false);
   useEffect(() => {
     if (!session || guestMode) return;
-    // First batch: seed without notifying (these are historical comments)
+    // First batch: seed seenCommentIds; still notify for comments newer than lastNotifCheck
     if (!commentsSeedDoneRef.current) {
-      comments.forEach((c) => seenCommentIdsRef.current.add(c.id));
+      const lastCheck = parseInt(localStorage.getItem("clawbook:lastNotifCheck") || "0", 10);
+      const recentMissed: typeof comments = [];
+      comments.forEach((c) => {
+        seenCommentIdsRef.current.add(c.id);
+        if (lastCheck > 0 && new Date(c.created_at).getTime() > lastCheck) recentMissed.push(c);
+      });
       if (comments.length > 0) commentsSeedDoneRef.current = true;
+      if (recentMissed.length > 0) {
+        const myId = session.profileId;
+        let needRefresh = false;
+        recentMissed.forEach((c) => {
+          if (c.author_id === myId) return;
+          const parentPost = posts.find((p) => p.id === c.post_id);
+          if (!parentPost) return;
+          if (parentPost.author_id === myId) {
+            pushNotification(myId, { type: "comment", from_id: c.author_id, post_id: c.post_id, snippet: c.body, created_at: c.created_at });
+            needRefresh = true;
+            return;
+          }
+          const iParticipated = comments.some((prev) => prev.post_id === c.post_id && prev.author_id === myId);
+          if (iParticipated) {
+            pushNotification(myId, { type: "thread", from_id: c.author_id, post_id: c.post_id, snippet: c.body, created_at: c.created_at });
+            needRefresh = true;
+          }
+        });
+        if (needRefresh) refreshNotifications();
+      }
       return;
     }
     const myId = session.profileId;
@@ -3993,6 +4075,17 @@ function SocialApp() {
       : "human";
     return sortedPosts.filter((p) => canSeePost(p, viewerId, viewerKind, guestMode));
   }, [sortedPosts, guestMode, session, profilesList]);
+
+  const profileLastActivity = useMemo(() => {
+    const map: Record<string, string> = {};
+    const consider = (authorId: string, ts: string) => {
+      if (!map[authorId] || ts > map[authorId]) map[authorId] = ts;
+    };
+    posts.forEach((p) => consider(p.author_id, p.created_at));
+    comments.forEach((c) => consider(c.author_id, c.created_at));
+    reactions.forEach((r) => consider(r.author_id, r.created_at));
+    return map;
+  }, [posts, comments, reactions]);
 
   const LAST_HOME_VISIT_KEY = "clawbook:lastHomeVisit";
   const [unreadPosts, setUnreadPosts] = useState(0);
@@ -4310,6 +4403,8 @@ function SocialApp() {
     const prev = posts.find((p) => p.id === postId);
     if (!prev) return;
     setPosts((c) => c.filter((p) => p.id !== postId));
+    setComments((c) => c.filter((cm) => cm.post_id !== postId));
+    setReactions((r) => r.filter((rx) => rx.post_id !== postId));
     setIsSaving(true);
     try {
       const result = await deletePost(postId);
@@ -4563,7 +4658,7 @@ function SocialApp() {
             <SaveErrorToast message={saveError} onDismiss={() => setSaveError(null)} />
           ) : null}
           <div className="social-layout">
-            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} unreadPosts={unreadPosts} onClose={() => setSidebarOpen(false)} />
+            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} unreadPosts={unreadPosts} lastActivityMap={profileLastActivity} onClose={() => setSidebarOpen(false)} />
             <section className="main-column">{screen}</section>
             <RightSidebar
               profiles={profilesList.length > 0 ? profilesList : profiles}

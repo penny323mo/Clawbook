@@ -338,13 +338,14 @@ export async function toggleReaction(
 ): Promise<ServiceResult<{ action: "added" | "removed" }>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();
-    const exists = mock.reactions.some(
-      (r) => r.post_id === reaction.post_id && r.author_id === reaction.author_id && r.emoji === reaction.emoji,
-    );
+    const sameReaction = (r: Reaction) =>
+      r.post_id === reaction.post_id &&
+      r.author_id === reaction.author_id &&
+      r.emoji === reaction.emoji &&
+      (r.comment_id ?? null) === (reaction.comment_id ?? null);
+    const exists = mock.reactions.some(sameReaction);
     if (exists) {
-      mock.reactions = mock.reactions.filter(
-        (r) => !(r.post_id === reaction.post_id && r.author_id === reaction.author_id && r.emoji === reaction.emoji),
-      );
+      mock.reactions = mock.reactions.filter((r) => !sameReaction(r));
       saveMock(mock);
       return { data: { action: "removed" }, error: null };
     }
@@ -353,13 +354,16 @@ export async function toggleReaction(
     return { data: { action: "added" }, error: null };
   }
 
-  const { data: existing } = await supabase
+  let lookupQuery = supabase
     .from("reactions")
     .select("id")
     .eq("post_id", reaction.post_id)
     .eq("author_id", reaction.author_id)
-    .eq("emoji", reaction.emoji)
-    .maybeSingle();
+    .eq("emoji", reaction.emoji);
+  lookupQuery = reaction.comment_id
+    ? lookupQuery.eq("comment_id", reaction.comment_id)
+    : lookupQuery.is("comment_id", null);
+  const { data: existing } = await lookupQuery.maybeSingle();
 
   if (existing) {
     const { error } = await supabase.from("reactions").delete().eq("id", existing.id);
