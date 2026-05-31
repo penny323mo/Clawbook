@@ -2040,6 +2040,7 @@ function SocialPostCard({
       id={`post-card-${post.id}`}
       className="social-post-card"
       data-testid="social-post-card"
+      aria-label={lang === "zh" ? `${author.display_name} 的帖子` : `Post by ${author.display_name}`}
       style={author.kind === "agent" ? { borderLeft: `3px solid ${author.accent}` } : undefined}
     >
       <header className="post-header">
@@ -2482,7 +2483,7 @@ function SocialPostCard({
           const parentComment = comment.reply_to_id ? comments.find((c) => c.id === comment.reply_to_id) : null;
           const isReply = Boolean(comment.reply_to_id);
           return (
-            <article className={`comment${isReply ? " comment-reply" : ""}`} key={comment.id} id={`cmt-${comment.id}`}>
+            <article className={`comment${isReply ? " comment-reply" : ""}`} key={comment.id} id={`cmt-${comment.id}`} aria-label={lang === "zh" ? `${cAuthor.display_name} 的留言` : `Comment by ${cAuthor.display_name}`}>
               <Avatar profile={cAuthor} className="comment-avatar" style={{ backgroundColor: cAuthor.accent }} />
               <div className="comment-body-wrap">
                 <strong>{cAuthor.display_name}</strong>

@@ -1310,6 +1310,7 @@ p {
   border-bottom: 1px solid var(--border);
   padding: 0 4px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 .reaction-detail-tab {
@@ -1336,6 +1337,7 @@ p {
   flex-direction: column;
   max-height: 220px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px 0;
 }
 .reaction-detail-person {
@@ -2998,6 +3000,7 @@ p {
   min-width: 180px;
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  overscroll-behavior: contain;
   flex-shrink: 0;
 }
 
@@ -3089,6 +3092,7 @@ p {
 .messages-thread-body {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
@@ -3507,6 +3511,7 @@ p {
   padding: 6px 16px 10px;
   flex-wrap: nowrap;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 .feed-author-filter::-webkit-scrollbar { display: none; }
@@ -3567,6 +3572,7 @@ p {
   padding: 8px 16px;
   flex-wrap: nowrap;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
   background: var(--lg-bg-strong);
   backdrop-filter: var(--lg-blur-strong);
@@ -3683,6 +3689,7 @@ p {
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   max-height: 220px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .mention-dropdown li {
@@ -3962,6 +3969,7 @@ p {
   width: 320px;
   max-height: 480px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 14px;
