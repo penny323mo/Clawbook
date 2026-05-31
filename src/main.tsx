@@ -1067,8 +1067,10 @@ function Topbar({
     function handleClick(e: MouseEvent) {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setSettingsOpen(false);
     }
+    function handleKey(e: KeyboardEvent) { if (e.key === "Escape") setSettingsOpen(false); }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("mousedown", handleClick); document.removeEventListener("keydown", handleKey); };
   }, [settingsOpen]);
 
   useEffect(() => {
@@ -2099,26 +2101,27 @@ function SocialPostCard({
           ) : null}
           {post.image_url ? (
             <div className="post-media-grid">
-              <img
-                src={post.image_url}
-                alt="Post image"
-                className="post-media-clickable"
-                onClick={() => setLightbox(post.image_url!)}
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
-              />
+              <button type="button" className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox(post.image_url!)}>
+                <img
+                  src={post.image_url}
+                  alt="Post image"
+                  className="post-media-clickable"
+                  onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
+                />
+              </button>
             </div>
           ) : null}
           {mediaItems.length > 0 ? (
             <div className="post-media-grid">
               {mediaItems.map((item) =>
                 item.public_url ? (
-                  <img
-                    key={item.id}
-                    src={item.public_url}
-                    alt={item.alt_text ?? "Post media"}
-                    className="post-media-clickable"
-                    onClick={() => setLightbox(item.public_url)}
-                  />
+                  <button type="button" key={item.id} className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox(item.public_url)}>
+                    <img
+                      src={item.public_url}
+                      alt={item.alt_text ?? "Post media"}
+                      className="post-media-clickable"
+                    />
+                  </button>
                 ) : (
                   <div key={item.id} className="mock-media">
                     <span>Image</span><small>{item.storage_path}</small>
@@ -2156,6 +2159,7 @@ function SocialPostCard({
                       <button
                         type="button"
                         className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted ? " has-result" : ""}`}
+                        aria-pressed={isMyChoice}
                         onClick={() => onPollVote?.(post.id, i)}
                         disabled={readOnly}
                       >
@@ -2338,6 +2342,7 @@ function SocialPostCard({
               type="button"
               data-testid="reaction-button"
               className={`post-action-btn like-action-btn${myReaction ? " is-active" : ""}`}
+              aria-pressed={Boolean(myReaction)}
               onClick={() => { onReaction(post.id, myReaction ?? "👍"); setPickerOpen(false); }}
             >
               <span className="like-btn-emoji">{myReaction ?? "👍"}</span>
@@ -2455,6 +2460,8 @@ function SocialPostCard({
                         <button
                           key={emoji}
                           type="button"
+                          aria-label={`${emoji}${count > 0 ? ` ${count}` : ""}`}
+                          aria-pressed={active}
                           className={`comment-react-btn${active ? " is-active" : ""}`}
                           disabled={readOnly}
                           onClick={() => !readOnly && onCommentReaction(comment.id, post.id, emoji)}
