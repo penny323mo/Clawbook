@@ -70,6 +70,8 @@ const COLOR_THEMES = [
 let liveProfiles: Profile[] = profiles;
 // Profiles whose role includes "owner" can see all visibility levels
 const OWNER_IDS = new Set(profiles.filter((p) => p.role.toLowerCase().includes("owner")).map((p) => p.id));
+const GROUP_PUBLIC = "public-discussion";
+const GROUP_BUILDERS = "builders-corner";
 
 const GUEST_PROFILE: Profile = {
   id: "guest",
@@ -159,14 +161,20 @@ function saveNotifications(profileId: string, notifs: AppNotification[]): void {
   try { localStorage.setItem(`${NOTIF_KEY}:${profileId}`, JSON.stringify(notifs)); } catch {}
 }
 
-function pushNotification(profileId: string, n: Omit<AppNotification, "id" | "read">): void {
+function pushNotification(profileId: string, n: Omit<AppNotification, "id" | "read">): string | null {
   const existing = loadNotifications(profileId);
   // Deduplicate: same type + same commenter + same post + same snippet (prevents double-fire on re-render)
   const dedup = existing.some(
     (e) => e.type === n.type && e.from_id === n.from_id && e.post_id === n.post_id && e.snippet === n.snippet,
   );
-  if (dedup) return;
-  saveNotifications(profileId, [{ ...n, id: `notif-${Date.now()}`, read: false }, ...existing].slice(0, 50));
+  if (dedup) return null;
+  const id = `notif-${Date.now()}`;
+  saveNotifications(profileId, [{ ...n, id, read: false }, ...existing].slice(0, 50));
+  return id;
+}
+
+function removeNotification(profileId: string, notifId: string): void {
+  saveNotifications(profileId, loadNotifications(profileId).filter((n) => n.id !== notifId));
 }
 
 function extractMentions(body: string): string[] {
@@ -488,8 +496,8 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
 }
 
-function buildGroupCover(groupId = "public-discussion") {
-  if (groupId === "builders-corner") {
+function buildGroupCover(groupId = GROUP_PUBLIC) {
+  if (groupId === GROUP_BUILDERS) {
     return { background: "linear-gradient(135deg, #7c3aed 0%, #3b0764 40%, #070d14 100%)" };
   }
   return { background: "linear-gradient(135deg, #1877f2 0%, #0a4a9f 40%, #071019 100%)" };
@@ -945,7 +953,7 @@ function Sidebar({
             <button
               key={g.id}
               type="button"
-              data-testid={g.id === "public-discussion" ? "public-group-link" : undefined}
+              data-testid={g.id === GROUP_PUBLIC ? "public-group-link" : undefined}
               className={route.name === "group" && route.id === g.id ? "is-active" : ""}
               onClick={() => go({ name: "group", id: g.id })}
             >
@@ -1443,8 +1451,8 @@ function BottomNav({
       <button
         type="button"
         data-testid="public-group-link-mobile"
-        className={route.name === "group" && (route.id === "public-discussion" || !route.id) ? "is-active" : ""}
-        onClick={() => navigate({ name: "group", id: groups[0]?.id ?? "public-discussion" })}
+        className={route.name === "group" && (route.id === GROUP_PUBLIC || !route.id) ? "is-active" : ""}
+        onClick={() => navigate({ name: "group", id: groups[0]?.id ?? GROUP_PUBLIC })}
       >
         <span className="nav-icon">💬</span>
         {lang === "zh" ? "群組" : "Groups"}
@@ -1603,6 +1611,10 @@ function CreatePost({
     try { if (body) localStorage.setItem(draftKey, body); else localStorage.removeItem(draftKey); } catch {}
   }, [body, draftKey]);
 
+  const previewsRef = useRef<Media[]>(previews);
+  useEffect(() => { previewsRef.current = previews; }, [previews]);
+  useEffect(() => () => { previewsRef.current.forEach((p) => URL.revokeObjectURL(p.public_url)); }, []);
+
   if (readOnly) return null;
 
   const targetLabel =
@@ -1680,6 +1692,7 @@ function CreatePost({
     setBody("");
     setTags("");
     setImageUrl("");
+    previews.forEach((p) => URL.revokeObjectURL(p.public_url));
     setPreviews([]);
     setVisibility(defaultVisibility);
     setPollMode(false);
@@ -2862,7 +2875,7 @@ function ProfilePage({
                   const file = e.target.files?.[0];
                   if (!file) return;
                   setAvatarFile(file);
-                  setAvatarPreview(URL.createObjectURL(file));
+                  setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file); });
                 }}
               />
               <span className="profile-edit-avatar-hint">{lang === "zh" ? "點擊更換頭像" : "Click to change avatar"}</span>
@@ -2908,13 +2921,13 @@ function ProfilePage({
                   onEditProfile?.(editBio, editStatus, editAccent, editRole, avatarUrl);
                   setUploadingAvatar(false);
                   setAvatarFile(null);
-                  setAvatarPreview(null);
+                  setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
                   setEditingProfile(false);
                 }}
               >
                 {uploadingAvatar ? "…" : t.save}
               </button>
-              <button type="button" className="btn-cancel" onClick={() => { setEditingProfile(false); setAvatarPreview(null); setAvatarFile(null); }}>{t.cancel}</button>
+              <button type="button" className="btn-cancel" onClick={() => { setEditingProfile(false); setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; }); setAvatarFile(null); }}>{t.cancel}</button>
             </div>
           </div>
         ) : (
@@ -3324,12 +3337,12 @@ function HomePage({
 
       {!showBookmarked && !needsReplyOnly && (
         <div className="feed-group-filter">
-          {(["all", "my-wall", "public-discussion", "builders-corner"] as const).map((f) => {
+          {(["all", "my-wall", GROUP_PUBLIC, GROUP_BUILDERS] as const).map((f) => {
             const label = f === "all"
               ? (lang === "zh" ? "全部" : "All")
               : f === "my-wall"
               ? (lang === "zh" ? "我的版面" : "My Wall")
-              : f === "public-discussion"
+              : f === GROUP_PUBLIC
               ? (lang === "zh" ? "公開討論" : "Public")
               : (lang === "zh" ? "Builders" : "Builders");
             return (
@@ -3393,7 +3406,7 @@ function HomePage({
             <button
               type="button"
               className={homeTarget.target_type === "group" ? "is-active" : ""}
-              onClick={() => setHomeTarget({ target_type: "group", target_id: "public-discussion" })}
+              onClick={() => setHomeTarget({ target_type: "group", target_id: GROUP_PUBLIC })}
             >
               {lang === "zh" ? "公開討論" : "Public Discussion"}
             </button>
@@ -4307,6 +4320,7 @@ function SocialApp() {
       created_at: new Date().toISOString(),
     };
 
+    let pushedNotifId: string | null = null;
     if (exists) {
       setReactions((c) =>
         c.filter((r) => !(r.comment_id === commentId && r.author_id === profileId && r.emoji === emoji)),
@@ -4316,7 +4330,7 @@ function SocialApp() {
       // Notify comment author
       const parentComment = comments.find((c) => c.id === commentId);
       if (parentComment && parentComment.author_id !== profileId) {
-        pushNotification(parentComment.author_id, {
+        pushedNotifId = pushNotification(parentComment.author_id, {
           type: "reaction",
           from_id: profileId,
           post_id: postId,
@@ -4336,6 +4350,10 @@ function SocialApp() {
         setReactions((c) =>
           c.filter((r) => !(r.comment_id === commentId && r.author_id === profileId && r.emoji === emoji)),
         );
+        if (pushedNotifId) {
+          const parentComment = comments.find((c) => c.id === commentId);
+          if (parentComment) { removeNotification(parentComment.author_id, pushedNotifId); refreshNotifications(); }
+        }
       }
     }
   }
@@ -4356,6 +4374,7 @@ function SocialApp() {
       created_at: new Date().toISOString(),
     };
 
+    let pushedNotifId: string | null = null;
     if (exists) {
       setReactions((c) =>
         c.filter((r) => !(r.post_id === postId && r.author_id === profileId && r.emoji === emoji)),
@@ -4365,7 +4384,7 @@ function SocialApp() {
       // Notify post author
       const parentPost = posts.find((p) => p.id === postId);
       if (parentPost && parentPost.author_id !== profileId) {
-        pushNotification(parentPost.author_id, {
+        pushedNotifId = pushNotification(parentPost.author_id, {
           type: "reaction",
           from_id: profileId,
           post_id: postId,
@@ -4385,6 +4404,10 @@ function SocialApp() {
         setReactions((c) =>
           c.filter((r) => !(r.post_id === postId && r.author_id === profileId && r.emoji === emoji)),
         );
+        if (pushedNotifId) {
+          const parentPost = posts.find((p) => p.id === postId);
+          if (parentPost) { removeNotification(parentPost.author_id, pushedNotifId); refreshNotifications(); }
+        }
       }
     }
   }
