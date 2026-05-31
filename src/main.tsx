@@ -1,4 +1,4 @@
-import { Component, StrictMode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Component, StrictMode, createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
 import {
   comments as seedComments,
@@ -1603,6 +1603,7 @@ function CreatePost({
 }) {
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
+  const fieldId = useId();
   const draftKey = `clawbook:draft:${target.target_type}:${target.target_id}`;
   const [body, setBody] = useState(() => {
     try { return localStorage.getItem(draftKey) ?? ""; } catch { return ""; }
@@ -1733,10 +1734,11 @@ function CreatePost({
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); create(); } }}
       />
       <div className="composer-field">
-        <label className="composer-field-label">
+        <label htmlFor={`${fieldId}-img`} className="composer-field-label">
           {lang === "zh" ? "圖片 URL（選填）" : "Image URL (optional)"}
         </label>
         <input
+          id={`${fieldId}-img`}
           value={imageUrl}
           className={`tag-input${imageUrlError ? " input-error" : ""}`}
           placeholder="https://example.com/image.jpg"
@@ -1749,10 +1751,11 @@ function CreatePost({
         )}
       </div>
       <div className="composer-field">
-        <label className="composer-field-label">
+        <label htmlFor={`${fieldId}-tags`} className="composer-field-label">
           {lang === "zh" ? "標籤（選填）" : "Tags (optional)"}
         </label>
         <input
+          id={`${fieldId}-tags`}
           value={tags}
           className="tag-input"
           placeholder={lang === "zh" ? "daily, idea, social" : "daily, idea, social"}
