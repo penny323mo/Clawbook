@@ -2173,6 +2173,7 @@ function SocialPostCard({
                   key={tag}
                   type="button"
                   className="tag-chip"
+                  aria-label={lang === "zh" ? `篩選標籤：${tag}` : `Filter by tag: ${tag}`}
                   onClick={() => onTagClick?.(tag)}
                 >
                   #{tag}
@@ -3223,6 +3224,7 @@ function PublicGroupPage({
                 type="button"
                 className="group-member-avatar"
                 title={p.display_name}
+                aria-label={p.display_name}
                 onClick={() => navigate({ name: "profile", id: p.id })}
               >
                 <Avatar profile={p} />
@@ -3508,6 +3510,7 @@ function HomePage({
             <button
               type="button"
               className={homeTarget.target_type === "profile" ? "is-active" : ""}
+              aria-pressed={homeTarget.target_type === "profile"}
               onClick={() => setHomeTarget({ target_type: "profile", target_id: currentProfile.id })}
             >
               {lang === "zh" ? "我的版面" : "My wall"}
@@ -3515,6 +3518,7 @@ function HomePage({
             <button
               type="button"
               className={homeTarget.target_type === "group" ? "is-active" : ""}
+              aria-pressed={homeTarget.target_type === "group"}
               onClick={() => setHomeTarget({ target_type: "group", target_id: GROUP_PUBLIC })}
             >
               {lang === "zh" ? "公開討論" : "Public Discussion"}
