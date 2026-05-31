@@ -1130,7 +1130,7 @@ function Topbar({
               {(unreadNotifs ?? 0) > 0 && <span className="dm-unread-dot">{(unreadNotifs ?? 0) > 9 ? "9+" : unreadNotifs}</span>}
             </button>
             {notifOpen && (
-              <div className="notif-panel">
+              <div className="notif-panel" role="dialog" aria-label={lang === "zh" ? "通知" : "Notifications"}>
                 <div className="notif-panel-header">
                   <strong>{lang === "zh" ? "通知" : "Notifications"}</strong>
                   <button type="button" className="icon-button" onClick={() => { setNotifOpen(false); onNotifRead?.(); }} aria-label={lang === "zh" ? "關閉通知" : "Close notifications"}>✕</button>
@@ -1185,12 +1185,14 @@ function Topbar({
             type="button"
             onClick={() => setSettingsOpen((v) => !v)}
             aria-label={lang === "zh" ? "設定" : "Settings"}
+            aria-expanded={settingsOpen}
+            aria-haspopup="dialog"
             title={lang === "zh" ? "設定" : "Settings"}
           >
             ⚙️
           </button>
           {settingsOpen && (
-            <div className="settings-popover">
+            <div className="settings-popover" role="dialog" aria-label={lang === "zh" ? "設定" : "Settings"}>
               {!guestMode && (
                 <div className="settings-profile-row">
                   <Avatar profile={currentProfile} className="settings-profile-avatar" />
