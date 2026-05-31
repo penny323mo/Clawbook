@@ -951,7 +951,7 @@ function Sidebar({
         </div>
 
         <nav className="sidebar-nav" aria-label="Clawbook navigation">
-          <button type="button" className={route.name === "home" ? "is-active" : ""} onClick={() => go({ name: "home" })}>
+          <button type="button" className={route.name === "home" ? "is-active" : ""} aria-current={route.name === "home" ? "page" : undefined} onClick={() => go({ name: "home" })}>
             {t.myHome}
             {unreadPosts ? <span className="nav-unread-dot">{unreadPosts > 9 ? "9+" : unreadPosts}</span> : null}
           </button>
@@ -961,6 +961,7 @@ function Sidebar({
               type="button"
               data-testid={g.id === GROUP_PUBLIC ? "public-group-link" : undefined}
               className={route.name === "group" && route.id === g.id ? "is-active" : ""}
+              aria-current={route.name === "group" && route.id === g.id ? "page" : undefined}
               onClick={() => go({ name: "group", id: g.id })}
             >
               {g.is_public ? "🌐" : "🔒"} {g.name}
@@ -970,6 +971,7 @@ function Sidebar({
             <button
               type="button"
               className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
+              aria-current={route.name === "profile" && route.id === currentProfile.id ? "page" : undefined}
               onClick={() => go({ name: "profile", id: currentProfile.id })}
             >
               {t.myProfile}
@@ -979,6 +981,7 @@ function Sidebar({
             <button
               type="button"
               className={route.name === "bookmarks" ? "is-active" : ""}
+              aria-current={route.name === "bookmarks" ? "page" : undefined}
               onClick={() => go({ name: "bookmarks" })}
             >
               🔖 {lang === "zh" ? "書籤" : "Bookmarks"}
@@ -1446,6 +1449,7 @@ function BottomNav({
       <button
         type="button"
         className={route.name === "home" ? "is-active" : ""}
+        aria-current={route.name === "home" ? "page" : undefined}
         onClick={() => navigate({ name: "home" })}
       >
         <span className="nav-icon">🏠</span>
@@ -1456,6 +1460,7 @@ function BottomNav({
         type="button"
         data-testid="public-group-link-mobile"
         className={route.name === "group" && (route.id === GROUP_PUBLIC || !route.id) ? "is-active" : ""}
+        aria-current={route.name === "group" && (route.id === GROUP_PUBLIC || !route.id) ? "page" : undefined}
         onClick={() => navigate({ name: "group", id: groups[0]?.id ?? GROUP_PUBLIC })}
       >
         <span className="nav-icon">💬</span>
@@ -1465,6 +1470,7 @@ function BottomNav({
         <button
           type="button"
           className={route.name === "profile" && route.id === currentProfile.id ? "is-active" : ""}
+          aria-current={route.name === "profile" && route.id === currentProfile.id ? "page" : undefined}
           onClick={() => navigate({ name: "profile", id: currentProfile.id })}
         >
           <span className="nav-icon">👤</span>
@@ -3020,6 +3026,7 @@ function ProfilePage({
           <button
             type="button"
             className={`composer-toggle-btn${composerOpen ? " is-open" : ""}`}
+            aria-expanded={composerOpen}
             onClick={() => setComposerOpen((v) => !v)}
           >
             <Avatar profile={currentProfile} className="composer-toggle-avatar" />
@@ -3192,6 +3199,7 @@ function PublicGroupPage({
           <button
             type="button"
             className={`composer-toggle-btn${composerOpen ? " is-open" : ""}`}
+            aria-expanded={composerOpen}
             onClick={() => setComposerOpen((v) => !v)}
           >
             <Avatar profile={currentProfile} className="composer-toggle-avatar" />
@@ -3440,6 +3448,7 @@ function HomePage({
           <button
             type="button"
             className={`composer-toggle-btn${composerOpen ? " is-open" : ""}`}
+            aria-expanded={composerOpen}
             onClick={() => setComposerOpen((v) => !v)}
           >
             <Avatar profile={currentProfile} className="composer-toggle-avatar" />
@@ -3854,7 +3863,7 @@ function MessagesPanel({
                   </button>
                 </div>
                 {dmSendError && (
-                  <p className="dm-send-error" onClick={() => setDmSendError(null)}>{dmSendError} ✕</p>
+                  <p className="dm-send-error">{dmSendError} <button type="button" onClick={() => setDmSendError(null)} aria-label="Dismiss">✕</button></p>
                 )}
               </>
             ) : (
@@ -3882,6 +3891,10 @@ function SocialApp() {
     setLangState(l);
     localStorage.setItem("clawbook:lang", l);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-HK" : "en";
+  }, [lang]);
 
   const [session, setSession] = useState(() => {
     const auto = resolveAutoLogin(); // side-effect: replaceState to /home if matched
