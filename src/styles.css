@@ -803,7 +803,7 @@ p {
 }
 
 .group-cover {
-  background: linear-gradient(135deg, #1877f2 0%, #42b883 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #42b883 100%);
 }
 
 .profile-identity {
@@ -1690,7 +1690,7 @@ p {
 }
 
 .connection-badge.is-syncing {
-  border: 1px solid #b8d4f7;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
   background: var(--accent-light);
   color: var(--accent);
   animation: badge-pulse 1.2s ease-in-out infinite;
@@ -1841,8 +1841,8 @@ p {
     gap: 0;
   }
   .connection-badge::before { display: none; }
-  .connection-badge.is-live    { background: #22c55e; border-color: #16a34a; }
-  .connection-badge.is-mock    { background: #f59e0b; border-color: #d97706; }
+  .connection-badge.is-live    { background: var(--success); border-color: var(--success); }
+  .connection-badge.is-mock    { background: var(--warning); border-color: var(--warning); }
   .connection-badge.is-syncing { background: var(--accent); border-color: var(--accent); }
 
   .profile-cover,
@@ -2374,7 +2374,7 @@ p {
   transition: background 0.15s, color 0.15s;
 }
 .comment-count-badge:hover {
-  background: rgba(102,227,255,0.1);
+  background: rgba(var(--accent-rgb),0.10);
   color: var(--accent);
 }
 
@@ -3803,7 +3803,7 @@ p {
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .notif-item:hover { background: rgba(255,255,255,0.07); }
-.notif-item.is-unread { background: rgba(102,227,255,0.06); }
+.notif-item.is-unread { background: rgba(var(--accent-rgb),0.08); }
 
 .notif-avatar {
   width: 32px !important;
@@ -3912,19 +3912,19 @@ p {
    =================================================== */
 
 @keyframes post-highlight-pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(102,227,255,0.55); }
-  40%  { box-shadow: 0 0 0 8px rgba(102,227,255,0.22); }
-  100% { box-shadow: 0 0 0 0 rgba(102,227,255,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(var(--accent-rgb),0.55); }
+  40%  { box-shadow: 0 0 0 8px rgba(var(--accent-rgb),0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb),0); }
 }
 
 .social-post-card.post-highlight {
   animation: post-highlight-pulse 2s ease-out forwards;
-  outline: 2px solid rgba(102,227,255,0.5);
+  outline: 2px solid rgba(var(--accent-rgb),0.5);
 }
 
 @keyframes comment-highlight-pulse {
-  0%   { background: rgba(102,227,255,0.18); }
-  60%  { background: rgba(102,227,255,0.08); }
+  0%   { background: rgba(var(--accent-rgb),0.18); }
+  60%  { background: rgba(var(--accent-rgb),0.08); }
   100% { background: transparent; }
 }
 
@@ -4098,7 +4098,7 @@ p {
   padding: 4px 6px;
   border-radius: 4px;
 }
-.poll-remove-option:hover { color: #ff6b6b; }
+.poll-remove-option:hover { color: var(--danger); }
 .poll-add-option {
   background: none;
   border: 1px dashed var(--border);

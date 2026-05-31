@@ -641,6 +641,7 @@ function BookmarkBtn({ postId, lang }: { postId: string; lang: Lang }) {
       className={`post-action-btn${saved ? " is-active" : ""}`}
       onClick={() => toggle(postId)}
       title={saved ? (lang === "zh" ? "取消儲存" : "Unsave") : (lang === "zh" ? "儲存帖子" : "Save post")}
+      aria-label={saved ? (lang === "zh" ? "取消儲存" : "Unsave post") : (lang === "zh" ? "儲存帖子" : "Save post")}
     >
       {saved ? "🔖" : "🏷️"}
     </button>
@@ -1114,11 +1115,14 @@ function Topbar({
                 ) : (
                   <ul className="notif-list">
                     {notifications.slice(0, 15).map((n) => {
-                      const from = profiles.find((p) => p.id === n.from_id);
+                      const from = liveProfiles.find((p) => p.id === n.from_id) ?? profiles.find((p) => p.id === n.from_id);
                       return (
                         <li
                           key={n.id}
                           className={`notif-item${n.read ? "" : " is-unread"}`}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNotifOpen(false); pendingScrollPostId = n.post_id; navigate({ name: "home" }); onNotifRead?.(); setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80); } }}
                           onClick={() => {
                             setNotifOpen(false);
                             pendingScrollPostId = n.post_id;
@@ -1306,6 +1310,7 @@ function RightSidebar({
               <button
                 type="button"
                 className="right-sidebar-agent-main"
+                aria-label={lang === "zh" ? `查看 ${profile.display_name} 的主頁` : `View ${profile.display_name}'s profile`}
                 onClick={() => navigate({ name: "profile", id: profile.id })}
               >
                 <Avatar profile={profile} style={{ ...profileAccent(profile), width: 36, height: 36, minWidth: 36, fontSize: "0.72rem" } as CSSProperties} />
@@ -1321,6 +1326,7 @@ function RightSidebar({
                   type="button"
                   className="sidebar-dm-btn"
                   title={lang === "zh" ? "發送訊息" : "Send message"}
+                  aria-label={lang === "zh" ? `向 ${profile.display_name} 發送訊息` : `Message ${profile.display_name}`}
                   onClick={() => onMessage(profile)}
                 >
                   ✉
@@ -2014,8 +2020,8 @@ function SocialPostCard({
                 {confirmDeletePost ? (
                   <span className="confirm-delete-inline">
                     <span className="confirm-delete-label">{lang === "zh" ? "確定刪除？" : "Delete?"}</span>
-                    <button type="button" className="post-action-btn post-action-delete" onClick={() => { onDeletePost(post.id); setConfirmDeletePost(false); }}>✓</button>
-                    <button type="button" className="post-action-btn" onClick={() => setConfirmDeletePost(false)}>✕</button>
+                    <button type="button" className="post-action-btn post-action-delete" aria-label={lang === "zh" ? "確認刪除" : "Confirm delete"} onClick={() => { onDeletePost(post.id); setConfirmDeletePost(false); }}>✓</button>
+                    <button type="button" className="post-action-btn" aria-label={lang === "zh" ? "取消" : "Cancel delete"} onClick={() => setConfirmDeletePost(false)}>✕</button>
                   </span>
                 ) : (
                   <button type="button" className="post-action-btn post-action-delete" onClick={() => setConfirmDeletePost(true)} title="Delete">🗑</button>
@@ -2339,6 +2345,7 @@ function SocialPostCard({
                   <button
                     key={emoji}
                     type="button"
+                    aria-label={emoji}
                     className={groupedReactions.find((r) => r.emoji === emoji)?.active ? "is-active" : ""}
                     onClick={() => { onReaction(post.id, emoji); setPickerOpen(false); }}
                   >
@@ -2471,8 +2478,8 @@ function SocialPostCard({
                         {confirmDeleteCommentId === comment.id ? (
                           <span className="confirm-delete-inline">
                             <span className="confirm-delete-label">{lang === "zh" ? "確定？" : "Sure?"}</span>
-                            <button type="button" onClick={() => { onDeleteComment(comment.id); setConfirmDeleteCommentId(null); }}>✓</button>
-                            <button type="button" onClick={() => setConfirmDeleteCommentId(null)}>✕</button>
+                            <button type="button" aria-label={lang === "zh" ? "確認刪除" : "Confirm delete"} onClick={() => { onDeleteComment(comment.id); setConfirmDeleteCommentId(null); }}>✓</button>
+                            <button type="button" aria-label={lang === "zh" ? "取消" : "Cancel delete"} onClick={() => setConfirmDeleteCommentId(null)}>✕</button>
                           </span>
                         ) : (
                           <button type="button" onClick={() => setConfirmDeleteCommentId(comment.id)}>{t.delete}</button>
@@ -2845,6 +2852,7 @@ function ProfilePage({
             type="button"
             className="profile-copy-link-btn"
             title={lang === "zh" ? "複製連結" : "Copy link"}
+            aria-label={copiedLink ? (lang === "zh" ? "已複製！" : "Copied!") : (lang === "zh" ? "複製個人頁連結" : "Copy profile link")}
             onClick={() => {
               const url = `${window.location.origin}${BASE_PATH}/?as=${profile.username}`;
               void navigator.clipboard.writeText(url).then(() => {
@@ -2918,16 +2926,19 @@ function ProfilePage({
                 disabled={uploadingAvatar}
                 onClick={async () => {
                   setUploadingAvatar(true);
-                  let avatarUrl: string | undefined;
-                  if (avatarFile) {
-                    const res = await uploadMediaFile(avatarFile, profile.id, "avatar");
-                    if (!res.error && res.data) avatarUrl = res.data.public_url;
+                  try {
+                    let avatarUrl: string | undefined;
+                    if (avatarFile) {
+                      const res = await uploadMediaFile(avatarFile, profile.id, "avatar");
+                      if (!res.error && res.data) avatarUrl = res.data.public_url;
+                    }
+                    await onEditProfile?.(editBio, editStatus, editAccent, editRole, avatarUrl);
+                    setAvatarFile(null);
+                    setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
+                    setEditingProfile(false);
+                  } finally {
+                    setUploadingAvatar(false);
                   }
-                  onEditProfile?.(editBio, editStatus, editAccent, editRole, avatarUrl);
-                  setUploadingAvatar(false);
-                  setAvatarFile(null);
-                  setAvatarPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return null; });
-                  setEditingProfile(false);
                 }}
               >
                 {uploadingAvatar ? "…" : t.save}
@@ -3094,6 +3105,7 @@ function PublicGroupPage({
             type="button"
             className="profile-copy-link-btn"
             title={lang === "zh" ? "複製群組連結" : "Copy group link"}
+            aria-label={copiedGroupLink ? (lang === "zh" ? "已複製！" : "Copied!") : (lang === "zh" ? "複製群組連結" : "Copy group link")}
             onClick={() => {
               const url = `${window.location.origin}${BASE_PATH}/groups/${group.slug}`;
               void navigator.clipboard.writeText(url).then(() => {
@@ -3492,6 +3504,7 @@ function MessagesPanel({
   const [activeWith, setActiveWith] = useState<Profile | null>(initialWith ?? null);
   const [draft, setDraft] = useState("");
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const composeRef = useRef<HTMLTextAreaElement>(null);
   const [broadcastMode, setBroadcastMode] = useState(false);
   const [broadcastRecipients, setBroadcastRecipients] = useState<Set<string>>(new Set());
   const [broadcastDraft, setBroadcastDraft] = useState("");
@@ -3601,6 +3614,7 @@ function MessagesPanel({
       return next;
     });
     setDraft("");
+    if (composeRef.current) composeRef.current.style.height = "auto";
     setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
     const result = await persistDirectMessage(msg);
     if (result?.error) {
@@ -3629,16 +3643,25 @@ function MessagesPanel({
       created_at: now,
       read: false,
     }));
+    const msgIds = new Set(newMsgs.map((m) => m.id));
     setDms((prev) => {
       const next = [...prev, ...newMsgs];
       saveDMs(next);
       return next;
     });
-    await Promise.all(newMsgs.map((m) => persistDirectMessage(m)));
-    setBroadcastSent(true);
-    setBroadcastDraft("");
-    setBroadcastRecipients(new Set());
-    setTimeout(() => { setBroadcastSent(false); setBroadcastMode(false); }, 1800);
+    try {
+      await Promise.all(newMsgs.map((m) => persistDirectMessage(m)));
+      setBroadcastSent(true);
+      setBroadcastDraft("");
+      setBroadcastRecipients(new Set());
+      setTimeout(() => { setBroadcastSent(false); setBroadcastMode(false); }, 1800);
+    } catch {
+      setDms((prev) => {
+        const next = prev.filter((m) => !msgIds.has(m.id));
+        saveDMs(next);
+        return next;
+      });
+    }
   }
 
   return (
@@ -3772,6 +3795,7 @@ function MessagesPanel({
                 </div>
                 <div className="messages-compose">
                   <textarea
+                    ref={composeRef}
                     value={draft}
                     maxLength={500}
                     placeholder={t.messagePlaceholder}
@@ -3950,7 +3974,14 @@ function SocialApp() {
 
   const syncAllData = useCallback(async () => {
     setIsSyncing(true);
-    const result = await loadAllSocialData();
+    let result: Awaited<ReturnType<typeof loadAllSocialData>>;
+    try {
+      result = await loadAllSocialData();
+    } catch (err) {
+      setIsSyncing(false);
+      setSyncError(String(err));
+      return;
+    }
     setIsSyncing(false);
     if (result.data === null) {
       setSyncError(result.error);
@@ -4162,26 +4193,34 @@ function SocialApp() {
     setPosts((c) => [post, ...c]);
     setMediaItems((c) => [...nextMedia, ...c]);
 
-    // Emit mention notifications
+    // Emit mention notifications (track IDs for rollback)
+    const mentionNotifs: Array<{ profileId: string; notifId: string }> = [];
     const mentionedSlugs = extractMentions(post.body ?? "");
     if (mentionedSlugs.length > 0) {
       const allProfs = profilesList.length > 0 ? profilesList : profiles;
       mentionedSlugs.forEach((slug) => {
         const mentioned = allProfs.find((p) => matchProfileSlug(p, slug));
         if (mentioned && mentioned.id !== post.author_id) {
-          pushNotification(mentioned.id, {
+          const nid = pushNotification(mentioned.id, {
             type: "mention",
             from_id: post.author_id,
             post_id: post.id,
             snippet: post.body ?? "",
             created_at: post.created_at,
           });
+          if (nid) mentionNotifs.push({ profileId: mentioned.id, notifId: nid });
         }
       });
       if (session && !guestMode) refreshNotifications();
     }
 
     setIsSaving(true);
+    const rollbackPost = () => {
+      setPosts((c) => c.filter((p) => p.id !== post.id));
+      setMediaItems((c) => c.filter((m) => !nextMedia.some((nm) => nm.id === m.id)));
+      mentionNotifs.forEach(({ profileId, notifId }) => removeNotification(profileId, notifId));
+      if (session && !guestMode) refreshNotifications();
+    };
     try {
       let persistedMedia = nextMedia;
       if (isSupabaseConfigured && files.length > 0) {
@@ -4203,13 +4242,11 @@ function SocialApp() {
       const result = await persistPost(post, persistedMedia);
       if (result.error) {
         setSaveError(`Failed to save post: ${result.error}`);
-        setPosts((c) => c.filter((p) => p.id !== post.id));
-        setMediaItems((c) => c.filter((m) => !nextMedia.some((nm) => nm.id === m.id)));
+        rollbackPost();
       }
     } catch (err) {
       setSaveError(`Failed to save post: ${String(err)}`);
-      setPosts((c) => c.filter((p) => p.id !== post.id));
-      setMediaItems((c) => c.filter((m) => !nextMedia.some((nm) => nm.id === m.id)));
+      rollbackPost();
     } finally {
       setIsSaving(false);
     }
@@ -4247,11 +4284,15 @@ function SocialApp() {
   }
 
   async function handleLoadComments(postId: string) {
-    const all = await fetchAllCommentsForPost(postId);
-    setComments((prev) => {
-      const without = prev.filter((c) => c.post_id !== postId);
-      return [...without, ...all];
-    });
+    try {
+      const all = await fetchAllCommentsForPost(postId);
+      setComments((prev) => {
+        const without = prev.filter((c) => c.post_id !== postId);
+        return [...without, ...all];
+      });
+    } catch (err) {
+      setSaveError(`Failed to load comments: ${String(err)}`);
+    }
   }
 
   async function addComment(postId: string, body: string, replyToId?: string | null) {
@@ -4271,14 +4312,16 @@ function SocialApp() {
     // Notify post author + previous thread participants when someone else comments
     const parentPost = posts.find((p) => p.id === postId);
     const notified = new Set<string>([session.profileId]);
+    const pushedNotifs: Array<{ profileId: string; notifId: string }> = [];
+    const trackPush = (pid: string, id: string | null) => { if (id) pushedNotifs.push({ profileId: pid, notifId: id }); };
     if (parentPost && parentPost.author_id !== session.profileId) {
-      pushNotification(parentPost.author_id, {
+      trackPush(parentPost.author_id, pushNotification(parentPost.author_id, {
         type: "comment",
         from_id: session.profileId,
         post_id: postId,
         snippet: body,
         created_at: createdAt,
-      });
+      }));
       notified.add(parentPost.author_id);
     }
     // Notify others who previously commented on this post
@@ -4287,13 +4330,13 @@ function SocialApp() {
     )];
     threadParticipants.forEach((participantId) => {
       if (!notified.has(participantId)) {
-        pushNotification(participantId, {
+        trackPush(participantId, pushNotification(participantId, {
           type: "thread",
           from_id: session!.profileId,
           post_id: postId,
           snippet: body,
           created_at: createdAt,
-        });
+        }));
         notified.add(participantId);
       }
     });
@@ -4304,13 +4347,13 @@ function SocialApp() {
       mentionedSlugs.forEach((slug) => {
         const mentioned = allProfs.find((p) => matchProfileSlug(p, slug));
         if (mentioned && !notified.has(mentioned.id)) {
-          pushNotification(mentioned.id, {
+          trackPush(mentioned.id, pushNotification(mentioned.id, {
             type: "mention",
             from_id: session!.profileId,
             post_id: postId,
             snippet: body,
             created_at: createdAt,
-          });
+          }));
           notified.add(mentioned.id);
         }
       });
@@ -4318,15 +4361,20 @@ function SocialApp() {
     if (!guestMode) refreshNotifications();
 
     setIsSaving(true);
+    const rollbackComment = () => {
+      setComments((c) => c.filter((cm) => cm.id !== comment.id));
+      pushedNotifs.forEach(({ profileId, notifId }) => removeNotification(profileId, notifId));
+      if (!guestMode) refreshNotifications();
+    };
     try {
       const result = await persistComment(comment);
       if (result.error) {
         setSaveError(`Failed to save comment: ${result.error}`);
-        setComments((c) => c.filter((cm) => cm.id !== comment.id));
+        rollbackComment();
       }
     } catch (err) {
       setSaveError(`Failed to save comment: ${String(err)}`);
-      setComments((c) => c.filter((cm) => cm.id !== comment.id));
+      rollbackComment();
     } finally {
       setIsSaving(false);
     }
@@ -4369,9 +4417,7 @@ function SocialApp() {
       }
     }
 
-    const result = await toggleReaction(reactionData);
-    if (result.error) {
-      setSaveError(`Failed to save reaction: ${result.error}`);
+    const rollbackReaction = () => {
       if (exists) {
         setReactions((c) => [...c, reactionData]);
       } else {
@@ -4383,6 +4429,13 @@ function SocialApp() {
           if (parentComment) { removeNotification(parentComment.author_id, pushedNotifId); refreshNotifications(); }
         }
       }
+    };
+    try {
+      const result = await toggleReaction(reactionData);
+      if (result.error) { setSaveError(`Failed to save reaction: ${result.error}`); rollbackReaction(); }
+    } catch (err) {
+      setSaveError(`Failed to save reaction: ${String(err)}`);
+      rollbackReaction();
     }
   }
 
@@ -4423,9 +4476,7 @@ function SocialApp() {
       }
     }
 
-    const result = await toggleReaction(reactionData);
-    if (result.error) {
-      setSaveError(`Failed to save reaction: ${result.error}`);
+    const rollbackPostReaction = () => {
       if (exists) {
         setReactions((c) => [...c, reactionData]);
       } else {
@@ -4437,6 +4488,13 @@ function SocialApp() {
           if (parentPost) { removeNotification(parentPost.author_id, pushedNotifId); refreshNotifications(); }
         }
       }
+    };
+    try {
+      const result = await toggleReaction(reactionData);
+      if (result.error) { setSaveError(`Failed to save reaction: ${result.error}`); rollbackPostReaction(); }
+    } catch (err) {
+      setSaveError(`Failed to save reaction: ${String(err)}`);
+      rollbackPostReaction();
     }
   }
 
