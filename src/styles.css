@@ -586,6 +586,7 @@ p {
   left: 0;
   width: min(300px, 86vw);
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-right: 1px solid var(--lg-border);
   background: var(--lg-bg-medium);
   backdrop-filter: var(--lg-blur-medium);
@@ -1805,10 +1806,10 @@ p {
   border: 1px solid rgba(var(--accent-rgb), 0.35);
   background: var(--accent-light);
   color: var(--accent);
-  animation: badge-pulse 1.2s ease-in-out infinite;
+  animation: badge-opacity-pulse 1.2s ease-in-out infinite;
 }
 
-@keyframes badge-pulse {
+@keyframes badge-opacity-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
