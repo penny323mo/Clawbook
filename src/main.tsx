@@ -1514,6 +1514,9 @@ function MentionTextarea({
     onChange(e.target.value);
     setCursorPos(e.target.selectionStart ?? 0);
     setOpen(true);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 300)}px`;
   }
 
   function trackCursor(e: React.SyntheticEvent<HTMLTextAreaElement>) {
@@ -1771,7 +1774,7 @@ function CreatePost({
                 onChange={(e) => setPollOptions((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
               />
               {pollOptions.length > 2 && (
-                <button type="button" className="poll-remove-option" onClick={() => setPollOptions((prev) => prev.filter((_, j) => j !== i))}>✕</button>
+                <button type="button" className="poll-remove-option" aria-label={lang === "zh" ? "刪除選項" : "Remove option"} onClick={() => setPollOptions((prev) => prev.filter((_, j) => j !== i))}>✕</button>
               )}
             </div>
           ))}
@@ -2203,7 +2206,7 @@ function SocialPostCard({
         <div className="quote-composer">
           <div className="quote-composer-ref">
             <span>🔁 {lang === "zh" ? "引用此帖" : "Quoting this post"}</span>
-            <button type="button" onClick={() => { setQuoteMode(false); setQuoteDraft(""); }}>✕</button>
+            <button type="button" aria-label={lang === "zh" ? "取消引用" : "Cancel quote"} onClick={() => { setQuoteMode(false); setQuoteDraft(""); }}>✕</button>
           </div>
           <MentionTextarea
             value={quoteDraft}
@@ -2507,7 +2510,7 @@ function SocialPostCard({
           {replyingTo && (
             <div className="replying-to-bar">
               <span>↩ {lang === "zh" ? "回覆" : "Replying to"} <strong>{getProfile(replyingTo.author_id).display_name}</strong></span>
-              <button type="button" onClick={() => setReplyingTo(null)}>✕</button>
+              <button type="button" aria-label={lang === "zh" ? "取消回覆" : "Cancel reply"} onClick={() => setReplyingTo(null)}>✕</button>
             </div>
           )}
           <MentionTextarea
@@ -3356,7 +3359,7 @@ function HomePage({
       {needsReplyOnly && (
         <div className="filter-active-banner">
           📬 {lang === "zh" ? `顯示 ${needsReplyPosts.length} 個需要回應的帖` : `Showing ${needsReplyPosts.length} post${needsReplyPosts.length !== 1 ? "s" : ""} needing reply`}
-          <button type="button" onClick={() => { setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✕</button>
+          <button type="button" aria-label={lang === "zh" ? "清除篩選" : "Clear filter"} onClick={() => { setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}>✕</button>
         </div>
       )}
 
