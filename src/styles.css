@@ -29,6 +29,13 @@
   --accent-hover: #166fe5;
   --danger: #fa3e3e;
   --success: #42b72a;
+  --warning: #b45309;
+  --warning-bg: #fef3c7;
+  --warning-border: #fde68a;
+  --success-bg: #ecfdf5;
+  --success-border: #a7f3d0;
+  --error-bg: #fef2f2;
+  --error-border: #fecaca;
 
   /* Radii */
   --radius-sm: 8px;
@@ -87,6 +94,13 @@
   --accent-hover: #79b8ff;
   --danger: #f85149;
   --success: #3fb950;
+  --warning: #f59e0b;
+  --warning-bg: rgba(245,158,11,0.12);
+  --warning-border: rgba(245,158,11,0.30);
+  --success-bg: rgba(63,185,80,0.12);
+  --success-border: rgba(63,185,80,0.30);
+  --error-bg: rgba(248,81,73,0.12);
+  --error-border: rgba(248,81,73,0.30);
   --lg-bg-strong: rgba(22, 27, 34, 0.80);
   --lg-bg-medium: rgba(22, 27, 34, 0.70);
   --lg-bg-card:   rgba(22, 27, 34, 0.75);
@@ -1663,15 +1677,15 @@ p {
 }
 
 .connection-badge.is-live {
-  border: 1px solid #b8eacb;
-  background: #e8f8ed;
-  color: #1a7a3a;
+  border: 1px solid var(--success-border);
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .connection-badge.is-mock {
-  border: 1px solid #f0d9a0;
-  background: #fef8e7;
-  color: #8a6200;
+  border: 1px solid var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .connection-badge.is-syncing {
@@ -1696,18 +1710,18 @@ p {
   justify-content: space-between;
   gap: 12px;
   margin: 0 0 10px;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--error-border);
   border-radius: var(--radius-sm);
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--error-bg);
+  color: var(--danger);
   padding: 10px 14px;
   font-size: 0.88rem;
 }
 
 .save-error-toast.is-sync {
-  border-color: #f0d9a0;
-  background: #fef8e7;
-  color: #8a6200;
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .save-error-toast button {
@@ -1732,12 +1746,6 @@ p {
   100% { background-position: 400px 0; }
 }
 
-.skeleton {
-  border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, #e4e6ea 25%, #f0f2f5 50%, #e4e6ea 75%);
-  background-size: 800px 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
-}
 
 /* ===================================================
    Responsive — tablet/desktop
@@ -1894,8 +1902,8 @@ p {
 }
 
 .post-action-delete:hover {
-  background: #fde8e8;
-  color: #c0392b;
+  background: var(--error-bg);
+  color: var(--danger);
 }
 
 .post-edit-form {
@@ -2033,7 +2041,7 @@ p {
 }
 
 .comment-actions button:last-child:hover {
-  color: #c0392b;
+  color: var(--danger);
 }
 
 .comment-edit-form {

@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, storageBucket, supabase } from "./supabase";
+import { checkPasscode } from "./passcodes";
 import {
   comments as seedComments,
   groupMembers as seedGroupMembers,
@@ -495,7 +496,8 @@ export async function registerProfile(
   adminCode: string,
 ): Promise<ServiceResult<Profile>> {
   if (!isSupabaseConfigured || !supabase) {
-    // Mock mode: store locally
+    // Mock mode: validate admin code then store locally
+    if (!checkPasscode("penny", adminCode)) return { data: null, error: "Invalid admin code" };
     const id = displayName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     if (!id) return { data: null, error: "Invalid display name" };
     const existing = loadRegisteredMock();
@@ -534,6 +536,7 @@ export async function deleteRegisteredProfile(
   adminCode: string,
 ): Promise<ServiceResult<{ deleted: true }>> {
   if (!isSupabaseConfigured || !supabase) {
+    if (!checkPasscode("penny", adminCode)) return { data: null, error: "Invalid admin code" };
     const existing = loadRegisteredMock();
     saveRegisteredMock(existing.filter((p) => p.id !== profileId));
     return { data: { deleted: true }, error: null };
