@@ -1383,6 +1383,7 @@ function RightSidebar({
               <button
                 type="button"
                 className="activity-expand-btn"
+                aria-expanded={activityExpanded}
                 onClick={() => setActivityExpanded((v) => !v)}
               >
                 {activityExpanded
@@ -2111,6 +2112,7 @@ function SocialPostCard({
                 <button
                   type="button"
                   className="post-body-toggle"
+                  aria-expanded={postBodyExpanded}
                   onClick={() => setPostBodyExpanded((v) => !v)}
                 >
                   {postBodyExpanded
