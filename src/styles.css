@@ -593,6 +593,7 @@ p {
   padding: 16px;
   transform: translateX(-105%);
   transition: transform 180ms ease;
+  will-change: transform;
   box-shadow: var(--lg-highlight), 4px 0 32px rgba(0, 0, 0, 0.12);
 }
 
@@ -1850,16 +1851,6 @@ p {
     opacity: 1;
   }
 }
-
-/* ===================================================
-   Skeleton shimmer
-   =================================================== */
-
-@keyframes shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
-}
-
 
 /* ===================================================
    Responsive — tablet/desktop
@@ -4559,4 +4550,19 @@ p {
   background: var(--hover-bg);
   padding: 1px 6px;
   border-radius: 10px;
+}
+
+/* ===================================================
+   Reduced motion
+   =================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

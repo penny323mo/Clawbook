@@ -775,7 +775,7 @@ function IdentityEntry({
                   readOnly={activeInput !== profile.id}
                   onPointerDown={() => setActiveInput(profile.id)}
                   value={codes[profile.id] ?? ""}
-                  placeholder="Access code"
+                  placeholder={lang === "zh" ? "存取碼" : "Access code"}
                   className={errors[profile.id] ? "passcode-input is-error" : "passcode-input"}
                   onChange={(e) => {
                     setCodes((c) => ({ ...c, [profile.id]: e.target.value }));
