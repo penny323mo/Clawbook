@@ -2729,7 +2729,7 @@ p {
 }
 
 .identity-admin-success {
-  color: #22c55e;
+  color: var(--success);
   font-size: 13px;
   font-weight: 500;
 }
@@ -2762,16 +2762,16 @@ p {
 .identity-admin-delete-btn {
   padding: 4px 12px;
   border-radius: 6px;
-  border: 1.5px solid #ef4444;
+  border: 1.5px solid var(--danger);
   background: transparent;
-  color: #ef4444;
+  color: var(--danger);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .identity-admin-delete-btn:hover {
-  background: #ef4444;
+  background: var(--danger);
   color: #fff;
 }
 
@@ -3220,7 +3220,7 @@ p {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: #e41e3f;
+  background: var(--danger);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -3275,7 +3275,7 @@ p {
 
 .vis-badge-pinned {
   background: rgba(255, 184, 0, 0.15);
-  color: #b8860b;
+  color: var(--warning);
 }
 
 /* ===================================================

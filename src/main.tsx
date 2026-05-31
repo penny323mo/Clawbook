@@ -4297,6 +4297,24 @@ function SocialApp() {
         notified.add(participantId);
       }
     });
+    // Notify @mentioned users not already notified above
+    const mentionedSlugs = extractMentions(body);
+    if (mentionedSlugs.length > 0) {
+      const allProfs = profilesList.length > 0 ? profilesList : profiles;
+      mentionedSlugs.forEach((slug) => {
+        const mentioned = allProfs.find((p) => matchProfileSlug(p, slug));
+        if (mentioned && !notified.has(mentioned.id)) {
+          pushNotification(mentioned.id, {
+            type: "mention",
+            from_id: session!.profileId,
+            post_id: postId,
+            snippet: body,
+            created_at: createdAt,
+          });
+          notified.add(mentioned.id);
+        }
+      });
+    }
     if (!guestMode) refreshNotifications();
 
     setIsSaving(true);
