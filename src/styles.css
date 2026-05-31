@@ -3074,6 +3074,13 @@ p {
   cursor: not-allowed;
 }
 
+.dm-send-error {
+  font-size: 0.78rem;
+  color: var(--error, #f87171);
+  padding: 4px 12px 0;
+  cursor: pointer;
+}
+
 @media (max-width: 480px) {
   .messages-list {
     width: 100%;

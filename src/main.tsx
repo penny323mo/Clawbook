@@ -68,6 +68,8 @@ const COLOR_THEMES = [
   { id: "gold",   label: "Gold",   swatch: "#ca8a04" },
 ] as const;
 let liveProfiles: Profile[] = profiles;
+// Profiles whose role includes "owner" can see all visibility levels
+const OWNER_IDS = new Set(profiles.filter((p) => p.role.toLowerCase().includes("owner")).map((p) => p.id));
 
 const GUEST_PROFILE: Profile = {
   id: "guest",
@@ -352,7 +354,7 @@ function matchProfileSlug(pr: Profile, slug: string): boolean {
 function canSeePost(post: Post, viewerId: string | null, viewerKind: string, guestMode: boolean): boolean {
   if (post.visibility === "public") return true;
   if (guestMode || !viewerId) return false;
-  if (post.visibility === "agents") return viewerKind === "agent" || viewerId === "penny";
+  if (post.visibility === "agents") return viewerKind === "agent" || OWNER_IDS.has(viewerId);
   if (post.visibility === "private") {
     return post.author_id === viewerId ||
       (post.target_type === "profile" && post.target_id === viewerId);
@@ -1192,7 +1194,7 @@ function Topbar({
                       onClick={() => setFontSize(s)}
                       aria-label={s}
                     >
-                      {s === "small" ? "A" : s === "medium" ? "A" : s === "large" ? "A" : "A"}
+                      {s === "small" ? "a" : s === "medium" ? "A" : s === "large" ? "A+" : "A++"}
                     </button>
                   ))}
                 </div>
@@ -1909,6 +1911,15 @@ function SocialPostCard({
     };
   });
   const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const h = (e: MouseEvent) => {
+      if (pickerWrapRef.current && !pickerWrapRef.current.contains(e.target as Node)) setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [pickerOpen]);
   const [reactionDetailOpen, setReactionDetailOpen] = useState(false);
   const [reactionDetailTab, setReactionDetailTab] = useState<string | null>(null);
   const [confirmDeletePost, setConfirmDeletePost] = useState(false);
@@ -2301,7 +2312,7 @@ function SocialPostCard({
       {/* Action bar — Like / Comment / Quote */}
       <div className="post-action-bar">
         {!readOnly && (
-          <div className="reaction-picker-wrap">
+          <div className="reaction-picker-wrap" ref={pickerWrapRef}>
             <button
               type="button"
               data-testid="reaction-button"
@@ -2615,12 +2626,19 @@ function Feed({
 
   const q = searchQuery?.toLowerCase().trim() ?? "";
   const filteredBySearch = q
-    ? posts.filter((p) =>
-        p.body.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.includes(q)) ||
-        getProfile(p.author_id).display_name.toLowerCase().includes(q) ||
-        allComments.some((c) => c.post_id === p.id && c.body.toLowerCase().includes(q)),
-      )
+    ? (() => {
+        const commentIndex = new Map<string, string>();
+        allComments.forEach((c) => {
+          const prev = commentIndex.get(c.post_id) ?? "";
+          commentIndex.set(c.post_id, prev + " " + c.body.toLowerCase());
+        });
+        return posts.filter((p) =>
+          p.body.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.includes(q)) ||
+          getProfile(p.author_id).display_name.toLowerCase().includes(q) ||
+          (commentIndex.get(p.id) ?? "").includes(q),
+        );
+      })()
     : posts;
   const allDisplayPostsRaw = activeTag ? filteredBySearch.filter((p) => p.tags.includes(activeTag)) : filteredBySearch;
   const allDisplayPostsSorted = sortBy === "top"
@@ -3546,7 +3564,9 @@ function MessagesPanel({
     void markMessagesRead(profile.id, currentProfile.id);
   }
 
-  function send() {
+  const [dmSendError, setDmSendError] = useState<string | null>(null);
+
+  async function send() {
     if (!activeWith || !draft.trim()) return;
     const now = new Date().toISOString();
     const msg: DirectMessage = {
@@ -3562,9 +3582,17 @@ function MessagesPanel({
       saveDMs(next);
       return next;
     });
-    void persistDirectMessage(msg);
     setDraft("");
     setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth" }), 30);
+    const result = await persistDirectMessage(msg);
+    if (result?.error) {
+      setDmSendError("Failed to send message");
+      setDms((prev) => {
+        const next = prev.filter((m) => m.id !== msg.id);
+        saveDMs(next);
+        return next;
+      });
+    }
   }
 
   useEffect(() => {
@@ -3736,12 +3764,15 @@ function MessagesPanel({
                       el.style.height = "auto";
                       el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
                     }}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
                   />
-                  <button type="button" disabled={!draft.trim()} onClick={send}>
+                  <button type="button" disabled={!draft.trim()} onClick={() => { void send(); }}>
                     {t.sendMessage}
                   </button>
                 </div>
+                {dmSendError && (
+                  <p className="dm-send-error" onClick={() => setDmSendError(null)}>{dmSendError} ✕</p>
+                )}
               </>
             ) : (
               <div className="messages-thread-empty">
@@ -4165,7 +4196,7 @@ function SocialApp() {
     if (!session) return;
     const now = new Date().toISOString();
     const quotePost: Post = {
-      id: uniqueId("post"),
+      id: uniqueId("post-local"),
       author_id: session.profileId,
       target_type: quotedPost.target_type,
       target_id: quotedPost.target_id,
