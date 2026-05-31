@@ -2072,7 +2072,10 @@ p {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: filter 0.15s, opacity 0.15s;
+}
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
 }
 
 .btn-save:disabled {
@@ -2839,6 +2842,9 @@ p {
   transition: opacity 0.15s;
 }
 
+@media (hover: hover) {
+  .identity-admin-submit:hover:not(:disabled) { filter: brightness(1.1); }
+}
 .identity-admin-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -3216,6 +3222,11 @@ p {
   white-space: nowrap;
 }
 
+@media (hover: hover) {
+  .messages-compose button:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+}
 .messages-compose button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
