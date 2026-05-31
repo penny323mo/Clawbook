@@ -2285,7 +2285,7 @@ function SocialPostCard({
         <div className="post-stats-bar">
           <div className="post-stats-left">
             {totalReactions > 0 && (
-              <button type="button" className="stat-count-btn" onClick={() => { setReactionDetailOpen((v) => !v); setReactionDetailTab(null); }}>
+              <button type="button" className="stat-count-btn" aria-label={lang === "zh" ? `${totalReactions} 個反應，點擊查看詳情` : `${totalReactions} reaction${totalReactions !== 1 ? "s" : ""}, view details`} aria-expanded={reactionDetailOpen} onClick={() => { setReactionDetailOpen((v) => !v); setReactionDetailTab(null); }}>
                 👍 {totalReactions}
               </button>
             )}
@@ -2293,6 +2293,7 @@ function SocialPostCard({
               <button
                 type="button"
                 className="stat-count-btn"
+                aria-label={lang === "zh" ? `${comments.length} 則留言，點擊跳至最新留言` : `${comments.length} comment${comments.length !== 1 ? "s" : ""}, jump to latest`}
                 onClick={() => {
                   const latest = comments[comments.length - 1];
                   if (!latest) return;
@@ -2319,6 +2320,8 @@ function SocialPostCard({
               <button
                 type="button"
                 className="reaction-type-bubbles-btn"
+                aria-label={lang === "zh" ? "查看反應詳情" : "View reaction details"}
+                aria-expanded={reactionDetailOpen}
                 onClick={() => { setReactionDetailOpen((v) => !v); setReactionDetailTab(null); }}
               >
                 {activeEmojis.slice(0, 3).map((e) => (
@@ -2332,6 +2335,7 @@ function SocialPostCard({
                     <button
                       type="button"
                       className={`reaction-detail-tab${reactionDetailTab === null ? " is-active" : ""}`}
+                      aria-pressed={reactionDetailTab === null}
                       onClick={() => setReactionDetailTab(null)}
                     >
                       {lang === "zh" ? "所有" : "All"} {totalReactions}
@@ -2341,6 +2345,7 @@ function SocialPostCard({
                         key={g.emoji}
                         type="button"
                         className={`reaction-detail-tab${reactionDetailTab === g.emoji ? " is-active" : ""}`}
+                        aria-pressed={reactionDetailTab === g.emoji}
                         onClick={() => setReactionDetailTab(g.emoji)}
                       >
                         {g.emoji} {g.count}
@@ -2426,6 +2431,7 @@ function SocialPostCard({
           <button
             type="button"
             className={`post-action-btn${quoteMode ? " is-active" : ""}`}
+            aria-pressed={quoteMode}
             onClick={() => { setQuoteMode((v) => !v); setQuoteDraft(""); }}
           >
             🔁 <span>{lang === "zh" ? "引用" : "Quote"}</span>
@@ -2513,6 +2519,7 @@ function SocialPostCard({
                       <button
                         type="button"
                         className={replyingTo?.id === comment.id ? "is-active" : ""}
+                        aria-pressed={replyingTo?.id === comment.id}
                         onClick={() => {
                           if (replyingTo?.id === comment.id) { setReplyingTo(null); }
                           else {
@@ -2769,10 +2776,10 @@ function Feed({
   return (
     <section className="feed" data-testid="feed">
       <div className="feed-sort-bar">
-        <button type="button" className={`feed-sort-btn${sortBy === "latest" ? " is-active" : ""}`} onClick={() => setSortBy("latest")}>
+        <button type="button" className={`feed-sort-btn${sortBy === "latest" ? " is-active" : ""}`} aria-pressed={sortBy === "latest"} onClick={() => setSortBy("latest")}>
           {lang === "zh" ? "最新" : "Latest"}
         </button>
-        <button type="button" className={`feed-sort-btn${sortBy === "top" ? " is-active" : ""}`} onClick={() => setSortBy("top")}>
+        <button type="button" className={`feed-sort-btn${sortBy === "top" ? " is-active" : ""}`} aria-pressed={sortBy === "top"} onClick={() => setSortBy("top")}>
           {lang === "zh" ? "熱門" : "Top"}
         </button>
       </div>
@@ -3404,6 +3411,7 @@ function HomePage({
           <button
             type="button"
             className={`needs-reply-btn${needsReplyOnly && !showBookmarked ? " is-active" : ""}`}
+            aria-pressed={needsReplyOnly && !showBookmarked}
             onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           >
             📬 {lang === "zh" ? "需要回應" : "Needs reply"}
@@ -3416,6 +3424,7 @@ function HomePage({
           <button
             type="button"
             className={`needs-reply-btn${showBookmarked ? " is-active" : ""}`}
+            aria-pressed={showBookmarked}
             onClick={() => { setShowBookmarked((v) => !v); setNeedsReplyOnly(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           >
             🔖 {lang === "zh" ? "已儲存" : "Saved"}
@@ -3446,6 +3455,7 @@ function HomePage({
                 key={f}
                 type="button"
                 className={`feed-group-chip${feedGroupFilter === f ? " is-active" : ""}`}
+                aria-pressed={feedGroupFilter === f}
                 onClick={() => { setFeedGroupFilter(f); setFeedAuthorFilter(null); }}
               >
                 {label}
@@ -3466,6 +3476,8 @@ function HomePage({
               style={feedAuthorFilter === p.id ? { borderColor: p.accent, boxShadow: `0 0 0 2px ${p.accent}33` } : {}}
               onClick={() => setFeedAuthorFilter(feedAuthorFilter === p.id ? null : p.id)}
               title={p.display_name}
+              aria-label={feedAuthorFilter === p.id ? (lang === "zh" ? `清除 ${p.display_name} 篩選` : `Clear filter: ${p.display_name}`) : (lang === "zh" ? `篩選：${p.display_name}` : `Filter by ${p.display_name}`)}
+              aria-pressed={feedAuthorFilter === p.id}
             >
               <span className="feed-author-chip-avatar" style={{ background: p.accent }}>{p.avatar_initials}</span>
               {feedAuthorFilter === p.id && <span className="feed-author-chip-name">{p.display_name}</span>}
