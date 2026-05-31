@@ -1746,7 +1746,15 @@ function CreatePost({
             <img src={imageUrl} alt="Image URL preview" onError={(e) => (e.currentTarget.style.display = "none")} />
           ) : null}
           {previews.map((item) => (
-            <img key={item.id} src={item.public_url} alt={item.alt_text ?? "Image preview"} loading="lazy" />
+            <div key={item.id} className="image-preview-item">
+              <img src={item.public_url} alt={item.alt_text ?? "Image preview"} loading="lazy" />
+              <button
+                type="button"
+                className="image-preview-remove"
+                aria-label={lang === "zh" ? "移除圖片" : "Remove image"}
+                onClick={() => { URL.revokeObjectURL(item.public_url); fileMapRef.current.delete(item.id); setPreviews((c) => c.filter((p) => p.id !== item.id)); }}
+              >✕</button>
+            </div>
           ))}
         </div>
       ) : null}
@@ -1881,7 +1889,7 @@ function SocialPostCard({
   onPollVote?: (postId: string, optionIdx: number) => void;
   onQuotePost?: (quotedPost: Post, body: string) => void;
   allPosts?: Post[];
-  onLoadComments?: (postId: string) => Promise<void>;
+  onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
@@ -2387,8 +2395,8 @@ function SocialPostCard({
             className="show-all-comments-btn"
             onClick={async () => {
               if (!allCommentsFetched && onLoadComments) {
-                await onLoadComments(post.id);
-                setAllCommentsFetched(true);
+                const ok = await onLoadComments(post.id);
+                if (ok) setAllCommentsFetched(true);
               }
               setShowAllComments(true);
             }}
@@ -2578,7 +2586,7 @@ function Feed({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
-  onLoadComments?: (postId: string) => Promise<void>;
+  onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
   const { lang } = useLang();
@@ -2802,7 +2810,7 @@ function ProfilePage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
-  onLoadComments?: (postId: string) => Promise<void>;
+  onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
@@ -3085,7 +3093,7 @@ function PublicGroupPage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
-  onLoadComments?: (postId: string) => Promise<void>;
+  onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
@@ -3240,7 +3248,7 @@ function HomePage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
-  onLoadComments?: (postId: string) => Promise<void>;
+  onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
@@ -4283,15 +4291,17 @@ function SocialApp() {
     }
   }
 
-  async function handleLoadComments(postId: string) {
+  async function handleLoadComments(postId: string): Promise<boolean> {
     try {
       const all = await fetchAllCommentsForPost(postId);
       setComments((prev) => {
         const without = prev.filter((c) => c.post_id !== postId);
         return [...without, ...all];
       });
+      return true;
     } catch (err) {
       setSaveError(`Failed to load comments: ${String(err)}`);
+      return false;
     }
   }
 
