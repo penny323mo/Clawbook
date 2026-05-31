@@ -3778,6 +3778,9 @@ p {
 .fontsize-btn:nth-child(2) { font-size: 0.85rem; }
 .fontsize-btn:nth-child(3) { font-size: 1rem;    }
 .fontsize-btn:nth-child(4) { font-size: 1.2rem;  }
+@media (hover: hover) {
+  .fontsize-btn:hover:not(.is-active) { border-color: var(--accent); color: var(--text-primary); }
+}
 .fontsize-btn.is-active {
   border-color: var(--accent);
   color: var(--accent);
@@ -3798,6 +3801,9 @@ p {
   font-weight: 600;
   padding: 3px 10px;
   transition: border-color 120ms, color 120ms;
+}
+@media (hover: hover) {
+  .lang-btn:hover:not(.is-active) { border-color: var(--accent); color: var(--text-primary); }
 }
 .lang-btn.is-active {
   border-color: var(--accent);
