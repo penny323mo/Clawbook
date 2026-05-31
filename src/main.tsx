@@ -1110,7 +1110,8 @@ function Topbar({
             <button
               className={`icon-button notif-btn${(unreadNotifs ?? 0) > 0 ? " has-unread" : ""}`}
               type="button"
-              aria-label="Notifications"
+              aria-label={(unreadNotifs ?? 0) > 0 ? (lang === "zh" ? `通知，${unreadNotifs} 則未讀` : `Notifications, ${unreadNotifs} unread`) : (lang === "zh" ? "通知" : "Notifications")}
+              aria-expanded={notifOpen}
               onClick={() => { const wasOpen = notifOpen; setNotifOpen((o) => !o); if (wasOpen) onNotifRead?.(); }}
             >
               🔔
@@ -1120,7 +1121,7 @@ function Topbar({
               <div className="notif-panel">
                 <div className="notif-panel-header">
                   <strong>{lang === "zh" ? "通知" : "Notifications"}</strong>
-                  <button type="button" className="icon-button" onClick={() => { setNotifOpen(false); onNotifRead?.(); }} aria-label="Close">✕</button>
+                  <button type="button" className="icon-button" onClick={() => { setNotifOpen(false); onNotifRead?.(); }} aria-label={lang === "zh" ? "關閉通知" : "Close notifications"}>✕</button>
                 </div>
                 {notifications.length === 0 ? (
                   <p className="notif-empty">{lang === "zh" ? "暫無通知" : "No notifications yet"}</p>
@@ -1159,7 +1160,7 @@ function Topbar({
           </div>
         )}
         {!guestMode && onMessages && (
-          <button className="icon-button dm-icon-btn" type="button" onClick={onMessages} aria-label="Messages" title={t.messages}>
+          <button className="icon-button dm-icon-btn" type="button" onClick={onMessages} aria-label={unreadDms ? (lang === "zh" ? `訊息，${unreadDms} 則未讀` : `Messages, ${unreadDms} unread`) : t.messages} title={t.messages}>
             💬
             {unreadDms ? <span className="dm-unread-dot">{unreadDms > 9 ? "9+" : unreadDms}</span> : null}
           </button>
@@ -1560,6 +1561,7 @@ function MentionTextarea({
         value={value}
         maxLength={maxLength}
         placeholder={placeholder}
+        aria-label={placeholder}
         rows={rows}
         className={className}
         data-testid={testId}
@@ -1791,6 +1793,7 @@ function CreatePost({
                 value={opt}
                 maxLength={60}
                 placeholder={lang === "zh" ? `選項 ${i + 1}` : `Option ${i + 1}`}
+                aria-label={lang === "zh" ? `選項 ${i + 1}` : `Option ${i + 1}`}
                 onChange={(e) => setPollOptions((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
               />
               {pollOptions.length > 2 && (
@@ -1829,6 +1832,8 @@ function CreatePost({
           className={`poll-toggle-btn${pollMode ? " is-active" : ""}`}
           onClick={() => { setPollMode((v) => !v); setPollOptions(["", ""]); }}
           title={lang === "zh" ? "投票" : "Poll"}
+          aria-label={lang === "zh" ? "投票" : "Poll"}
+          aria-pressed={pollMode}
         >
           📊
         </button>
@@ -2052,11 +2057,13 @@ function SocialPostCard({
                 className={`post-action-btn${post.is_pinned ? " is-active" : ""}`}
                 onClick={() => onPinPost(post.id, !post.is_pinned)}
                 title={post.is_pinned ? (lang === "zh" ? "取消置頂" : "Unpin") : (lang === "zh" ? "置頂" : "Pin")}
+                aria-label={post.is_pinned ? (lang === "zh" ? "取消置頂" : "Unpin post") : (lang === "zh" ? "置頂帖子" : "Pin post")}
+                aria-pressed={post.is_pinned}
               >📌</button>
             )}
             {isMyPost && (
               <>
-                <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title="Edit">✏️</button>
+                <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title={lang === "zh" ? "編輯" : "Edit"} aria-label={lang === "zh" ? "編輯帖子" : "Edit post"}>✏️</button>
                 {confirmDeletePost ? (
                   <span className="confirm-delete-inline">
                     <span className="confirm-delete-label">{lang === "zh" ? "確定刪除？" : "Delete?"}</span>
@@ -2064,7 +2071,7 @@ function SocialPostCard({
                     <button type="button" className="post-action-btn" aria-label={lang === "zh" ? "取消" : "Cancel delete"} onClick={() => setConfirmDeletePost(false)}>✕</button>
                   </span>
                 ) : (
-                  <button type="button" className="post-action-btn post-action-delete" onClick={() => setConfirmDeletePost(true)} title="Delete">🗑</button>
+                  <button type="button" className="post-action-btn post-action-delete" onClick={() => setConfirmDeletePost(true)} title={lang === "zh" ? "刪除" : "Delete"} aria-label={lang === "zh" ? "刪除帖子" : "Delete post"}>🗑</button>
                 )}
               </>
             )}
@@ -2077,13 +2084,15 @@ function SocialPostCard({
           <textarea
             value={editBody}
             maxLength={POST_MAX_LENGTH}
+            aria-label={lang === "zh" ? "編輯帖文" : "Edit post"}
             onChange={(e) => setEditBody(e.target.value)}
             rows={3}
           />
           <input
             className="tag-input"
             value={editTags}
-            placeholder="Tags"
+            placeholder={lang === "zh" ? "標籤" : "Tags"}
+            aria-label={lang === "zh" ? "標籤" : "Tags"}
             onChange={(e) => setEditTags(e.target.value)}
           />
           {post.poll_options && post.poll_options.length > 0 && (
@@ -2457,6 +2466,7 @@ function SocialPostCard({
                       value={editCommentBody}
                       maxLength={COMMENT_MAX_LENGTH}
                       rows={2}
+                      aria-label={lang === "zh" ? "編輯留言" : "Edit comment"}
                       onChange={(e) => setEditCommentBody(e.target.value)}
                     />
                     <div className="post-edit-actions">
@@ -2879,6 +2889,7 @@ function ProfilePage({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const profileEditId = useId();
 
   const profilePosts = posts.filter(
     (p) => p.author_id === profile.id || (p.target_type === "profile" && p.target_id === profile.id),
@@ -2900,7 +2911,7 @@ function ProfilePage({
             <p>{profile.role}</p>
           </div>
           {isOwnProfile && !editingProfile && (
-            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setAvatarPreview(null); setAvatarFile(null); setEditingProfile(true); }} title="Edit profile">✏️</button>
+            <button type="button" className="post-action-btn profile-edit-btn" onClick={() => { setEditBio(profile.bio); setEditStatus(profile.status); setEditAccent(profile.accent); setEditRole(profile.role); setAvatarPreview(null); setAvatarFile(null); setEditingProfile(true); }} title={lang === "zh" ? "編輯個人資料" : "Edit profile"} aria-label={lang === "zh" ? "編輯個人資料" : "Edit profile"}>✏️</button>
           )}
           {!isOwnProfile && !readOnly && onMessage && (
             <button type="button" className="profile-message-btn" onClick={onMessage}>
@@ -2932,6 +2943,7 @@ function ProfilePage({
                 className="profile-edit-avatar-btn"
                 onClick={() => avatarInputRef.current?.click()}
                 title={lang === "zh" ? "更換頭像" : "Change avatar"}
+                aria-label={lang === "zh" ? "更換頭像" : "Change avatar"}
               >
                 {avatarPreview
                   ? <img src={avatarPreview} alt="preview" className="avatar avatar-img" />
@@ -2958,14 +2970,16 @@ function ProfilePage({
               className="profile-edit-status"
               value={editRole}
               maxLength={60}
-              placeholder="Role"
+              placeholder={lang === "zh" ? "角色" : "Role"}
+              aria-label={lang === "zh" ? "角色" : "Role"}
               onChange={(e) => setEditRole(e.target.value)}
             />
             <input
               className="profile-edit-status"
               value={editStatus}
               maxLength={120}
-              placeholder="Status"
+              placeholder={lang === "zh" ? "狀態" : "Status"}
+              aria-label={lang === "zh" ? "狀態" : "Status"}
               onChange={(e) => setEditStatus(e.target.value)}
             />
             <textarea
@@ -2973,12 +2987,13 @@ function ProfilePage({
               value={editBio}
               maxLength={400}
               rows={3}
-              placeholder="Bio"
+              placeholder={lang === "zh" ? "個人簡介" : "Bio"}
+              aria-label={lang === "zh" ? "個人簡介" : "Bio"}
               onChange={(e) => setEditBio(e.target.value)}
             />
             <div className="profile-edit-color-row">
-              <label>{lang === "zh" ? "強調色" : "Accent color"}</label>
-              <input type="color" value={editAccent} onChange={(e) => setEditAccent(e.target.value)} />
+              <label htmlFor={`${profileEditId}-accent`}>{lang === "zh" ? "強調色" : "Accent color"}</label>
+              <input type="color" id={`${profileEditId}-accent`} value={editAccent} onChange={(e) => setEditAccent(e.target.value)} />
             </div>
             <div className="post-edit-actions">
               <button
@@ -3657,7 +3672,7 @@ function MessagesPanel({
       saveDMs(updated);
       return updated;
     });
-    void markMessagesRead(profile.id, currentProfile.id);
+    void markMessagesRead(profile.id, currentProfile.id).catch(() => {});
   }
 
   const [dmSendError, setDmSendError] = useState<string | null>(null);
@@ -3737,7 +3752,7 @@ function MessagesPanel({
           <h2>{broadcastMode ? (lang === "zh" ? "📢 群發訊息" : "📢 Broadcast") : t.messages}</h2>
           <div style={{ display: "flex", gap: 6 }}>
             {!broadcastMode && (
-              <button type="button" className="icon-button" title={lang === "zh" ? "群發訊息" : "Broadcast"} onClick={() => setBroadcastMode(true)}>📢</button>
+              <button type="button" className="icon-button" title={lang === "zh" ? "群發訊息" : "Broadcast"} aria-label={lang === "zh" ? "群發訊息" : "Broadcast message"} onClick={() => setBroadcastMode(true)}>📢</button>
             )}
             <button type="button" className="icon-button" onClick={() => { setBroadcastMode(false); onClose(); }} aria-label="Close" autoFocus>✕</button>
           </div>
@@ -3769,6 +3784,7 @@ function MessagesPanel({
               maxLength={500}
               rows={3}
               placeholder={lang === "zh" ? "輸入廣播訊息…" : "Write broadcast message…"}
+              aria-label={lang === "zh" ? "廣播訊息" : "Broadcast message"}
               onChange={(e) => setBroadcastDraft(e.target.value)}
             />
             <div className="broadcast-actions">
@@ -3792,6 +3808,7 @@ function MessagesPanel({
                 key={profile.id}
                 type="button"
                 className={`messages-conv-item${activeWith?.id === profile.id ? " is-active" : ""}`}
+                aria-label={unread > 0 ? (lang === "zh" ? `${profile.display_name}，${unread} 則未讀訊息` : `${profile.display_name}, ${unread} unread`) : profile.display_name}
                 onClick={() => openThread(profile)}
               >
                 <span className="avatar messages-conv-avatar" style={{ ...profileAccent(profile), width: 38, height: 38, fontSize: "0.72rem" } as CSSProperties}>
@@ -3865,6 +3882,7 @@ function MessagesPanel({
                     value={draft}
                     maxLength={500}
                     placeholder={t.messagePlaceholder}
+                    aria-label={lang === "zh" ? "訊息" : "Message"}
                     rows={1}
                     onChange={(e) => setDraft(e.target.value)}
                     onInput={(e) => {
