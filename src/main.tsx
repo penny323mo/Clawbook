@@ -2349,9 +2349,9 @@ function SocialPostCard({
                 ))}
               </button>
               {reactionDetailOpen && (
-                <div className="reaction-detail-popover">
+                <div className="reaction-detail-popover" role="dialog" aria-label={lang === "zh" ? "反應詳情" : "Reaction details"}>
                   {/* Tabs */}
-                  <div className="reaction-detail-tabs">
+                  <div className="reaction-detail-tabs" role="tablist">
                     <button
                       type="button"
                       className={`reaction-detail-tab${reactionDetailTab === null ? " is-active" : ""}`}
@@ -2418,7 +2418,7 @@ function SocialPostCard({
               aria-expanded={pickerOpen}
             >▾</button>
             {pickerOpen && (
-              <div className="reaction-picker-dropdown">
+              <div className="reaction-picker-dropdown" role="toolbar" aria-label={lang === "zh" ? "選擇反應" : "Choose reaction"}>
                 {REACTION_OPTIONS.map((emoji) => (
                   <button
                     key={emoji}
