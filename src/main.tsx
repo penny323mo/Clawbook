@@ -1209,7 +1209,7 @@ function Topbar({
               </div>
               <div className="settings-row">
                 <span className="settings-label">{lang === "zh" ? "外觀" : "Theme"}</span>
-                <button className="settings-toggle" type="button" onClick={() => setDarkMode((v) => !v)}>
+                <button className="settings-toggle" type="button" aria-pressed={darkMode} aria-label={darkMode ? (lang === "zh" ? "切換到淺色模式" : "Switch to light mode") : (lang === "zh" ? "切換到深色模式" : "Switch to dark mode")} onClick={() => setDarkMode((v) => !v)}>
                   {darkMode ? "☀️ " : "🌙 "}
                   {darkMode ? (lang === "zh" ? "淺色" : "Light") : (lang === "zh" ? "深色" : "Dark")}
                 </button>
@@ -1217,8 +1217,8 @@ function Topbar({
               <div className="settings-row">
                 <span className="settings-label">{lang === "zh" ? "語言" : "Lang"}</span>
                 <div className="settings-lang-row">
-                  <button className={`lang-btn${lang === "zh" ? " is-active" : ""}`} type="button" onClick={() => setLang("zh")}>中文</button>
-                  <button className={`lang-btn${lang === "en" ? " is-active" : ""}`} type="button" onClick={() => setLang("en")}>EN</button>
+                  <button className={`lang-btn${lang === "zh" ? " is-active" : ""}`} type="button" aria-pressed={lang === "zh"} onClick={() => setLang("zh")}>中文</button>
+                  <button className={`lang-btn${lang === "en" ? " is-active" : ""}`} type="button" aria-pressed={lang === "en"} onClick={() => setLang("en")}>EN</button>
                 </div>
               </div>
               <div className="settings-row">
@@ -1231,6 +1231,7 @@ function Topbar({
                       className={`fontsize-btn${fontSize === s ? " is-active" : ""}`}
                       onClick={() => setFontSize(s)}
                       aria-label={s}
+                      aria-pressed={fontSize === s}
                     >
                       {s === "small" ? "a" : s === "medium" ? "A" : s === "large" ? "A+" : "A++"}
                     </button>
@@ -1250,6 +1251,7 @@ function Topbar({
                     onClick={() => setColorTheme(ct.id)}
                     title={ct.label}
                     aria-label={ct.label}
+                    aria-pressed={colorTheme === ct.id}
                   />
                 ))}
               </div>
@@ -2172,6 +2174,7 @@ function SocialPostCard({
                       alt={item.alt_text ?? (lang === "zh" ? "帖子媒體" : "Post media")}
                       className="post-media-clickable"
                       loading="lazy"
+                      onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
                     />
                   </button>
                 ) : (
