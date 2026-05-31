@@ -2911,7 +2911,7 @@ function ProfilePage({
               void navigator.clipboard.writeText(url).then(() => {
                 setCopiedLink(true);
                 setTimeout(() => setCopiedLink(false), 2000);
-              });
+              }).catch(() => {});
             }}
           >
             {copiedLink ? (lang === "zh" ? "已複製！" : "Copied!") : "🔗"}
@@ -3167,7 +3167,7 @@ function PublicGroupPage({
               void navigator.clipboard.writeText(url).then(() => {
                 setCopiedGroupLink(true);
                 setTimeout(() => setCopiedGroupLink(false), 2000);
-              });
+              }).catch(() => {});
             }}
           >
             {copiedGroupLink ? (lang === "zh" ? "已複製！" : "Copied!") : "🔗"}
@@ -3590,7 +3590,7 @@ function MessagesPanel({
           return merged;
         });
       }
-    });
+    }).catch(() => {});
   }, [currentProfile.id]);
 
   // Realtime: read receipts — update read=true when recipient reads my sent DMs
@@ -3959,7 +3959,7 @@ function SocialApp() {
         merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         saveDMs(merged);
         setUnreadDms(merged.filter((m) => m.to_id === profileId && !m.read).length);
-      });
+      }).catch(() => {});
     void sync();
     const onVisible = () => { if (document.visibilityState === "visible") void sync(); };
     document.addEventListener("visibilitychange", onVisible);
@@ -3972,7 +3972,7 @@ function SocialApp() {
     const channel = supabase
       .channel("poll-votes-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, () => {
-        void loadPollVotes().then(setPollVotes);
+        void loadPollVotes().then(setPollVotes).catch(() => {});
       })
       .subscribe();
     return () => { void supabase!.removeChannel(channel); };
@@ -4066,7 +4066,7 @@ function SocialApp() {
     });
     setReactions(result.data.reactions);
     setMediaItems(result.data.media);
-    void loadPollVotes().then(setPollVotes);
+    void loadPollVotes().then(setPollVotes).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -4588,7 +4588,7 @@ function SocialApp() {
       return;
     }
     // Resync from DB to pick up concurrent votes from other users
-    void loadPollVotes().then((votes) => { if (votes.length > 0 || isSupabaseConfigured) setPollVotes(votes); });
+    void loadPollVotes().then((votes) => { if (votes.length > 0 || isSupabaseConfigured) setPollVotes(votes); }).catch(() => {});
   }
 
   async function togglePin(postId: string, pinned: boolean) {
