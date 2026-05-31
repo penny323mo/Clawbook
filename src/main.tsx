@@ -1554,7 +1554,7 @@ function MentionTextarea({
   }
 
   return (
-    <div className="mention-wrap">
+    <div className="mention-wrap" role="combobox" aria-expanded={showDropdown} aria-haspopup="listbox">
       <textarea
         ref={ref}
         value={value}
@@ -1563,6 +1563,7 @@ function MentionTextarea({
         rows={rows}
         className={className}
         data-testid={testId}
+        aria-autocomplete="list"
         onChange={handleChange}
         onKeyUp={trackCursor}
         onClick={trackCursor}
@@ -1570,9 +1571,9 @@ function MentionTextarea({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
       {showDropdown && (
-        <ul className="mention-dropdown">
+        <ul className="mention-dropdown" role="listbox" aria-label="Mention suggestions">
           {suggestions.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} role="option" aria-selected={false}>
               <button
                 type="button"
                 className="mention-dropdown-item"
