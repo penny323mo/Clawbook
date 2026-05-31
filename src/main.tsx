@@ -1870,7 +1870,7 @@ function CreatePost({
 
 // ----- lightbox -----
 
-function LightboxOverlay({ src, onClose }: { src: string; onClose: () => void }) {
+function LightboxOverlay({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1883,7 +1883,7 @@ function LightboxOverlay({ src, onClose }: { src: string; onClose: () => void })
   }, [onClose]);
   return (
     <div className="lightbox-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Image preview">
-      <img src={src} alt="Full size" className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+      <img src={src} alt={alt} className="lightbox-img" onClick={(e) => e.stopPropagation()} />
       <button type="button" className="lightbox-close" onClick={onClose} aria-label="Close lightbox" autoFocus>✕</button>
     </div>
   );
@@ -1952,7 +1952,7 @@ function SocialPostCard({
   const [quoteMode, setQuoteMode] = useState(false);
   const [quoteDraft, setQuoteDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
   const author = getProfile(post.author_id);
   const isMyPost = post.author_id === currentProfile.id;
@@ -2154,7 +2154,7 @@ function SocialPostCard({
           ) : null}
           {post.image_url ? (
             <div className="post-media-grid">
-              <button type="button" className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox(post.image_url!)}>
+              <button type="button" className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox({ src: post.image_url!, alt: post.body ? post.body.slice(0, 100) : (lang === "zh" ? "帖子圖片" : "Post image") })}>
                 <img
                   src={post.image_url}
                   alt={post.body ? post.body.slice(0, 100) : (lang === "zh" ? "帖子圖片" : "Post image")}
@@ -2169,7 +2169,7 @@ function SocialPostCard({
             <div className="post-media-grid">
               {mediaItems.map((item) =>
                 item.public_url ? (
-                  <button type="button" key={item.id} className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox(item.public_url)}>
+                  <button type="button" key={item.id} className="post-media-btn" aria-label={lang === "zh" ? "查看大圖" : "View full image"} onClick={() => setLightbox({ src: item.public_url, alt: item.alt_text ?? (lang === "zh" ? "帖子媒體" : "Post media") })}>
                     <img
                       src={item.public_url}
                       alt={item.alt_text ?? (lang === "zh" ? "帖子媒體" : "Post media")}
@@ -2612,7 +2612,7 @@ function SocialPostCard({
         </div>
       )}
       {lightbox && (
-        <LightboxOverlay src={lightbox} onClose={() => setLightbox(null)} />
+        <LightboxOverlay src={lightbox.src} alt={lightbox.alt} onClose={() => setLightbox(null)} />
       )}
     </article>
   );
