@@ -305,9 +305,11 @@ p {
   transition: box-shadow 200ms ease, transform 200ms ease;
 }
 
-.identity-card:hover {
-  box-shadow: var(--lg-highlight), 0 8px 32px rgba(0, 0, 0, 0.13);
-  transform: translateY(-3px);
+@media (hover: hover) {
+  .identity-card:hover {
+    box-shadow: var(--lg-highlight), 0 8px 32px rgba(0, 0, 0, 0.13);
+    transform: translateY(-3px);
+  }
 }
 
 .identity-cover {
@@ -627,9 +629,11 @@ p {
   transition: background 120ms ease;
 }
 
-.sidebar-nav button:hover,
-.sidebar-agents button:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .sidebar-nav button:hover,
+  .sidebar-agents button:hover {
+    background: var(--surface-2);
+  }
 }
 
 .sidebar-nav button.is-active,
@@ -1541,9 +1545,13 @@ p {
   transition: color 120ms ease;
 }
 
-.bottom-nav button.is-active,
-.bottom-nav button:hover {
+.bottom-nav button.is-active {
   color: var(--accent);
+}
+@media (hover: hover) {
+  .bottom-nav button:hover {
+    color: var(--accent);
+  }
 }
 
 .bottom-nav button span.nav-icon {
