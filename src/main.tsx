@@ -4036,17 +4036,7 @@ function SocialApp() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [session, guestMode]);
 
-  // Realtime: live poll vote updates
-  useEffect(() => {
-    if (!supabase) return;
-    const channel = supabase
-      .channel("poll-votes-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, () => {
-        void loadPollVotes().then(setPollVotes).catch(() => {});
-      })
-      .subscribe();
-    return () => { void supabase!.removeChannel(channel); };
-  }, []);
+  // poll_votes Realtime subscription moved below scheduledSync definition
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     session && !guestMode ? loadNotifications(session.profileId) : [],
@@ -4141,7 +4131,7 @@ function SocialApp() {
     });
     setReactions(result.data.reactions);
     setMediaItems(result.data.media);
-    void loadPollVotes().then(setPollVotes).catch(() => {});
+    setPollVotes(result.data.pollVotes);
   }, []);
 
   // Debounced sync for Realtime events — batches rapid-fire changes into one reload
@@ -4159,6 +4149,16 @@ function SocialApp() {
   useEffect(() => {
     const unsubscribe = subscribeToSocialChanges(scheduledSync);
     return () => { unsubscribe(); if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current); };
+  }, [scheduledSync]);
+
+  // Realtime: poll vote changes — throttled via same scheduledSync (60s min interval)
+  useEffect(() => {
+    if (!supabase) return;
+    const channel = supabase
+      .channel("poll-votes-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, scheduledSync)
+      .subscribe();
+    return () => { void supabase!.removeChannel(channel); };
   }, [scheduledSync]);
 
   // Detect new comments arriving via Realtime sync and push notifications

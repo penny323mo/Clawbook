@@ -45,6 +45,7 @@ export type SocialData = {
   comments: Comment[];
   reactions: Reaction[];
   media: Media[];
+  pollVotes: PollVote[];
 };
 
 // ----- mock localStorage -----
@@ -139,17 +140,18 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   }
 
   try {
-    const [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes] = await Promise.all([
+    const [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes, pollRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
-      supabase.from("posts").select("*").order("created_at", { ascending: false }),
-      supabase.from("media").select("*").order("created_at"),
+      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(300),
+      supabase.from("media").select("*").order("created_at", { ascending: false }).limit(300),
       supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(500),
       supabase.from("reactions").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("poll_votes").select("*"),
     ]);
 
-    const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes].find((r) => r.error)?.error;
+    const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes, pollRes].find((r) => r.error)?.error;
     if (firstErr) return { data: null, error: firstErr.message };
 
     const comments = ((commentRes.data ?? []) as Comment[]).reverse();
@@ -164,6 +166,7 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
         comments,
         reactions,
         media: (mediaRes.data ?? []) as Media[],
+        pollVotes: (pollRes.data ?? []) as PollVote[],
       },
       error: null,
     };
@@ -453,9 +456,11 @@ export async function loadDirectMessages(
     .from("direct_messages")
     .select("*")
     .or(`from_id.eq.${profileId},to_id.eq.${profileId}`)
-    .order("created_at");
+    .order("created_at", { ascending: false })
+    .limit(200);
   if (error) return { data: null, error: error.message };
-  return { data: data as import("../types/database").DirectMessage[], error: null };
+  const sorted = ((data ?? []) as import("../types/database").DirectMessage[]).reverse();
+  return { data: sorted, error: null };
 }
 
 export async function persistDirectMessage(
