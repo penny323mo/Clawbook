@@ -15,6 +15,7 @@ import {
   deletePost,
   fetchAllCommentsForPost,
   pinPost,
+  setCommentsDisabled,
   loadAllSocialData,
   loadDirectMessages,
   loadPollVotes,
@@ -1637,6 +1638,8 @@ function CreatePost({
   const fileMapRef = useRef<Map<string, File>>(new Map());
   const [pollMode, setPollMode] = useState(false);
   const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollDeadline, setPollDeadline] = useState("");
+  const [commentsDisabled, setCommentsDisabledState] = useState(false);
 
   useEffect(() => {
     setVisibility(defaultVisibility);
@@ -1716,6 +1719,8 @@ function CreatePost({
         .slice(0, 5),
       visibility,
       poll_options: validPollOptions.length >= 2 ? validPollOptions : null,
+      poll_ends_at: pollMode && pollDeadline ? new Date(pollDeadline).toISOString() : null,
+      comments_disabled: commentsDisabled,
       created_at: createdAt,
       updated_at: createdAt,
     };
@@ -1732,6 +1737,8 @@ function CreatePost({
     setVisibility(defaultVisibility);
     setPollMode(false);
     setPollOptions(["", ""]);
+    setPollDeadline("");
+    setCommentsDisabledState(false);
     fileMapRef.current.clear();
     try { localStorage.removeItem(draftKey); } catch {}
   }
@@ -1822,6 +1829,19 @@ function CreatePost({
               {lang === "zh" ? "+ 加選項" : "+ Add option"}
             </button>
           )}
+          <div className="poll-deadline-row">
+            <label className="poll-deadline-label" htmlFor="poll-deadline-input">
+              {lang === "zh" ? "⏰ 截止時間（選填）" : "⏰ Deadline (optional)"}
+            </label>
+            <input
+              id="poll-deadline-input"
+              type="datetime-local"
+              className="poll-deadline-input"
+              value={pollDeadline}
+              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+              onChange={(e) => setPollDeadline(e.target.value)}
+            />
+          </div>
         </div>
       )}
       <div className="visibility-picker">
@@ -1846,12 +1866,22 @@ function CreatePost({
         <button
           type="button"
           className={`poll-toggle-btn${pollMode ? " is-active" : ""}`}
-          onClick={() => { setPollMode((v) => !v); setPollOptions(["", ""]); }}
+          onClick={() => { setPollMode((v) => !v); setPollOptions(["", ""]); setPollDeadline(""); }}
           title={lang === "zh" ? "投票" : "Poll"}
           aria-label={lang === "zh" ? "投票" : "Poll"}
           aria-pressed={pollMode}
         >
           📊
+        </button>
+        <button
+          type="button"
+          className={`poll-toggle-btn${commentsDisabled ? " is-active" : ""}`}
+          onClick={() => setCommentsDisabledState((v) => !v)}
+          title={lang === "zh" ? (commentsDisabled ? "開放留言" : "關閉留言") : (commentsDisabled ? "Enable comments" : "Disable comments")}
+          aria-label={lang === "zh" ? (commentsDisabled ? "開放留言" : "關閉留言") : (commentsDisabled ? "Enable comments" : "Disable comments")}
+          aria-pressed={commentsDisabled}
+        >
+          {commentsDisabled ? "💬🔒" : "💬"}
         </button>
         <span className={POST_MAX_LENGTH - body.length < 80 ? "char-counter is-warning" : "char-counter"}>
           {POST_MAX_LENGTH - body.length}
@@ -1910,6 +1940,7 @@ function SocialPostCard({
   pollVotes,
   onPollVote,
   onQuotePost,
+  onToggleComments,
   allPosts,
   onLoadComments,
   allProfiles,
@@ -1932,6 +1963,7 @@ function SocialPostCard({
   pollVotes?: PollVote[];
   onPollVote?: (postId: string, optionIdx: number) => void;
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onToggleComments?: (postId: string, disabled: boolean) => void;
   allPosts?: Post[];
   onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
@@ -2081,6 +2113,16 @@ function SocialPostCard({
             {isMyPost && (
               <>
                 <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title={lang === "zh" ? "編輯" : "Edit"} aria-label={lang === "zh" ? "編輯帖子" : "Edit post"}>✏️</button>
+                {onToggleComments && (
+                  <button
+                    type="button"
+                    className={`post-action-btn${post.comments_disabled ? " is-active" : ""}`}
+                    onClick={() => onToggleComments(post.id, !post.comments_disabled)}
+                    title={post.comments_disabled ? (lang === "zh" ? "開放留言" : "Enable comments") : (lang === "zh" ? "關閉留言" : "Disable comments")}
+                    aria-label={post.comments_disabled ? (lang === "zh" ? "開放留言" : "Enable comments") : (lang === "zh" ? "關閉留言" : "Disable comments")}
+                    aria-pressed={post.comments_disabled}
+                  >{post.comments_disabled ? "💬🔒" : "💬"}</button>
+                )}
                 {confirmDeletePost ? (
                   <span className="confirm-delete-inline">
                     <span className="confirm-delete-label">{lang === "zh" ? "確定刪除？" : "Delete?"}</span>
@@ -2205,8 +2247,20 @@ function SocialPostCard({
             const myVote = pollVotes?.find((v) => v.post_id === post.id && v.profile_id === currentProfile.id);
             const totalVotes = pollVotes?.filter((v) => v.post_id === post.id).length ?? 0;
             const hasVoted = myVote !== undefined;
+            const pollEndsAt = post.poll_ends_at ? new Date(post.poll_ends_at) : null;
+            const isClosed = pollEndsAt ? Date.now() > pollEndsAt.getTime() : false;
+            const deadlineLabel = pollEndsAt
+              ? pollEndsAt.toLocaleString(lang === "zh" ? "zh-HK" : "en-HK", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+              : null;
             return (
-              <div className="poll-block">
+              <div className={`poll-block${isClosed ? " is-closed" : ""}`}>
+                {pollEndsAt && (
+                  <p className={`poll-deadline-badge${isClosed ? " is-expired" : ""}`}>
+                    {isClosed
+                      ? (lang === "zh" ? `⏰ 投票已截止（${deadlineLabel}）` : `⏰ Poll closed (${deadlineLabel})`)
+                      : (lang === "zh" ? `⏰ 截止：${deadlineLabel}` : `⏰ Closes: ${deadlineLabel}`)}
+                  </p>
+                )}
                 {post.poll_options.map((opt, i) => {
                   const count = pollVotes?.filter((v) => v.post_id === post.id && v.option_idx === i).length ?? 0;
                   const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
@@ -2215,18 +2269,18 @@ function SocialPostCard({
                     <div key={i} className="poll-option-row">
                       <button
                         type="button"
-                        className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted ? " has-result" : ""}`}
+                        className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted || isClosed ? " has-result" : ""}`}
                         aria-pressed={isMyChoice}
                         onClick={() => onPollVote?.(post.id, i)}
-                        disabled={readOnly}
+                        disabled={readOnly || isClosed}
                       >
-                        <span className="poll-option-bar" style={{ width: hasVoted ? `${pct}%` : "0%" }} />
+                        <span className="poll-option-bar" style={{ width: hasVoted || isClosed ? `${pct}%` : "0%" }} />
                         <span className="poll-option-label">{opt}</span>
-                        {hasVoted && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
+                        {(hasVoted || isClosed) && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
                       </button>
-                      {hasVoted && count > 0 && (
+                      {(hasVoted || isClosed) && count > 0 && (
                         <div className="poll-voter-list">
-                          {(pollVotes ?? []).filter((v) => v.option_idx === i).map((v) => {
+                          {(pollVotes ?? []).filter((v) => v.post_id === post.id && v.option_idx === i).map((v) => {
                             const voter = allProfiles?.find((p) => p.id === v.profile_id);
                             return (
                               <span key={v.profile_id} className="poll-voter-chip" style={{ color: voter?.accent ?? "var(--text-muted)" }}>
@@ -2241,7 +2295,7 @@ function SocialPostCard({
                 })}
                 <p className="poll-votes-total">
                   {lang === "zh" ? `${totalVotes} 票` : `${totalVotes} vote${totalVotes !== 1 ? "s" : ""}`}
-                  {hasVoted && !readOnly && (
+                  {hasVoted && !readOnly && !isClosed && (
                     <button type="button" className="poll-change-vote" onClick={() => onPollVote?.(post.id, myVote!.option_idx)}>
                       {lang === "zh" ? " · 取消投票" : " · Remove vote"}
                     </button>
@@ -2438,7 +2492,10 @@ function SocialPostCard({
         <button
           type="button"
           className="post-action-btn"
+          disabled={!!post.comments_disabled}
+          title={post.comments_disabled ? (lang === "zh" ? "留言已關閉" : "Comments disabled") : undefined}
           onClick={() => {
+            if (post.comments_disabled) return;
             setShowAllComments(true);
             setTimeout(() => {
               if (commentComposeRef.current) smoothScrollIntoView(commentComposeRef.current, { block: "nearest" });
@@ -2446,7 +2503,7 @@ function SocialPostCard({
             }, 60);
           }}
         >
-          💬 <span>{lang === "zh" ? "留言" : "Comment"}</span>
+          {post.comments_disabled ? "💬🔒" : "💬"} <span>{lang === "zh" ? "留言" : "Comment"}</span>
         </button>
         {!readOnly && onQuotePost && (
           <button
@@ -2578,7 +2635,12 @@ function SocialPostCard({
         })}
       </section>
 
-      {!readOnly && (
+      {post.comments_disabled && (
+        <p className="comments-disabled-notice">
+          {lang === "zh" ? "💬🔒 留言已關閉" : "💬🔒 Comments are disabled"}
+        </p>
+      )}
+      {!readOnly && !post.comments_disabled && (
         <div className="comment-composer" ref={commentComposeRef}>
           {replyingTo && (
             <div className="replying-to-bar">
@@ -2640,6 +2702,7 @@ function Feed({
   onPollVote,
   allPosts,
   onQuotePost,
+  onToggleComments,
   onLoadComments,
   allProfiles,
 }: {
@@ -2662,6 +2725,7 @@ function Feed({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onToggleComments?: (postId: string, disabled: boolean) => void;
   onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
@@ -2838,6 +2902,7 @@ function Feed({
           onPollVote={onPollVote}
           allPosts={allPosts}
           onQuotePost={onQuotePost}
+          onToggleComments={onToggleComments}
           onLoadComments={onLoadComments}
           allProfiles={allProfiles}
         />
@@ -2874,6 +2939,7 @@ function ProfilePage({
   onPollVote,
   allPosts,
   onQuotePost,
+  onToggleComments,
   onLoadComments,
   allProfiles,
 }: {
@@ -2899,6 +2965,7 @@ function ProfilePage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onToggleComments?: (postId: string, disabled: boolean) => void;
   onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
@@ -3137,6 +3204,7 @@ function ProfilePage({
         onPollVote={onPollVote}
         allPosts={allPosts}
         onQuotePost={onQuotePost}
+        onToggleComments={onToggleComments}
         onLoadComments={onLoadComments}
         allProfiles={allProfiles}
       />
@@ -3167,6 +3235,7 @@ function PublicGroupPage({
   onPollVote,
   allPosts,
   onQuotePost,
+  onToggleComments,
   onLoadComments,
   allProfiles,
 }: {
@@ -3190,6 +3259,7 @@ function PublicGroupPage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onToggleComments?: (postId: string, disabled: boolean) => void;
   onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
@@ -3296,6 +3366,7 @@ function PublicGroupPage({
         onPollVote={onPollVote}
         allPosts={allPosts}
         onQuotePost={onQuotePost}
+        onToggleComments={onToggleComments}
         onLoadComments={onLoadComments}
         allProfiles={allProfiles}
       />
@@ -3325,6 +3396,7 @@ function HomePage({
   onPollVote,
   allPosts,
   onQuotePost,
+  onToggleComments,
   onLoadComments,
   allProfiles,
 }: {
@@ -3347,6 +3419,7 @@ function HomePage({
   onPollVote?: (postId: string, optionIdx: number) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
+  onToggleComments?: (postId: string, disabled: boolean) => void;
   onLoadComments?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
@@ -3573,6 +3646,7 @@ function HomePage({
         onPollVote={onPollVote}
         allPosts={allPosts}
         onQuotePost={onQuotePost}
+        onToggleComments={onToggleComments}
         onLoadComments={onLoadComments}
         allProfiles={allProfiles}
       />
@@ -4688,6 +4762,20 @@ function SocialApp() {
     }
   }
 
+  async function toggleCommentsDisabled(postId: string, disabled: boolean) {
+    setPosts((c) => c.map((p) => (p.id === postId ? { ...p, comments_disabled: disabled } : p)));
+    try {
+      const result = await setCommentsDisabled(postId, disabled);
+      if (result.error) {
+        setPosts((c) => c.map((p) => (p.id === postId ? { ...p, comments_disabled: !disabled } : p)));
+        setSaveError(`Failed to update comments: ${result.error}`);
+      }
+    } catch (err) {
+      setPosts((c) => c.map((p) => (p.id === postId ? { ...p, comments_disabled: !disabled } : p)));
+      setSaveError(`Failed to update comments: ${String(err)}`);
+    }
+  }
+
   async function editPost(postId: string, body: string, tags: string[]) {
     const prev = posts.find((p) => p.id === postId);
     if (!prev) return;
@@ -4829,6 +4917,7 @@ function SocialApp() {
       onPollVote={voteOnPoll}
       allPosts={visiblePosts}
       onQuotePost={handleQuotePost}
+      onToggleComments={toggleCommentsDisabled}
       onLoadComments={handleLoadComments}
       allProfiles={profilesList}
     />
@@ -4857,6 +4946,7 @@ function SocialApp() {
         onPollVote={voteOnPoll}
         allPosts={visiblePosts}
         onQuotePost={handleQuotePost}
+        onToggleComments={toggleCommentsDisabled}
         allProfiles={profilesList}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           try {
@@ -4902,6 +4992,7 @@ function SocialApp() {
         onPollVote={voteOnPoll}
         allPosts={visiblePosts}
         onQuotePost={handleQuotePost}
+        onToggleComments={toggleCommentsDisabled}
         onLoadComments={handleLoadComments}
         allProfiles={profilesList}
       />
@@ -4939,6 +5030,7 @@ function SocialApp() {
           onPollVote={voteOnPoll}
           allPosts={visiblePosts}
           onQuotePost={handleQuotePost}
+          onToggleComments={toggleCommentsDisabled}
           onLoadComments={handleLoadComments}
           allProfiles={profilesList}
         />

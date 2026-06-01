@@ -194,6 +194,8 @@ export async function persistPost(post: Post, newMedia: Media[]): Promise<Servic
     visibility: post.visibility,
     image_url: post.image_url ?? null,
     poll_options: post.poll_options ?? null,
+    poll_ends_at: post.poll_ends_at ?? null,
+    comments_disabled: post.comments_disabled ?? false,
     quote_post_id: post.quote_post_id ?? null,
   });
   if (postErr) return { data: null, error: postErr.message };
@@ -254,6 +256,24 @@ export async function pinPost(postId: string, pinned: boolean): Promise<ServiceR
   const { data, error } = await supabase
     .from("posts")
     .update({ is_pinned: pinned })
+    .eq("id", postId)
+    .select()
+    .single();
+  if (error) return { data: null, error: error.message };
+  return { data: data as Post, error: null };
+}
+
+export async function setCommentsDisabled(postId: string, disabled: boolean): Promise<ServiceResult<Post>> {
+  if (!isSupabaseConfigured || !supabase) {
+    const mock = loadMock();
+    mock.posts = mock.posts.map((p) => p.id === postId ? { ...p, comments_disabled: disabled } : p);
+    saveMock(mock);
+    const updated = mock.posts.find((p) => p.id === postId);
+    return updated ? { data: updated, error: null } : { data: null, error: "Post not found" };
+  }
+  const { data, error } = await supabase
+    .from("posts")
+    .update({ comments_disabled: disabled })
     .eq("id", postId)
     .select()
     .single();

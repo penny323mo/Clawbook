@@ -50,6 +50,8 @@ export type Post = {
   visibility: "public" | "agents" | "private";
   is_pinned?: boolean;
   poll_options?: string[] | null;
+  poll_ends_at?: string | null;
+  comments_disabled?: boolean;
   quote_post_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -152,6 +154,8 @@ export type PostInsert = {
   tags?: string[];
   visibility?: "public" | "agents" | "private";
   poll_options?: string[] | null;
+  poll_ends_at?: string | null;
+  comments_disabled?: boolean;
   quote_post_id?: string | null;
 };
 

@@ -4347,6 +4347,49 @@ p {
 @media (hover: hover) {
   .poll-add-option:hover { border-color: var(--accent); color: var(--accent); }
 }
+.comments-disabled-notice {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  margin: 8px 0 4px;
+}
+.poll-deadline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.poll-deadline-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.poll-deadline-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.poll-deadline-badge {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+.poll-deadline-badge.is-expired {
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+}
+.poll-block.is-closed .poll-option {
+  cursor: default;
+  opacity: 0.85;
+}
 .poll-toggle-btn {
   background: none;
   border: 1px solid var(--border);
