@@ -4024,7 +4024,14 @@ function SocialApp() {
         setUnreadDms(merged.filter((m) => m.to_id === profileId && !m.read).length);
       }).catch(() => {});
     void sync();
-    const onVisible = () => { if (document.visibilityState === "visible") void sync(); };
+    // Throttle visibility-change DM sync to once per 60s to avoid egress on rapid tab-switches
+    let lastDmSync = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastDmSync < 60_000) return;
+      lastDmSync = Date.now();
+      void sync();
+    };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [session, guestMode]);
@@ -4099,7 +4106,12 @@ function SocialApp() {
   const isSaving = savingCount > 0;
   const setIsSaving = (v: boolean) => setSavingCount((n) => Math.max(0, n + (v ? 1 : -1)));
 
+  const lastSyncRef = useRef<number>(0);
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MIN_SYNC_INTERVAL_MS = 60_000; // at most 1 full sync per 60s
+
   const syncAllData = useCallback(async () => {
+    lastSyncRef.current = Date.now();
     setIsSyncing(true);
     let result: Awaited<ReturnType<typeof loadAllSocialData>>;
     try {
@@ -4132,14 +4144,22 @@ function SocialApp() {
     void loadPollVotes().then(setPollVotes).catch(() => {});
   }, []);
 
+  // Debounced sync for Realtime events — batches rapid-fire changes into one reload
+  const scheduledSync = useCallback(() => {
+    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+    const elapsed = Date.now() - lastSyncRef.current;
+    const delay = Math.max(0, MIN_SYNC_INTERVAL_MS - elapsed);
+    syncDebounceRef.current = setTimeout(() => void syncAllData(), delay);
+  }, [syncAllData]);
+
   useEffect(() => {
     void syncAllData();
   }, [syncAllData]);
 
   useEffect(() => {
-    const unsubscribe = subscribeToSocialChanges(() => void syncAllData());
-    return unsubscribe;
-  }, [syncAllData]);
+    const unsubscribe = subscribeToSocialChanges(scheduledSync);
+    return () => { unsubscribe(); if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current); };
+  }, [scheduledSync]);
 
   // Detect new comments arriving via Realtime sync and push notifications
   const seenCommentIdsRef = useRef<Set<string>>(new Set());
@@ -4232,7 +4252,7 @@ function SocialApp() {
     const onTouchEnd = (e: TouchEvent) => {
       if (!canPull) return;
       canPull = false;
-      if (e.changedTouches[0].clientY - startY > THRESHOLD) void syncAllData();
+      if (e.changedTouches[0].clientY - startY > THRESHOLD) scheduledSync();
     };
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchend", onTouchEnd, { passive: true });
