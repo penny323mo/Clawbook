@@ -1639,6 +1639,7 @@ function CreatePost({
   const [pollMode, setPollMode] = useState(false);
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollDeadline, setPollDeadline] = useState("");
+  const [pollAllowCustom, setPollAllowCustom] = useState(false);
   const [commentsDisabled, setCommentsDisabledState] = useState(false);
 
   useEffect(() => {
@@ -1720,6 +1721,7 @@ function CreatePost({
       visibility,
       poll_options: validPollOptions.length >= 2 ? validPollOptions : null,
       poll_ends_at: pollMode && pollDeadline ? new Date(pollDeadline).toISOString() : null,
+      poll_allow_custom: pollMode ? pollAllowCustom : false,
       comments_disabled: commentsDisabled,
       created_at: createdAt,
       updated_at: createdAt,
@@ -1738,6 +1740,7 @@ function CreatePost({
     setPollMode(false);
     setPollOptions(["", ""]);
     setPollDeadline("");
+    setPollAllowCustom(false);
     setCommentsDisabledState(false);
     fileMapRef.current.clear();
     try { localStorage.removeItem(draftKey); } catch {}
@@ -1842,6 +1845,14 @@ function CreatePost({
               onChange={(e) => setPollDeadline(e.target.value)}
             />
           </div>
+          <label className="poll-allow-custom-row">
+            <input
+              type="checkbox"
+              checked={pollAllowCustom}
+              onChange={(e) => setPollAllowCustom(e.target.checked)}
+            />
+            <span>{lang === "zh" ? "允許投票者輸入自定義選項" : "Allow voters to add a custom option"}</span>
+          </label>
         </div>
       )}
       <div className="visibility-picker">
@@ -1866,7 +1877,7 @@ function CreatePost({
         <button
           type="button"
           className={`poll-toggle-btn${pollMode ? " is-active" : ""}`}
-          onClick={() => { setPollMode((v) => !v); setPollOptions(["", ""]); setPollDeadline(""); }}
+          onClick={() => { setPollMode((v) => !v); setPollOptions(["", ""]); setPollDeadline(""); setPollAllowCustom(false); }}
           title={lang === "zh" ? "投票" : "Poll"}
           aria-label={lang === "zh" ? "投票" : "Poll"}
           aria-pressed={pollMode}
@@ -1961,7 +1972,7 @@ function SocialPostCard({
   onTagClick?: (tag: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
   pollVotes?: PollVote[];
-  onPollVote?: (postId: string, optionIdx: number) => void;
+  onPollVote?: (postId: string, optionIdx: number, customText?: string) => void;
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onToggleComments?: (postId: string, disabled: boolean) => void;
   allPosts?: Post[];
@@ -1983,6 +1994,7 @@ function SocialPostCard({
   const POST_BODY_FOLD = 300;
   const [quoteMode, setQuoteMode] = useState(false);
   const [quoteDraft, setQuoteDraft] = useState("");
+  const [customVoteDraft, setCustomVoteDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
@@ -2245,13 +2257,16 @@ function SocialPostCard({
           ) : null}
           {post.poll_options && post.poll_options.length > 0 && (() => {
             const myVote = pollVotes?.find((v) => v.post_id === post.id && v.profile_id === currentProfile.id);
-            const totalVotes = pollVotes?.filter((v) => v.post_id === post.id).length ?? 0;
+            const allPostVotes = (pollVotes ?? []).filter((v) => v.post_id === post.id);
+            const totalVotes = allPostVotes.length;
             const hasVoted = myVote !== undefined;
             const pollEndsAt = post.poll_ends_at ? new Date(post.poll_ends_at) : null;
             const isClosed = pollEndsAt ? Date.now() > pollEndsAt.getTime() : false;
+            const showResults = hasVoted || isClosed;
             const deadlineLabel = pollEndsAt
               ? pollEndsAt.toLocaleString(lang === "zh" ? "zh-HK" : "en-HK", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
               : null;
+            const customVotes = allPostVotes.filter((v) => v.option_idx === -1);
             return (
               <div className={`poll-block${isClosed ? " is-closed" : ""}`}>
                 {pollEndsAt && (
@@ -2262,25 +2277,25 @@ function SocialPostCard({
                   </p>
                 )}
                 {post.poll_options.map((opt, i) => {
-                  const count = pollVotes?.filter((v) => v.post_id === post.id && v.option_idx === i).length ?? 0;
+                  const count = allPostVotes.filter((v) => v.option_idx === i).length;
                   const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
                   const isMyChoice = myVote?.option_idx === i;
                   return (
                     <div key={i} className="poll-option-row">
                       <button
                         type="button"
-                        className={`poll-option${isMyChoice ? " is-voted" : ""}${hasVoted || isClosed ? " has-result" : ""}`}
+                        className={`poll-option${isMyChoice ? " is-voted" : ""}${showResults ? " has-result" : ""}`}
                         aria-pressed={isMyChoice}
                         onClick={() => onPollVote?.(post.id, i)}
                         disabled={readOnly || isClosed}
                       >
-                        <span className="poll-option-bar" style={{ width: hasVoted || isClosed ? `${pct}%` : "0%" }} />
+                        <span className="poll-option-bar" style={{ width: showResults ? `${pct}%` : "0%" }} />
                         <span className="poll-option-label">{opt}</span>
-                        {(hasVoted || isClosed) && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
+                        {showResults && <span className="poll-option-pct">{pct}%{isMyChoice ? " ✓" : ""}</span>}
                       </button>
-                      {(hasVoted || isClosed) && count > 0 && (
+                      {showResults && count > 0 && (
                         <div className="poll-voter-list">
-                          {(pollVotes ?? []).filter((v) => v.post_id === post.id && v.option_idx === i).map((v) => {
+                          {allPostVotes.filter((v) => v.option_idx === i).map((v) => {
                             const voter = allProfiles?.find((p) => p.id === v.profile_id);
                             return (
                               <span key={v.profile_id} className="poll-voter-chip" style={{ color: voter?.accent ?? "var(--text-muted)" }}>
@@ -2293,6 +2308,49 @@ function SocialPostCard({
                     </div>
                   );
                 })}
+                {/* Custom option — input when not voted, results when voted/closed */}
+                {post.poll_allow_custom && !showResults && !isClosed && !readOnly && (
+                  <div className="poll-custom-row">
+                    <input
+                      className="poll-custom-input"
+                      type="text"
+                      maxLength={80}
+                      placeholder={lang === "zh" ? "自定義選項…" : "Custom option…"}
+                      value={customVoteDraft}
+                      onChange={(e) => setCustomVoteDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customVoteDraft.trim()) {
+                          onPollVote?.(post.id, -1, customVoteDraft.trim());
+                          setCustomVoteDraft("");
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="poll-custom-submit"
+                      disabled={!customVoteDraft.trim()}
+                      onClick={() => { onPollVote?.(post.id, -1, customVoteDraft.trim()); setCustomVoteDraft(""); }}
+                    >
+                      {lang === "zh" ? "提交" : "Submit"}
+                    </button>
+                  </div>
+                )}
+                {post.poll_allow_custom && showResults && customVotes.length > 0 && (
+                  <div className="poll-custom-results">
+                    <p className="poll-custom-results-label">{lang === "zh" ? "自定義回應：" : "Custom responses:"}</p>
+                    {customVotes.map((v) => {
+                      const voter = allProfiles?.find((p) => p.id === v.profile_id);
+                      return (
+                        <div key={v.profile_id} className="poll-custom-result-row">
+                          <span className="poll-voter-chip" style={{ color: voter?.accent ?? "var(--text-muted)" }}>
+                            {voter?.display_name ?? v.profile_id}
+                          </span>
+                          <span className="poll-custom-result-text">{v.custom_text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 <p className="poll-votes-total">
                   {lang === "zh" ? `${totalVotes} 票` : `${totalVotes} vote${totalVotes !== 1 ? "s" : ""}`}
                   {hasVoted && !readOnly && !isClosed && (
@@ -2722,7 +2780,7 @@ function Feed({
   onDeleteComment: (commentId: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
   allPollVotes?: PollVote[];
-  onPollVote?: (postId: string, optionIdx: number) => void;
+  onPollVote?: (postId: string, optionIdx: number, customText?: string) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onToggleComments?: (postId: string, disabled: boolean) => void;
@@ -2962,7 +3020,7 @@ function ProfilePage({
   onEditProfile?: (bio: string, status: string, accent: string, role: string, avatarUrl?: string) => void;
   onMessage?: () => void;
   allPollVotes?: PollVote[];
-  onPollVote?: (postId: string, optionIdx: number) => void;
+  onPollVote?: (postId: string, optionIdx: number, customText?: string) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onToggleComments?: (postId: string, disabled: boolean) => void;
@@ -3256,7 +3314,7 @@ function PublicGroupPage({
   onDeleteComment: (commentId: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
   allPollVotes?: PollVote[];
-  onPollVote?: (postId: string, optionIdx: number) => void;
+  onPollVote?: (postId: string, optionIdx: number, customText?: string) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onToggleComments?: (postId: string, disabled: boolean) => void;
@@ -3416,7 +3474,7 @@ function HomePage({
   onDeleteComment: (commentId: string) => void;
   onPinPost?: (postId: string, pinned: boolean) => void;
   allPollVotes?: PollVote[];
-  onPollVote?: (postId: string, optionIdx: number) => void;
+  onPollVote?: (postId: string, optionIdx: number, customText?: string) => void;
   allPosts?: Post[];
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onToggleComments?: (postId: string, disabled: boolean) => void;
@@ -4721,19 +4779,19 @@ function SocialApp() {
     }
   }
 
-  async function voteOnPoll(postId: string, optionIdx: number) {
+  async function voteOnPoll(postId: string, optionIdx: number, customText?: string) {
     const myVote = pollVotes.find((v) => v.post_id === postId && v.profile_id === currentProfile.id);
     const currentVoteIdx = myVote?.option_idx ?? null;
-    // Optimistic update
     const prevVotes = pollVotes;
-    if (currentVoteIdx === optionIdx) {
+    // Optimistic update
+    if (currentVoteIdx === optionIdx && optionIdx !== -1) {
       setPollVotes((c) => c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)));
     } else {
-      const newVote: PollVote = { post_id: postId, profile_id: currentProfile.id, option_idx: optionIdx, created_at: new Date().toISOString() };
+      const newVote: PollVote = { post_id: postId, profile_id: currentProfile.id, option_idx: optionIdx, custom_text: customText ?? null, created_at: new Date().toISOString() };
       setPollVotes((c) => [...c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)), newVote]);
     }
     try {
-      const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx);
+      const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx, customText);
       if (result.error) {
         setSaveError(`Failed to record vote: ${result.error}`);
         setPollVotes(prevVotes);
@@ -4744,7 +4802,6 @@ function SocialApp() {
       setPollVotes(prevVotes);
       return;
     }
-    // Resync from DB to pick up concurrent votes from other users
     void loadPollVotes().then((votes) => { if (votes.length > 0 || isSupabaseConfigured) setPollVotes(votes); }).catch(() => {});
   }
 

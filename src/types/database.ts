@@ -51,6 +51,7 @@ export type Post = {
   is_pinned?: boolean;
   poll_options?: string[] | null;
   poll_ends_at?: string | null;
+  poll_allow_custom?: boolean;
   comments_disabled?: boolean;
   quote_post_id?: string | null;
   created_at: string;
@@ -60,7 +61,8 @@ export type Post = {
 export type PollVote = {
   post_id: string;
   profile_id: string;
-  option_idx: number;
+  option_idx: number; // -1 = custom option
+  custom_text?: string | null;
   created_at: string;
 };
 
@@ -155,6 +157,7 @@ export type PostInsert = {
   visibility?: "public" | "agents" | "private";
   poll_options?: string[] | null;
   poll_ends_at?: string | null;
+  poll_allow_custom?: boolean;
   comments_disabled?: boolean;
   quote_post_id?: string | null;
 };

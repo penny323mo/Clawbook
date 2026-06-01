@@ -195,6 +195,7 @@ export async function persistPost(post: Post, newMedia: Media[]): Promise<Servic
     image_url: post.image_url ?? null,
     poll_options: post.poll_options ?? null,
     poll_ends_at: post.poll_ends_at ?? null,
+    poll_allow_custom: post.poll_allow_custom ?? false,
     comments_disabled: post.comments_disabled ?? false,
     quote_post_id: post.quote_post_id ?? null,
   });
@@ -629,22 +630,23 @@ export async function castPollVote(
   profileId: string,
   optionIdx: number,
   currentVoteIdx: number | null,
+  customText?: string,
 ): Promise<ServiceResult<null>> {
   if (!isSupabaseConfigured || !supabase) {
     const mock = loadMock();
-    if (currentVoteIdx === optionIdx) {
+    if (currentVoteIdx === optionIdx && !(optionIdx === -1)) {
       mock.pollVotes = mock.pollVotes.filter((v) => !(v.post_id === postId && v.profile_id === profileId));
     } else {
       mock.pollVotes = [
         ...mock.pollVotes.filter((v) => !(v.post_id === postId && v.profile_id === profileId)),
-        { post_id: postId, profile_id: profileId, option_idx: optionIdx, created_at: new Date().toISOString() },
+        { post_id: postId, profile_id: profileId, option_idx: optionIdx, custom_text: customText ?? null, created_at: new Date().toISOString() },
       ];
     }
     saveMock(mock);
     return { data: null, error: null };
   }
-  if (currentVoteIdx === optionIdx) {
-    // Toggle off — remove vote
+  if (currentVoteIdx === optionIdx && optionIdx !== -1) {
+    // Toggle off fixed option — remove vote
     const { error } = await supabase
       .from("poll_votes")
       .delete()
@@ -653,10 +655,13 @@ export async function castPollVote(
     if (error) return { data: null, error: error.message };
     return { data: null, error: null };
   }
-  // Insert or update to new option
+  // Insert or update to new option (custom always upserts even if already custom)
   const { error } = await supabase
     .from("poll_votes")
-    .upsert({ post_id: postId, profile_id: profileId, option_idx: optionIdx }, { onConflict: "post_id,profile_id" });
+    .upsert(
+      { post_id: postId, profile_id: profileId, option_idx: optionIdx, custom_text: customText ?? null },
+      { onConflict: "post_id,profile_id" },
+    );
   if (error) return { data: null, error: error.message };
   return { data: null, error: null };
 }
