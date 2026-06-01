@@ -1995,6 +1995,7 @@ function SocialPostCard({
   const [quoteMode, setQuoteMode] = useState(false);
   const [quoteDraft, setQuoteDraft] = useState("");
   const [customVoteDraft, setCustomVoteDraft] = useState("");
+  const [showPollResults, setShowPollResults] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
 
@@ -2262,7 +2263,7 @@ function SocialPostCard({
             const hasVoted = myVote !== undefined;
             const pollEndsAt = post.poll_ends_at ? new Date(post.poll_ends_at) : null;
             const isClosed = pollEndsAt ? Date.now() > pollEndsAt.getTime() : false;
-            const showResults = hasVoted || isClosed;
+            const showResults = hasVoted || isClosed || isMyPost || showPollResults;
             const deadlineLabel = pollEndsAt
               ? pollEndsAt.toLocaleString(lang === "zh" ? "zh-HK" : "en-HK", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
               : null;
@@ -2356,6 +2357,13 @@ function SocialPostCard({
                   {hasVoted && !readOnly && !isClosed && (
                     <button type="button" className="poll-change-vote" onClick={() => onPollVote?.(post.id, myVote!.option_idx)}>
                       {lang === "zh" ? " · 取消投票" : " · Remove vote"}
+                    </button>
+                  )}
+                  {!hasVoted && !isClosed && !isMyPost && totalVotes > 0 && (
+                    <button type="button" className="poll-change-vote" onClick={() => setShowPollResults((v) => !v)}>
+                      {showPollResults
+                        ? (lang === "zh" ? " · 返回投票" : " · Back to voting")
+                        : (lang === "zh" ? " · 查看結果" : " · View results")}
                     </button>
                   )}
                 </p>

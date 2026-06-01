@@ -384,7 +384,7 @@ p {
 
 /* Shared button style for identity entry */
 .identity-body button,
-.composer-actions button,
+.composer-actions button:not(.poll-toggle-btn),
 .comment-composer button,
 .topbar-profile button {
   border: 0;
@@ -400,7 +400,7 @@ p {
 
 @media (hover: hover) {
   .identity-body button:hover,
-  .composer-actions button:hover,
+  .composer-actions button:not(.poll-toggle-btn):hover,
   .comment-composer button:hover,
   .topbar-profile button:hover {
     background: var(--accent-hover);
