@@ -4543,6 +4543,22 @@ p {
   border-left: 2px solid var(--accent-light, var(--border));
   padding-left: 12px;
 }
+.comment-inline-compose {
+  margin-left: 32px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--accent-light, var(--border));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comment-inline-compose textarea {
+  font-size: 0.9rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  min-height: 60px;
+}
 .reply-to-label {
   font-size: 0.78rem;
   color: var(--text-secondary);

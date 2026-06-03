@@ -1,4 +1,4 @@
-import { Component, StrictMode, createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Component, Fragment, StrictMode, createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
 import {
   comments as seedComments,
@@ -2603,7 +2603,8 @@ function SocialPostCard({
           const parentComment = comment.reply_to_id ? comments.find((c) => c.id === comment.reply_to_id) : null;
           const isReply = Boolean(comment.reply_to_id);
           return (
-            <article className={`comment${isReply ? " comment-reply" : ""}`} key={comment.id} id={`cmt-${comment.id}`} aria-label={lang === "zh" ? `${cAuthor.display_name} 的留言` : `Comment by ${cAuthor.display_name}`}>
+            <Fragment key={comment.id}>
+            <article className={`comment${isReply ? " comment-reply" : ""}`} id={`cmt-${comment.id}`} aria-label={lang === "zh" ? `${cAuthor.display_name} 的留言` : `Comment by ${cAuthor.display_name}`}>
               <Avatar profile={cAuthor} className="comment-avatar" style={{ backgroundColor: cAuthor.accent }} />
               <div className="comment-body-wrap">
                 <strong>{cAuthor.display_name}</strong>
@@ -2666,10 +2667,6 @@ function SocialPostCard({
                           else {
                             setReplyingTo(comment);
                             setShowAllComments(true);
-                            setTimeout(() => {
-                              if (commentComposeRef.current) smoothScrollIntoView(commentComposeRef.current, { block: "nearest" });
-                              (commentComposeRef.current?.querySelector("textarea") as HTMLTextAreaElement | null)?.focus();
-                            }, 80);
                           }
                         }}
                       >
@@ -2694,6 +2691,22 @@ function SocialPostCard({
                 </div>
               </div>
             </article>
+            {replyingTo?.id === comment.id && !readOnly && (
+              <div className="comment-inline-compose">
+                <MentionTextarea
+                  value={commentDraft}
+                  maxLength={COMMENT_MAX_LENGTH}
+                  placeholder={lang === "zh" ? `回覆 ${getProfile(replyingTo.author_id).display_name}…` : `Reply to ${getProfile(replyingTo.author_id).display_name}…`}
+                  onChange={setCommentDraft}
+                  onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submitComment(); } }}
+                />
+                <div className="comment-composer-footer">
+                  <button type="button" onClick={() => { setReplyingTo(null); setCommentDraft(""); }}>{lang === "zh" ? "取消" : "Cancel"}</button>
+                  <button type="button" disabled={saving || !commentDraft.trim()} onClick={submitComment}>{saving ? t.savingShort : t.commentBtn}</button>
+                </div>
+              </div>
+            )}
+            </Fragment>
           );
           });
         })()}
@@ -2704,19 +2717,13 @@ function SocialPostCard({
           {lang === "zh" ? "💬🔒 留言已關閉" : "💬🔒 Comments are disabled"}
         </p>
       )}
-      {!readOnly && !post.comments_disabled && (
+      {!readOnly && !post.comments_disabled && !replyingTo && (
         <div className="comment-composer" ref={commentComposeRef}>
-          {replyingTo && (
-            <div className="replying-to-bar">
-              <span>↩ {lang === "zh" ? "回覆" : "Replying to"} <strong>{getProfile(replyingTo.author_id).display_name}</strong></span>
-              <button type="button" aria-label={lang === "zh" ? "取消回覆" : "Cancel reply"} onClick={() => setReplyingTo(null)}>✕</button>
-            </div>
-          )}
           <MentionTextarea
             data-testid="comment-textarea"
             value={commentDraft}
             maxLength={COMMENT_MAX_LENGTH}
-            placeholder={replyingTo ? (lang === "zh" ? `回覆 ${getProfile(replyingTo.author_id).display_name}…` : `Reply to ${getProfile(replyingTo.author_id).display_name}…`) : t.commentPlaceholder(currentProfile.display_name)}
+            placeholder={t.commentPlaceholder(currentProfile.display_name)}
             onChange={setCommentDraft}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submitComment(); } }}
           />
