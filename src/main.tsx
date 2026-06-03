@@ -2591,7 +2591,12 @@ function SocialPostCard({
             {lang === "zh" ? "查看全部留言" : "View all comments"}
           </button>
         )}
-        {(showAllComments ? comments : comments.slice(-3)).map((comment) => {
+        {(() => {
+          const topLevel = comments.filter(c => !c.reply_to_id);
+          const repliesFor = (id: string) => comments.filter(c => c.reply_to_id === id);
+          const visibleTop = showAllComments ? topLevel : topLevel.slice(-3);
+          const ordered = visibleTop.flatMap(c => [c, ...repliesFor(c.id)]);
+          return ordered.map((comment) => {
           const cAuthor = getProfile(comment.author_id);
           const isMyComment = comment.author_id === currentProfile.id;
           const isEditingThis = editingCommentId === comment.id;
@@ -2690,7 +2695,8 @@ function SocialPostCard({
               </div>
             </article>
           );
-        })}
+          });
+        })()}
       </section>
 
       {post.comments_disabled && (
