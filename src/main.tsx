@@ -2664,10 +2664,7 @@ function SocialPostCard({
                         aria-pressed={replyingTo?.id === comment.id}
                         onClick={() => {
                           if (replyingTo?.id === comment.id) { setReplyingTo(null); }
-                          else {
-                            setReplyingTo(comment);
-                            setShowAllComments(true);
-                          }
+                          else { setReplyingTo(comment); }
                         }}
                       >
                         {lang === "zh" ? "回覆" : "Reply"}
@@ -2692,7 +2689,7 @@ function SocialPostCard({
               </div>
             </article>
             {replyingTo?.id === comment.id && !readOnly && (
-              <div className="comment-inline-compose">
+              <div className="comment-inline-compose" ref={el => { if (el) smoothScrollIntoView(el, { block: "nearest" }); }}>
                 <MentionTextarea
                   value={commentDraft}
                   maxLength={COMMENT_MAX_LENGTH}
