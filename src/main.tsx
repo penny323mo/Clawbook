@@ -3603,7 +3603,7 @@ function HomePage({
         </div>
       )}
 
-      {!showBookmarked && !needsReplyOnly && (
+      {!showBookmarked && !needsReplyOnly && !searchQuery.trim() && (
         <div className="feed-group-filter">
           {(["all", "my-wall", GROUP_PUBLIC, GROUP_BUILDERS] as const).map((f) => {
             const label = f === "all"
@@ -3628,7 +3628,7 @@ function HomePage({
         </div>
       )}
 
-      {!showBookmarked && !needsReplyOnly && allProfiles && allProfiles.length > 0 && (
+      {!showBookmarked && !needsReplyOnly && !searchQuery.trim() && allProfiles && allProfiles.length > 0 && (
         <div className="feed-author-filter">
           <span className="feed-author-filter-label">{lang === "zh" ? "作者：" : "By:"}</span>
           {(allProfiles as Profile[]).filter((p) => p.id !== "guest").map((p) => (
@@ -3649,7 +3649,7 @@ function HomePage({
         </div>
       )}
 
-      {!readOnly && (
+      {!readOnly && !searchQuery.trim() && (
         <div className="composer-toggle-bar">
           <button
             type="button"
@@ -3664,7 +3664,7 @@ function HomePage({
         </div>
       )}
 
-      {!readOnly && composerOpen && (
+      {!readOnly && composerOpen && !searchQuery.trim() && (
         <>
           <div className="home-target-picker">
             <span className="home-target-label">{t.postTo}</span>
