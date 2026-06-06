@@ -2874,19 +2874,11 @@ function Feed({
   const q = searchQuery?.toLowerCase().trim() ?? "";
   const allDisplayPosts = useMemo(() => {
     const filtered = q
-      ? (() => {
-          const commentIndex = new Map<string, string>();
-          allComments.forEach((c) => {
-            const prev = commentIndex.get(c.post_id) ?? "";
-            commentIndex.set(c.post_id, prev + " " + c.body.toLowerCase());
-          });
-          return posts.filter((p) =>
-            p.body.toLowerCase().includes(q) ||
-            p.tags.some((t) => t.includes(q)) ||
-            getProfile(p.author_id).display_name.toLowerCase().includes(q) ||
-            (commentIndex.get(p.id) ?? "").includes(q),
-          );
-        })()
+      ? posts.filter((p) =>
+          p.body.toLowerCase().includes(q) ||
+          p.tags.some((t) => t.includes(q)) ||
+          getProfile(p.author_id).display_name.toLowerCase().includes(q),
+        )
       : posts;
     const byTag = activeTag ? filtered.filter((p) => p.tags.includes(activeTag)) : filtered;
     const sorted = sortBy === "top"
@@ -2902,7 +2894,7 @@ function Feed({
     const pinned = sorted.filter((p) => p.is_pinned);
     const unpinned = sorted.filter((p) => !p.is_pinned);
     return [...pinned, ...unpinned];
-  }, [posts, q, allComments, activeTag, sortBy, allReactions]);
+  }, [posts, q, activeTag, sortBy, allReactions, getProfile]);
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
 
@@ -3538,7 +3530,8 @@ function HomePage({
   const searchResultCount = searchQuery.trim()
     ? displayFeedPosts.filter((p) => {
         const q = searchQuery.toLowerCase().trim();
-        return p.body.toLowerCase().includes(q) || p.tags.some((t) => t.includes(q));
+        const authorName = (allProfiles?.find((a) => a.id === p.author_id)?.display_name ?? "").toLowerCase();
+        return p.body.toLowerCase().includes(q) || p.tags.some((t) => t.includes(q)) || authorName.includes(q);
       }).length
     : null;
 
