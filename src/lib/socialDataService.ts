@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, storageBucket, supabase } from "./supabase";
+import { isSupabaseConfigured, storageBucket, supabase, setConnectionMode } from "./supabase";
 import { checkPasscode } from "./passcodes";
 import {
   comments as seedComments,
@@ -16,6 +16,8 @@ const SUPABASE_ANON = (
   (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ??
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
 )?.trim() ?? "";
+
+let forceMockFallback = typeof window !== "undefined" && localStorage.getItem("clawbook:forceMock") === "true";
 
 async function fetchAllRows<T>(
   queryBuilder: { range(from: number, to: number): Promise<{ data: T[] | null; error: unknown }> }
@@ -122,7 +124,7 @@ function saveMock(store: MockStore): void {
 // ----- public API -----
 
 export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     const overrides = loadProfileOverrides();
     const applyOverride = (p: Profile) => overrides[p.id] ? { ...p, ...overrides[p.id] } : p;
@@ -144,15 +146,33 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
-      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(300),
-      supabase.from("media").select("*").order("created_at", { ascending: false }).limit(300),
-      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(500),
-      supabase.from("reactions").select("*").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("media").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(200),
+      supabase.from("reactions").select("*").order("created_at", { ascending: false }).limit(500),
       supabase.from("poll_votes").select("*"),
     ]);
 
     const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes, pollRes].find((r) => r.error)?.error;
-    if (firstErr) return { data: null, error: firstErr.message };
+    if (firstErr) {
+      console.warn("Supabase connection failed, falling back to mock data:", firstErr.message);
+      forceMockFallback = true;
+      setConnectionMode("mock");
+      const mock = loadMock();
+      const overrides = loadProfileOverrides();
+      const applyOverride = (p: Profile) => overrides[p.id] ? { ...p, ...overrides[p.id] } : p;
+      const baseProfiles = seedProfiles.map(applyOverride);
+      const registered = loadRegisteredMock().map(applyOverride);
+      return {
+        data: {
+          profiles: [...baseProfiles, ...registered],
+          groups: seedGroups,
+          groupMembers: seedGroupMembers,
+          ...mock,
+        },
+        error: null,
+      };
+    }
 
     const comments = ((commentRes.data ?? []) as Comment[]).reverse();
     const reactions = (reactRes.data ?? []) as Reaction[];
@@ -171,12 +191,28 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
       error: null,
     };
   } catch (err) {
-    return { data: null, error: String(err) };
+    console.warn("Supabase load failed with exception, falling back to mock mode:", err);
+    forceMockFallback = true;
+    setConnectionMode("mock");
+    const mock = loadMock();
+    const overrides = loadProfileOverrides();
+    const applyOverride = (p: Profile) => overrides[p.id] ? { ...p, ...overrides[p.id] } : p;
+    const baseProfiles = seedProfiles.map(applyOverride);
+    const registered = loadRegisteredMock().map(applyOverride);
+    return {
+      data: {
+        profiles: [...baseProfiles, ...registered],
+        groups: seedGroups,
+        groupMembers: seedGroupMembers,
+        ...mock,
+      },
+      error: null,
+    };
   }
 }
 
 export async function persistPost(post: Post, newMedia: Media[]): Promise<ServiceResult<Post>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = [post, ...mock.posts.filter((p) => p.id !== post.id)];
     mock.media = [...newMedia, ...mock.media];
@@ -226,7 +262,7 @@ export async function updatePost(
   postId: string,
   updates: { body: string; tags: string[] },
 ): Promise<ServiceResult<Post>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.map((p) =>
       p.id === postId ? { ...p, body: updates.body, tags: updates.tags, updated_at: new Date().toISOString() } : p,
@@ -247,7 +283,7 @@ export async function updatePost(
 }
 
 export async function pinPost(postId: string, pinned: boolean): Promise<ServiceResult<Post>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.map((p) => p.id === postId ? { ...p, is_pinned: pinned } : p);
     saveMock(mock);
@@ -265,7 +301,7 @@ export async function pinPost(postId: string, pinned: boolean): Promise<ServiceR
 }
 
 export async function setCommentsDisabled(postId: string, disabled: boolean): Promise<ServiceResult<Post>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.map((p) => p.id === postId ? { ...p, comments_disabled: disabled } : p);
     saveMock(mock);
@@ -283,7 +319,7 @@ export async function setCommentsDisabled(postId: string, disabled: boolean): Pr
 }
 
 export async function deletePost(postId: string): Promise<ServiceResult<{ deleted: true }>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.filter((p) => p.id !== postId);
     saveMock(mock);
@@ -296,7 +332,7 @@ export async function deletePost(postId: string): Promise<ServiceResult<{ delete
 }
 
 export async function fetchAllCommentsForPost(postId: string): Promise<Comment[]> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return loadMock().comments.filter((c) => c.post_id === postId);
   }
   return fetchAllRows<Comment>(
@@ -305,7 +341,7 @@ export async function fetchAllCommentsForPost(postId: string): Promise<Comment[]
 }
 
 export async function persistComment(comment: Comment): Promise<ServiceResult<Comment>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.comments = [...mock.comments, comment];
     saveMock(mock);
@@ -327,7 +363,7 @@ export async function updateComment(
   commentId: string,
   body: string,
 ): Promise<ServiceResult<Comment>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.comments = mock.comments.map((c) =>
       c.id === commentId ? { ...c, body, updated_at: new Date().toISOString() } : c,
@@ -348,7 +384,7 @@ export async function updateComment(
 }
 
 export async function deleteComment(commentId: string): Promise<ServiceResult<{ deleted: true }>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.comments = mock.comments.filter((c) => c.id !== commentId);
     saveMock(mock);
@@ -363,7 +399,7 @@ export async function deleteComment(commentId: string): Promise<ServiceResult<{ 
 export async function toggleReaction(
   reaction: Reaction,
 ): Promise<ServiceResult<{ action: "added" | "removed" }>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     const sameReaction = (r: Reaction) =>
       r.post_id === reaction.post_id &&
@@ -419,7 +455,7 @@ export async function uploadMediaFile(
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const storagePath = `${ownerId}/${date}/${postId}/${safeName}`;
 
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return {
       data: {
         id: `media-local-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
@@ -470,7 +506,7 @@ export async function uploadMediaFile(
 export async function loadDirectMessages(
   profileId: string,
 ): Promise<ServiceResult<import("../types/database").DirectMessage[]>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return { data: [], error: null };
   }
   const { data, error } = await supabase
@@ -487,7 +523,7 @@ export async function loadDirectMessages(
 export async function persistDirectMessage(
   msg: import("../types/database").DirectMessage,
 ): Promise<ServiceResult<import("../types/database").DirectMessage>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return { data: msg, error: null };
   }
   const { error } = await supabase.from("direct_messages").insert({
@@ -505,7 +541,7 @@ export async function markMessagesRead(
   fromId: string,
   toId: string,
 ): Promise<ServiceResult<{ updated: true }>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return { data: { updated: true }, error: null };
   }
   const { error } = await supabase
@@ -523,7 +559,7 @@ export async function registerProfile(
   passcode: string,
   adminCode: string,
 ): Promise<ServiceResult<Profile>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     // Mock mode: validate admin code then store locally
     if (!checkPasscode("penny", adminCode)) return { data: null, error: "Invalid admin code" };
     const id = displayName.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -563,7 +599,7 @@ export async function deleteRegisteredProfile(
   profileId: string,
   adminCode: string,
 ): Promise<ServiceResult<{ deleted: true }>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     if (!checkPasscode("penny", adminCode)) return { data: null, error: "Invalid admin code" };
     const existing = loadRegisteredMock();
     saveRegisteredMock(existing.filter((p) => p.id !== profileId));
@@ -592,7 +628,7 @@ export async function updateProfile(
   profileId: string,
   updates: { bio: string; status: string; accent?: string; role?: string; avatar_url?: string },
 ): Promise<ServiceResult<Profile>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     saveProfileOverride(profileId, updates);
     const base =
       seedProfiles.find((p) => p.id === profileId) ??
@@ -619,7 +655,7 @@ export async function updateProfile(
 // ----- polls -----
 
 export async function loadPollVotes(): Promise<PollVote[]> {
-  if (!isSupabaseConfigured || !supabase) return loadMock().pollVotes;
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) return loadMock().pollVotes;
   const { data, error } = await supabase.from("poll_votes").select("*");
   if (error) return [];
   return (data ?? []) as PollVote[];
@@ -632,7 +668,7 @@ export async function castPollVote(
   currentVoteIdx: number | null,
   customText?: string,
 ): Promise<ServiceResult<null>> {
-  if (!isSupabaseConfigured || !supabase) {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     if (currentVoteIdx === optionIdx && !(optionIdx === -1)) {
       mock.pollVotes = mock.pollVotes.filter((v) => !(v.post_id === postId && v.profile_id === profileId));

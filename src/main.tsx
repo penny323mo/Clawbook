@@ -33,7 +33,7 @@ import {
   deleteRegisteredProfile,
 } from "./lib/socialDataService";
 import { checkPasscode, requiresPasscode } from "./lib/passcodes";
-import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges } from "./lib/supabase";
+import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges, type RealtimeDelta } from "./lib/supabase";
 import type { Comment, DirectMessage, Group, Media, Post, PollVote, Profile, Reaction } from "./types/database";
 import "./styles.css";
 
@@ -4233,7 +4233,7 @@ function SocialApp() {
 
   const lastSyncRef = useRef<number>(0);
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const MIN_SYNC_INTERVAL_MS = 60_000; // at most 1 full sync per 60s
+  const MIN_SYNC_INTERVAL_MS = 1_800_000; // periodic safety-net sync every 30 min
 
   const syncAllData = useCallback(async () => {
     lastSyncRef.current = Date.now();
@@ -4281,9 +4281,44 @@ function SocialApp() {
     void syncAllData();
   }, [syncAllData]);
 
+  // Apply Realtime deltas directly to local state — no full re-fetch per event
+  const handleRealtimeDelta = useCallback((delta: RealtimeDelta) => {
+    const { table, eventType, newRow, oldRow } = delta;
+    if (table === "posts") {
+      if (eventType === "INSERT") {
+        setPosts((prev) => prev.some((p) => p.id === (newRow as Post).id) ? prev : [newRow as Post, ...prev]);
+      } else if (eventType === "UPDATE") {
+        setPosts((prev) => prev.map((p) => p.id === (newRow as Post).id ? { ...p, ...(newRow as Post) } : p));
+      } else if (eventType === "DELETE") {
+        setPosts((prev) => prev.filter((p) => p.id !== (oldRow as { id: string }).id));
+      }
+    } else if (table === "comments") {
+      if (eventType === "INSERT") {
+        setComments((prev) => prev.some((c) => c.id === (newRow as Comment).id) ? prev : [...prev, newRow as Comment]);
+      } else if (eventType === "UPDATE") {
+        setComments((prev) => prev.map((c) => c.id === (newRow as Comment).id ? { ...c, ...(newRow as Comment) } : c));
+      } else if (eventType === "DELETE") {
+        setComments((prev) => prev.filter((c) => c.id !== (oldRow as { id: string }).id));
+      }
+    } else if (table === "reactions") {
+      if (eventType === "INSERT") {
+        setReactions((prev) => prev.some((r) => r.id === (newRow as Reaction).id) ? prev : [...prev, newRow as Reaction]);
+      } else if (eventType === "DELETE") {
+        setReactions((prev) => prev.filter((r) => r.id !== (oldRow as { id: string }).id));
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    const unsubscribe = subscribeToSocialChanges(scheduledSync);
+    const unsubscribe = subscribeToSocialChanges(handleRealtimeDelta);
     return () => { unsubscribe(); if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current); };
+  }, [handleRealtimeDelta]);
+
+  // Re-sync when user returns to the tab (catches any missed events)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") scheduledSync(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [scheduledSync]);
 
   // Realtime: poll vote changes — throttled via same scheduledSync (60s min interval)
