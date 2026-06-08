@@ -478,7 +478,7 @@ export async function uploadMediaFile(
 
   const { error: uploadErr } = await supabase.storage
     .from(storageBucket)
-    .upload(storagePath, file, { cacheControl: "3600", upsert: false });
+    .upload(storagePath, file, { cacheControl: "31536000", upsert: false });
   if (uploadErr) return { data: null, error: uploadErr.message };
 
   const { data: urlData } = supabase.storage.from(storageBucket).getPublicUrl(storagePath);
