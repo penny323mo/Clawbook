@@ -3510,7 +3510,21 @@ function HomePage({
       : feedGroupFilter === "my-wall"
       ? feedPosts.filter((p) => p.target_type === "profile")
       : feedPosts.filter((p) => p.target_type === "group" && p.target_id === feedGroupFilter);
-    return feedAuthorFilter ? byGroup.filter((p) => p.author_id === feedAuthorFilter) : byGroup;
+    if (!feedAuthorFilter) return byGroup;
+    const involved = byGroup.filter((p) =>
+      p.author_id === feedAuthorFilter ||
+      comments.some((c) => c.post_id === p.id && c.author_id === feedAuthorFilter)
+    );
+    return [...involved].sort((a, b) => {
+      const lastActivityOf = (p: typeof a) => {
+        const ts = comments
+          .filter((c) => c.post_id === p.id && c.author_id === feedAuthorFilter)
+          .map((c) => c.created_at);
+        if (p.author_id === feedAuthorFilter) ts.push(p.created_at);
+        return ts.length > 0 ? ts.reduce((m, t) => (t > m ? t : m)) : p.created_at;
+      };
+      return lastActivityOf(b).localeCompare(lastActivityOf(a));
+    });
   })();
 
   const needsReplyPosts = currentProfile.id === "penny"
