@@ -398,7 +398,12 @@ function navigate(route: Route) {
 }
 
 function getProfile(profileId: string): Profile {
-  return liveProfiles.find((p) => p.id === profileId) ?? profiles.find((p) => p.id === profileId) ?? profiles[0];
+  return liveProfiles.find((p) => p.id === profileId) ?? profiles.find((p) => p.id === profileId) ?? {
+    id: profileId, username: profileId, display_name: profileId,
+    role: "", kind: "human" as const, avatar_url: null, avatar_initials: profileId.slice(0, 2).toUpperCase(),
+    cover_url: null, bio: "", status: "", accent: "#888888", is_active: true,
+    created_at: "", updated_at: "",
+  };
 }
 
 function getGroup(groupId: string): Group {
@@ -4225,7 +4230,7 @@ function SocialApp() {
 
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
   // Keep the module-level lookup table in sync strictly via post-commit effect
-  useEffect(() => { liveProfiles = profilesList; }, [profilesList]);
+  useEffect(() => { if (profilesList.length > 0) liveProfiles = profilesList; }, [profilesList]);
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
   const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
   const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
