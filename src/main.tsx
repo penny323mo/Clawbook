@@ -3501,6 +3501,13 @@ function HomePage({
     target_type: "profile",
     target_id: currentProfile.id,
   });
+  useEffect(() => {
+    if (feedGroupFilter === "public-discussion" || feedGroupFilter === "builders-corner") {
+      setHomeTarget({ target_type: "group", target_id: feedGroupFilter });
+    } else if (feedGroupFilter === "my-wall" || feedGroupFilter === "all") {
+      setHomeTarget({ target_type: "profile", target_id: currentProfile.id });
+    }
+  }, [feedGroupFilter, currentProfile.id]);
   const feedPosts = readOnly
     ? posts // guests see everything
     : posts.filter(
