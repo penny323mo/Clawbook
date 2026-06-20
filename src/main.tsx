@@ -2585,12 +2585,13 @@ function SocialPostCard({
           <button
             type="button"
             className="show-all-comments-btn"
-            onClick={async () => {
-              if (!allCommentsFetched && onLoadComments) {
-                const ok = await onLoadComments(post.id);
-                if (ok) setAllCommentsFetched(true);
-              }
+            onClick={() => {
               setShowAllComments(true);
+              if (!allCommentsFetched && onLoadComments) {
+                void onLoadComments(post.id).then((ok) => {
+                  if (ok) setAllCommentsFetched(true);
+                });
+              }
             }}
           >
             {lang === "zh" ? "查看全部留言" : "View all comments"}
