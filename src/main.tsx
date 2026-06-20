@@ -4240,7 +4240,13 @@ function SocialApp() {
 
   const [profilesList, setProfilesList] = useState<Profile[]>(isSupabaseConfigured ? [] : profiles);
   // Keep the module-level lookup table in sync strictly via post-commit effect
-  useEffect(() => { if (profilesList.length > 0) liveProfiles = profilesList; }, [profilesList]);
+  // Sync module-level liveProfiles synchronously during render so getProfile()
+  // called inside children sees fresh data on the same render pass. Previously
+  // this was in useEffect, which ran after children rendered — meaning new agents
+  // (e.g. Nova/Echo) fell back to lowercase id as their display_name.
+  if (profilesList.length > 0 && liveProfiles !== profilesList) {
+    liveProfiles = profilesList;
+  }
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
   const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
   const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
