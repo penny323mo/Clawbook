@@ -940,6 +940,7 @@ function Sidebar({
   open,
   unreadPosts,
   lastActivityMap,
+  allProfiles,
   onClose,
 }: {
   currentProfile: Profile;
@@ -947,6 +948,7 @@ function Sidebar({
   open: boolean;
   unreadPosts?: number;
   lastActivityMap?: Record<string, string>;
+  allProfiles: Profile[];
   onClose: () => void;
 }) {
   const { t, lang } = useLang();
@@ -1010,7 +1012,7 @@ function Sidebar({
 
         <div className="sidebar-agents">
           <span className="sidebar-label">{t.profilesLabel}</span>
-          {profiles.map((profile) => (
+          {allProfiles.map((profile) => (
             <button
               data-testid="sidebar-agent-link"
               type="button"
@@ -5203,7 +5205,7 @@ function SocialApp() {
             <SaveErrorToast message={saveError} onDismiss={() => setSaveError(null)} />
           ) : null}
           <div className="social-layout">
-            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} unreadPosts={unreadPosts} lastActivityMap={profileLastActivity} onClose={() => setSidebarOpen(false)} />
+            <Sidebar currentProfile={currentProfile} route={route} open={sidebarOpen} unreadPosts={unreadPosts} lastActivityMap={profileLastActivity} allProfiles={profilesList.length > 0 ? profilesList : profiles} onClose={() => setSidebarOpen(false)} />
             <section className="main-column" id="main-content">{screen}</section>
             <RightSidebar
               profiles={profilesList.length > 0 ? profilesList : profiles}
