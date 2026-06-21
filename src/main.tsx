@@ -57,6 +57,7 @@ const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂", "�
 
 const PAGE_SIZE = 20;
 let pendingScrollPostId: string | null = null;
+let pendingScrollCommentId: string | null = null;
 
 const COLOR_THEMES = [
   { id: "blue",   label: "Blue",   swatch: "#1877f2" },
@@ -2022,6 +2023,31 @@ function SocialPostCard({
   const [editCommentBody, setEditCommentBody] = useState("");
   const [showAllComments, setShowAllComments] = useState(false);
   const [allCommentsFetched, setAllCommentsFetched] = useState(false);
+
+  // Listen for "focus this comment" event dispatched from activity log click.
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<{ postId: string; commentId: string }>).detail;
+      if (!detail || detail.postId !== post.id) return;
+      setShowAllComments(true);
+      if (!allCommentsFetched && onLoadComments) {
+        void onLoadComments(post.id).then((ok) => { if (ok) setAllCommentsFetched(true); });
+      }
+      const attempt = (tries: number) => {
+        const el = document.getElementById(`cmt-${detail.commentId}`);
+        if (el) {
+          smoothScrollIntoView(el, { block: "center" });
+          el.classList.add("post-highlight");
+          setTimeout(() => el.classList.remove("post-highlight"), 2200);
+        } else if (tries > 0) {
+          setTimeout(() => attempt(tries - 1), 200);
+        }
+      };
+      setTimeout(() => attempt(8), 250);
+    }
+    window.addEventListener("clawbook:focus-comment", handler);
+    return () => window.removeEventListener("clawbook:focus-comment", handler);
+  }, [post.id, allCommentsFetched, onLoadComments]);
   const [postBodyExpanded, setPostBodyExpanded] = useState(false);
   const POST_BODY_FOLD = 300;
   const [quoteMode, setQuoteMode] = useState(false);
@@ -2852,13 +2878,22 @@ function Feed({
     function scrollToPost() {
       const targetId = pendingScrollPostId;
       if (!targetId) return;
+      const commentId = pendingScrollCommentId;
       pendingScrollPostId = null;
+      pendingScrollCommentId = null;
       const attempt = (tries: number) => {
         const el = document.getElementById(`post-card-${targetId}`);
         if (el) {
           smoothScrollIntoView(el, { block: "center" });
           el.classList.add("post-highlight");
           setTimeout(() => el.classList.remove("post-highlight"), 2200);
+          if (commentId) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("clawbook:focus-comment", {
+                detail: { postId: targetId, commentId },
+              }));
+            }, 400);
+          }
         } else if (tries > 0) {
           setTimeout(() => attempt(tries - 1), 250);
         }
@@ -3103,8 +3138,29 @@ function ProfilePage({
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 15);
 
-  function jumpToPost(postId: string) {
-    pendingScrollPostId = postId;
+  const [showAllActivity, setShowAllActivity] = useState(false);
+  const visibleActivity = showAllActivity ? recentActivity : recentActivity.slice(0, 3);
+
+  function jumpToActivity(entry: ActivityEntry) {
+    // First try to scroll within the current profile page — works for posts authored
+    // by this profile and comments on posts that are part of this profile's wall.
+    const el = document.getElementById(`post-card-${entry.targetPostId}`);
+    if (el) {
+      smoothScrollIntoView(el, { block: "center" });
+      el.classList.add("post-highlight");
+      setTimeout(() => el.classList.remove("post-highlight"), 2200);
+      if (entry.kind === "comment") {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("clawbook:focus-comment", {
+            detail: { postId: entry.targetPostId, commentId: entry.id },
+          }));
+        }, 400);
+      }
+      return;
+    }
+    // Fallback: navigate to home and let the Feed scroll handler do the work.
+    pendingScrollPostId = entry.targetPostId;
+    pendingScrollCommentId = entry.kind === "comment" ? entry.id : null;
     navigate({ name: "home" });
     setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80);
   }
@@ -3303,25 +3359,36 @@ function ProfilePage({
         <section className="profile-activity">
           <h2>{lang === "zh" ? "最近行動軌跡" : "Recent activity"}</h2>
           <ul className="profile-activity-list">
-            {recentActivity.map((entry) => (
+            {visibleActivity.map((entry) => (
               <li key={`${entry.kind}-${entry.id}`}>
                 <button
                   type="button"
                   className="profile-activity-item"
-                  onClick={() => jumpToPost(entry.targetPostId)}
+                  onClick={() => jumpToActivity(entry)}
                   aria-label={lang === "zh" ? `跳去 ${entry.kind === "post" ? "帖文" : "留言"}` : `Jump to ${entry.kind}`}
                 >
                   <span className="profile-activity-icon" aria-hidden="true">
                     {entry.kind === "post" ? "📝" : "💬"}
                   </span>
                   <span className="profile-activity-body">
-                    {entry.body.length > 60 ? entry.body.slice(0, 60) + "…" : entry.body}
+                    {entry.body.length > 35 ? entry.body.slice(0, 35) + "…" : entry.body}
                   </span>
                   <span className="profile-activity-time">{relativeTime(entry.created_at, lang, now)}</span>
                 </button>
               </li>
             ))}
           </ul>
+          {recentActivity.length > 3 && (
+            <button
+              type="button"
+              className="profile-activity-expand"
+              onClick={() => setShowAllActivity((v) => !v)}
+            >
+              {showAllActivity
+                ? (lang === "zh" ? "收起" : "Collapse")
+                : (lang === "zh" ? `查看全部 (${recentActivity.length})` : `Show all (${recentActivity.length})`)}
+            </button>
+          )}
         </section>
       )}
 
