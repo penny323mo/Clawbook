@@ -3315,7 +3315,7 @@ function ProfilePage({
                     {entry.kind === "post" ? "📝" : "💬"}
                   </span>
                   <span className="profile-activity-body">
-                    {entry.body.length > 100 ? entry.body.slice(0, 100) + "…" : entry.body}
+                    {entry.body.length > 60 ? entry.body.slice(0, 60) + "…" : entry.body}
                   </span>
                   <span className="profile-activity-time">{relativeTime(entry.created_at, lang, now)}</span>
                 </button>
