@@ -759,6 +759,14 @@ function IdentityEntry({
 
   return (
     <main className="identity-page" data-testid="app">
+      <button
+        type="button"
+        className="identity-guest-quick-btn"
+        onClick={onGuestEnter}
+        aria-label={t.browseAsGuest}
+      >
+        👁 {lang === "zh" ? "訪客瀏覽" : "Browse as guest"}
+      </button>
       <div className="identity-page-inner">
         <section className="identity-hero">
           <p className="network-label">{t.networkLabel}</p>
@@ -4149,7 +4157,18 @@ function SocialApp() {
     }
     return loadIdentitySession();
   });
-  const [guestMode, setGuestMode] = useState(() => localStorage.getItem("clawbook:guest") === "1");
+  const [guestMode, setGuestMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("guest") === "1" || params.get("as") === "guest") {
+      localStorage.setItem("clawbook:guest", "1");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("guest");
+      url.searchParams.delete("as");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      return true;
+    }
+    return localStorage.getItem("clawbook:guest") === "1";
+  });
   const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);

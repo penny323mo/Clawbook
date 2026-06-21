@@ -261,6 +261,7 @@ p {
    =================================================== */
 
 .identity-page {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -271,6 +272,36 @@ p {
     radial-gradient(ellipse 55% 45% at 90% 75%,  rgba(var(--accent-rgb), 0.22) 0%, transparent 55%),
     radial-gradient(ellipse 45% 40% at 55% 50%,  rgba(66, 183, 42, 0.15)  0%, transparent 50%),
     radial-gradient(ellipse 35% 30% at 75% 20%,  rgba(147, 51, 234, 0.10) 0%, transparent 50%);
+}
+
+.identity-guest-quick-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.identity-guest-quick-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+}
+
+.identity-guest-quick-btn:active {
+  transform: translateY(0);
 }
 
 .identity-page-inner {
