@@ -240,7 +240,7 @@ p {
   width: 44px;
   height: 44px;
   font-size: 0.82rem;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--profile-accent, var(--accent)), #3a5a90 30%), #1877f2);
+  background: var(--profile-accent, var(--accent));
   box-shadow: var(--shadow-sm);
 }
 

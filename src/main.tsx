@@ -523,18 +523,24 @@ function buildGroupCover(groupId = GROUP_PUBLIC) {
 
 function Avatar({ profile, className, style }: { profile: Profile; className?: string; style?: CSSProperties }) {
   const [imgFailed, setImgFailed] = useState(false);
+  // Always inject the profile's accent so .avatar CSS resolves to the right colour,
+  // regardless of whether the parent set --profile-accent. Caller style overrides win.
+  const mergedStyle: CSSProperties = {
+    ["--profile-accent" as string]: profile.accent,
+    ...style,
+  };
   if (profile.avatar_url && !imgFailed) {
     return (
       <img
         src={profile.avatar_url}
         alt={profile.display_name}
         className={`avatar avatar-img${className ? ` ${className}` : ""}`}
-        style={style}
+        style={mergedStyle}
         onError={() => setImgFailed(true)}
       />
     );
   }
-  return <span className={`avatar${className ? ` ${className}` : ""}`} style={style}>{profile.avatar_initials}</span>;
+  return <span className={`avatar${className ? ` ${className}` : ""}`} style={mergedStyle}>{profile.avatar_initials}</span>;
 }
 
 // ----- loading skeleton -----
