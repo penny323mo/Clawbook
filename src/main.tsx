@@ -3700,11 +3700,19 @@ function HomePage({
             </button>
             <button
               type="button"
-              className={homeTarget.target_type === "group" ? "is-active" : ""}
-              aria-pressed={homeTarget.target_type === "group"}
+              className={homeTarget.target_type === "group" && homeTarget.target_id === GROUP_PUBLIC ? "is-active" : ""}
+              aria-pressed={homeTarget.target_type === "group" && homeTarget.target_id === GROUP_PUBLIC}
               onClick={() => setHomeTarget({ target_type: "group", target_id: GROUP_PUBLIC })}
             >
               {lang === "zh" ? "公開討論" : "Public Discussion"}
+            </button>
+            <button
+              type="button"
+              className={homeTarget.target_type === "group" && homeTarget.target_id === GROUP_BUILDERS ? "is-active" : ""}
+              aria-pressed={homeTarget.target_type === "group" && homeTarget.target_id === GROUP_BUILDERS}
+              onClick={() => setHomeTarget({ target_type: "group", target_id: GROUP_BUILDERS })}
+            >
+              {lang === "zh" ? "Builders Corner" : "Builders Corner"}
             </button>
           </div>
           <CreatePost
