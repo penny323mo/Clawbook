@@ -844,8 +844,14 @@ function IdentityEntry({
           </div>
         )}
 
+        {(regOpen || adminOpen) && (
+          <div
+            className="identity-modal-backdrop"
+            onClick={() => { setRegOpen(false); setAdminOpen(false); setDeleteTarget(null); setRegError(null); setDelError(null); }}
+          >
+            <div className="identity-admin-panel identity-admin-panel-modal" onClick={(e) => e.stopPropagation()}>
         {regOpen && (
-          <div className="identity-admin-panel">
+          <>
             <h3>{lang === "zh" ? "新增用戶" : "Add user"}</h3>
             <form onSubmit={(e) => { void handleRegister(e); }} className="identity-admin-form">
               <input
@@ -882,11 +888,11 @@ function IdentityEntry({
                 </button>
               </div>
             </form>
-          </div>
+          </>
         )}
 
         {adminOpen && (
-          <div className="identity-admin-panel">
+          <>
             <h3>{lang === "zh" ? "管理已登記用戶" : "Manage registered users"}</h3>
             {registeredUsers.length === 0 ? (
               <p className="identity-admin-empty">{lang === "zh" ? "暫無已登記用戶" : "No registered users yet"}</p>
@@ -935,6 +941,9 @@ function IdentityEntry({
             <button type="button" className="identity-show-all-btn" style={{ marginTop: 12 }} onClick={() => setAdminOpen(false)}>
               {lang === "zh" ? "關閉" : "Close"}
             </button>
+          </>
+        )}
+            </div>
           </div>
         )}
       </div>
