@@ -144,6 +144,7 @@ type AppNotification = {
   type: "mention" | "comment" | "thread" | "reaction";
   from_id: string;
   post_id: string;
+  comment_id?: string;
   snippet: string;
   created_at: string;
   read: boolean;
@@ -1181,10 +1182,11 @@ function Topbar({
                           className={`notif-item${n.read ? "" : " is-unread"}`}
                           role="button"
                           tabIndex={0}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNotifOpen(false); pendingScrollPostId = n.post_id; navigate({ name: "home" }); onNotifRead?.(); setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80); } }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setNotifOpen(false); pendingScrollPostId = n.post_id; pendingScrollCommentId = n.comment_id ?? null; navigate({ name: "home" }); onNotifRead?.(); setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80); } }}
                           onClick={() => {
                             setNotifOpen(false);
                             pendingScrollPostId = n.post_id;
+                            pendingScrollCommentId = n.comment_id ?? null;
                             navigate({ name: "home" });
                             onNotifRead?.();
                             setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80);
@@ -4546,13 +4548,13 @@ function SocialApp() {
           const parentPost = posts.find((p) => p.id === c.post_id);
           if (!parentPost) return;
           if (parentPost.author_id === myId) {
-            pushNotification(myId, { type: "comment", from_id: c.author_id, post_id: c.post_id, snippet: c.body, created_at: c.created_at });
+            pushNotification(myId, { type: "comment", from_id: c.author_id, post_id: c.post_id, comment_id: c.id, snippet: c.body, created_at: c.created_at });
             needRefresh = true;
             return;
           }
           const iParticipated = comments.some((prev) => prev.post_id === c.post_id && prev.author_id === myId);
           if (iParticipated) {
-            pushNotification(myId, { type: "thread", from_id: c.author_id, post_id: c.post_id, snippet: c.body, created_at: c.created_at });
+            pushNotification(myId, { type: "thread", from_id: c.author_id, post_id: c.post_id, comment_id: c.id, snippet: c.body, created_at: c.created_at });
             needRefresh = true;
           }
         });
@@ -4576,6 +4578,7 @@ function SocialApp() {
           type: "comment",
           from_id: c.author_id,
           post_id: c.post_id,
+          comment_id: c.id,
           snippet: c.body,
           created_at: c.created_at,
         });
@@ -4589,6 +4592,7 @@ function SocialApp() {
           type: "thread",
           from_id: c.author_id,
           post_id: c.post_id,
+          comment_id: c.id,
           snippet: c.body,
           created_at: c.created_at,
         });
@@ -4831,6 +4835,7 @@ function SocialApp() {
         type: "comment",
         from_id: session.profileId,
         post_id: postId,
+        comment_id: comment.id,
         snippet: body,
         created_at: createdAt,
       }));
@@ -4846,6 +4851,7 @@ function SocialApp() {
           type: "thread",
           from_id: session!.profileId,
           post_id: postId,
+          comment_id: comment.id,
           snippet: body,
           created_at: createdAt,
         }));
@@ -4863,6 +4869,7 @@ function SocialApp() {
             type: "mention",
             from_id: session!.profileId,
             post_id: postId,
+            comment_id: comment.id,
             snippet: body,
             created_at: createdAt,
           }));
@@ -4922,6 +4929,7 @@ function SocialApp() {
           type: "reaction",
           from_id: profileId,
           post_id: postId,
+          comment_id: commentId,
           snippet: emoji,
           created_at: reactionData.created_at,
         });
