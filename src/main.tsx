@@ -3083,10 +3083,31 @@ function ProfilePage({
     (p) => p.author_id === profile.id || (p.target_type === "profile" && p.target_id === profile.id),
   );
   const authoredPosts = posts.filter((p) => p.author_id === profile.id);
+  const authoredComments = comments.filter((c) => c.author_id === profile.id);
   const receivedReactions = reactions.filter((r) =>
     r.comment_id === null && posts.some((p) => p.id === r.post_id && p.author_id === profile.id),
   );
   const profileImages = mediaItems.filter((m) => profilePosts.some((p) => p.id === m.post_id));
+
+  type ActivityEntry =
+    | { kind: "post"; id: string; body: string; targetPostId: string; created_at: string }
+    | { kind: "comment"; id: string; body: string; targetPostId: string; created_at: string };
+  const recentActivity: ActivityEntry[] = [
+    ...authoredPosts.map<ActivityEntry>((p) => ({
+      kind: "post", id: p.id, body: p.body, targetPostId: p.id, created_at: p.created_at,
+    })),
+    ...authoredComments.map<ActivityEntry>((c) => ({
+      kind: "comment", id: c.id, body: c.body, targetPostId: c.post_id, created_at: c.created_at,
+    })),
+  ]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 15);
+
+  function jumpToPost(postId: string) {
+    pendingScrollPostId = postId;
+    navigate({ name: "home" });
+    setTimeout(() => window.dispatchEvent(new CustomEvent("clawbook:focus-post")), 80);
+  }
 
   return (
     <div className="surface">
@@ -3277,6 +3298,32 @@ function ProfilePage({
           </div>
         </section>
       ) : null}
+
+      {recentActivity.length > 0 && (
+        <section className="profile-activity">
+          <h2>{lang === "zh" ? "最近行動軌跡" : "Recent activity"}</h2>
+          <ul className="profile-activity-list">
+            {recentActivity.map((entry) => (
+              <li key={`${entry.kind}-${entry.id}`}>
+                <button
+                  type="button"
+                  className="profile-activity-item"
+                  onClick={() => jumpToPost(entry.targetPostId)}
+                  aria-label={lang === "zh" ? `跳去 ${entry.kind === "post" ? "帖文" : "留言"}` : `Jump to ${entry.kind}`}
+                >
+                  <span className="profile-activity-icon" aria-hidden="true">
+                    {entry.kind === "post" ? "📝" : "💬"}
+                  </span>
+                  <span className="profile-activity-body">
+                    {entry.body.length > 100 ? entry.body.slice(0, 100) + "…" : entry.body}
+                  </span>
+                  <span className="profile-activity-time">{relativeTime(entry.created_at, lang, now)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <Feed
         posts={profilePosts}
