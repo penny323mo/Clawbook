@@ -3693,6 +3693,22 @@ function HomePage({
       })
     : [];
 
+  const NEEDS_REPLY_DISMISSED_KEY = "clawbook:needs-reply:dismissed";
+  const [dismissedNeedsReply, setDismissedNeedsReply] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(NEEDS_REPLY_DISMISSED_KEY);
+      return new Set<string>(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch { return new Set<string>(); }
+  });
+  const unseenNeedsReplyCount = needsReplyPosts.filter((p) => !dismissedNeedsReply.has(p.id)).length;
+  function acknowledgeNeedsReply() {
+    if (needsReplyPosts.length === 0) return;
+    const next = new Set(dismissedNeedsReply);
+    needsReplyPosts.forEach((p) => next.add(p.id));
+    setDismissedNeedsReply(next);
+    try { localStorage.setItem(NEEDS_REPLY_DISMISSED_KEY, JSON.stringify([...next])); } catch {}
+  }
+
   const displayFeedPosts = showBookmarked
     ? posts.filter((p) => bookmarks.has(p.id))
     : needsReplyOnly ? needsReplyPosts : filteredByGroup;
@@ -3738,11 +3754,11 @@ function HomePage({
             type="button"
             className={`needs-reply-btn${needsReplyOnly && !showBookmarked ? " is-active" : ""}`}
             aria-pressed={needsReplyOnly && !showBookmarked}
-            onClick={() => { setNeedsReplyOnly((v) => !v); setShowBookmarked(false); smoothScrollTo({ top: 0 }); }}
+            onClick={() => { acknowledgeNeedsReply(); setNeedsReplyOnly((v) => !v); setShowBookmarked(false); smoothScrollTo({ top: 0 }); }}
           >
             📬 {lang === "zh" ? "需要回應" : "Needs reply"}
-            {needsReplyPosts.length > 0 && (
-              <span className="needs-reply-count">{needsReplyPosts.length}</span>
+            {unseenNeedsReplyCount > 0 && (
+              <span className="needs-reply-count">{unseenNeedsReplyCount}</span>
             )}
           </button>
         )}
