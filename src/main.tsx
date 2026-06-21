@@ -767,6 +767,25 @@ function IdentityEntry({
       >
         👁 {lang === "zh" ? "訪客瀏覽" : "Browse as guest"}
       </button>
+      <div className="identity-top-right">
+        <button
+          type="button"
+          className="identity-register-quick-btn"
+          onClick={() => { setRegOpen((v) => !v); setAdminOpen(false); }}
+          aria-label={lang === "zh" ? "申請加入" : "Register"}
+        >
+          ＋ {lang === "zh" ? "申請加入" : "Register"}
+        </button>
+        <button
+          type="button"
+          className="identity-settings-btn"
+          onClick={() => { setAdminOpen((v) => !v); setRegOpen(false); setDeleteTarget(null); }}
+          aria-label={lang === "zh" ? "管理用戶" : "Manage users"}
+          title={lang === "zh" ? "管理用戶" : "Manage users"}
+        >
+          ⚙
+        </button>
+      </div>
       <div className="identity-page-inner">
         <section className="identity-hero">
           <p className="network-label">{t.networkLabel}</p>
@@ -817,30 +836,13 @@ function IdentityEntry({
           ))}
         </section>
 
-        <div className="identity-guest-section">
-          {hintedProfile && (
+        {hintedProfile && (
+          <div className="identity-guest-section">
             <button type="button" className="identity-show-all-btn" onClick={() => setShowAll(true)}>
               {lang === "zh" ? "顯示所有帳號" : "Show all accounts"}
             </button>
-          )}
-          <button type="button" className="guest-enter-btn" onClick={onGuestEnter}>
-            👁 {t.browseAsGuest}
-          </button>
-          <button
-            type="button"
-            className="guest-enter-btn"
-            onClick={() => { setRegOpen((v) => !v); setAdminOpen(false); }}
-          >
-            ＋ {lang === "zh" ? "申請加入" : "Register"}
-          </button>
-          <button
-            type="button"
-            className="identity-show-all-btn"
-            onClick={() => { setAdminOpen((v) => !v); setRegOpen(false); setDeleteTarget(null); }}
-          >
-            {lang === "zh" ? "管理用戶" : "Manage users"}
-          </button>
-        </div>
+          </div>
+        )}
 
         {regOpen && (
           <div className="identity-admin-panel">
