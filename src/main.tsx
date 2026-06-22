@@ -2653,7 +2653,8 @@ function SocialPostCard({
           </button>
         )}
         {(() => {
-          const topLevel = comments.filter(c => !c.reply_to_id);
+          const loadedIds = new Set(comments.map(c => c.id));
+          const topLevel = comments.filter(c => !c.reply_to_id || !loadedIds.has(c.reply_to_id));
           const repliesFor = (id: string) => comments.filter(c => c.reply_to_id === id);
           const visibleTop = showAllComments ? topLevel : topLevel.slice(-3);
           const ordered = visibleTop.flatMap(c => [c, ...repliesFor(c.id)]);
@@ -2865,6 +2866,7 @@ function Feed({
   const [sortBy, setSortBy] = useState<"latest" | "top">("latest");
   const syncing = useSyncing();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const allDisplayPostsRef = useRef<Post[]>([]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -2897,6 +2899,8 @@ function Feed({
             }, 400);
           }
         } else if (tries > 0) {
+          const idx = allDisplayPostsRef.current.findIndex((p) => p.id === targetId);
+          if (idx >= 0) setVisibleCount((c) => (idx >= c ? idx + 1 : c));
           setTimeout(() => attempt(tries - 1), 250);
         }
       };
@@ -2965,6 +2969,7 @@ function Feed({
     const unpinned = sorted.filter((p) => !p.is_pinned);
     return [...pinned, ...unpinned];
   }, [posts, q, activeTag, sortBy, allReactions, getProfile]);
+  allDisplayPostsRef.current = allDisplayPosts;
 
   if (syncing && isSupabaseConfigured && posts.length === 0) return <FeedSkeleton />;
 
