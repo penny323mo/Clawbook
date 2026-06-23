@@ -4430,6 +4430,9 @@ function SocialApp() {
   }
   const [posts, setPosts] = useState<Post[]>(isSupabaseConfigured ? [] : seedPosts);
   const [comments, setComments] = useState<Comment[]>(isSupabaseConfigured ? [] : seedComments);
+  // Synchronous guard against double-submit (fast double-click or bot re-click): blocks an
+  // identical comment within a short window even before React re-renders the disabled button.
+  const recentCommentSubmitsRef = useRef<Map<string, number>>(new Map());
   const [reactions, setReactions] = useState<Reaction[]>(isSupabaseConfigured ? [] : seedReactions);
   const [mediaItems, setMediaItems] = useState<Media[]>(isSupabaseConfigured ? [] : seedMedia);
   const [pollVotes, setPollVotes] = useState<PollVote[]>([]);
@@ -4834,6 +4837,11 @@ function SocialApp() {
 
   async function addComment(postId: string, body: string, replyToId?: string | null) {
     if (!session) return;
+    const dedupKey = `${postId}|${replyToId ?? ""}|${session.profileId}|${body}`;
+    const nowMs = Date.now();
+    const lastMs = recentCommentSubmitsRef.current.get(dedupKey);
+    if (lastMs && nowMs - lastMs < 5000) return;
+    recentCommentSubmitsRef.current.set(dedupKey, nowMs);
     const createdAt = new Date().toISOString();
     const comment: Comment = {
       id: uniqueId("comment-local"),
