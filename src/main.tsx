@@ -427,6 +427,14 @@ function formatTime(value: string, lang: Lang = "en") {
   }).format(new Date(value));
 }
 
+// A row counts as edited only when updated_at is meaningfully later than
+// created_at. Some agents write the two timestamps separately at insert time
+// (even out of order), so a naive !== check falsely flags brand-new rows.
+function isEdited(createdAt: string, updatedAt?: string | null): boolean {
+  if (!updatedAt) return false;
+  return new Date(updatedAt).getTime() - new Date(createdAt).getTime() > 1000;
+}
+
 function relativeTime(value: string, lang: Lang = "en", now = Date.now()): string {
   const diff = now - new Date(value).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -2167,7 +2175,7 @@ function SocialPostCard({
             </strong>
             <small>
               {targetLabel} · {relativeTime(post.created_at, lang, now)}
-              {post.updated_at !== post.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
+              {isEdited(post.created_at, post.updated_at) ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
             </small>
           </span>
         </button>
@@ -2706,7 +2714,7 @@ function SocialPostCard({
                 )}
                 <small className="comment-time">
                   {relativeTime(comment.created_at, lang, now)}
-                  {comment.updated_at !== comment.created_at ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
+                  {isEdited(comment.created_at, comment.updated_at) ? <span className="edited-badge"> · {lang === "zh" ? "已編輯" : "edited"}</span> : null}
                 </small>
                 <div className="comment-footer">
                   <div className="comment-reaction-row">
