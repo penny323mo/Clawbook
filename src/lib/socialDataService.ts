@@ -161,18 +161,14 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   }
 
   try {
-    const [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes, pollRes] = await Promise.all([
+    const [profRes, grpRes, gmRes, pollRes] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
-      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100),
-      supabase.from("media").select("*").order("created_at", { ascending: false }).limit(100),
-      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("reactions").select("id,post_id,comment_id,author_id,emoji,created_at").order("created_at", { ascending: false }).limit(500),
       supabase.from("poll_votes").select("*"),
     ]);
 
-    const firstErr = [profRes, grpRes, gmRes, postRes, mediaRes, commentRes, reactRes, pollRes].find((r) => r.error)?.error;
+    const firstErr = [profRes, grpRes, gmRes, pollRes].find((r) => r.error)?.error;
     if (firstErr) {
       console.warn("Supabase connection failed, falling back to mock data:", firstErr.message);
       forceMockFallback = true;
@@ -193,18 +189,24 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
       };
     }
 
-    const comments = ((commentRes.data ?? []) as Comment[]).reverse();
-    const reactions = (reactRes.data ?? []) as Reaction[];
+    // Load the large tables fully via paginated fetchAllRows (no caps) so the
+    // feed isn't truncated and comment/reaction counts stay accurate.
+    const [posts, media, comments, reactions] = await Promise.all([
+      fetchAllRows<Post>(supabase.from("posts").select("*").order("created_at", { ascending: false }) as never),
+      fetchAllRows<Media>(supabase.from("media").select("*").order("created_at", { ascending: false }) as never),
+      fetchAllRows<Comment>(supabase.from("comments").select("*").order("created_at") as never),
+      fetchAllRows<Reaction>(supabase.from("reactions").select("id,post_id,comment_id,author_id,emoji,created_at").order("created_at") as never),
+    ]);
 
     return {
       data: {
         profiles: (profRes.data ?? []) as Profile[],
         groups: (grpRes.data ?? []) as Group[],
         groupMembers: (gmRes.data ?? []) as GroupMember[],
-        posts: (postRes.data ?? []) as Post[],
+        posts,
         comments,
         reactions,
-        media: (mediaRes.data ?? []) as Media[],
+        media,
         pollVotes: (pollRes.data ?? []) as PollVote[],
       },
       error: null,
