@@ -14,6 +14,8 @@ import {
   deleteComment,
   deletePost,
   fetchAllCommentsForPost,
+  fetchAuthorCounts,
+  fetchPostById,
   pinPost,
   setCommentsDisabled,
   loadAllSocialData,
@@ -3076,6 +3078,7 @@ function ProfilePage({
   onQuotePost,
   onToggleComments,
   onLoadComments,
+  onEnsurePostLoaded,
   allProfiles,
 }: {
   profile: Profile;
@@ -3102,6 +3105,7 @@ function ProfilePage({
   onQuotePost?: (quotedPost: Post, body: string) => void;
   onToggleComments?: (postId: string, disabled: boolean) => void;
   onLoadComments?: (postId: string) => Promise<boolean>;
+  onEnsurePostLoaded?: (postId: string) => Promise<boolean>;
   allProfiles?: Profile[];
 }) {
   const { t, lang } = useLang();
@@ -3126,6 +3130,17 @@ function ProfilePage({
   );
   const authoredPosts = posts.filter((p) => p.author_id === profile.id);
   const authoredComments = comments.filter((c) => c.author_id === profile.id);
+  // Loaded feed is capped (latest 100 posts / 200 comments globally), so in-memory
+  // lengths undercount prolific authors. Fetch exact totals from the DB for the stat row.
+  const [exactCounts, setExactCounts] = useState<{ posts: number; comments: number } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setExactCounts(null);
+    void fetchAuthorCounts(profile.id).then((c) => { if (active) setExactCounts(c); });
+    return () => { active = false; };
+  }, [profile.id]);
+  const postsCount = exactCounts?.posts ?? authoredPosts.length;
+  const commentsCount = exactCounts?.comments ?? authoredComments.length;
   const receivedReactions = reactions.filter((r) =>
     r.comment_id === null && posts.some((p) => p.id === r.post_id && p.author_id === profile.id),
   );
@@ -3148,7 +3163,7 @@ function ProfilePage({
   const [showAllActivity, setShowAllActivity] = useState(false);
   const visibleActivity = showAllActivity ? recentActivity : recentActivity.slice(0, 3);
 
-  function jumpToActivity(entry: ActivityEntry) {
+  async function jumpToActivity(entry: ActivityEntry) {
     // First try to scroll within the current profile page — works for posts authored
     // by this profile and comments on posts that are part of this profile's wall.
     const el = document.getElementById(`post-card-${entry.targetPostId}`);
@@ -3165,6 +3180,11 @@ function ProfilePage({
       }
       return;
     }
+    // The target post (e.g. a post the profile owner only commented on) may be outside
+    // the capped feed window, so the home fallback would otherwise find nothing. Load it
+    // (and its comments) on demand first so navigation can actually land on it.
+    await onEnsurePostLoaded?.(entry.targetPostId);
+    if (entry.kind === "comment") await onLoadComments?.(entry.targetPostId);
     // Fallback: navigate to home and let the Feed scroll handler do the work.
     pendingScrollPostId = entry.targetPostId;
     pendingScrollCommentId = entry.kind === "comment" ? entry.id : null;
@@ -3310,10 +3330,10 @@ function ProfilePage({
         )}
         <div className="profile-stats">
           <span>
-            <strong>{authoredPosts.length}</strong> {t.postsLabel}
+            <strong>{postsCount}</strong> {t.postsLabel}
           </span>
           <span>
-            <strong>{comments.filter((c) => c.author_id === profile.id).length}</strong> {t.commentsLabel}
+            <strong>{commentsCount}</strong> {t.commentsLabel}
           </span>
           <span>
             <strong>{receivedReactions.length}</strong> {t.reactionsLabel}
@@ -4821,6 +4841,16 @@ function SocialApp() {
     }
   }
 
+  // Recent-activity entries can point at posts outside the capped feed window
+  // (latest 100). Fetch the post on demand and inject it so navigation can land on it.
+  async function handleEnsurePostLoaded(postId: string): Promise<boolean> {
+    if (posts.some((p) => p.id === postId)) return true;
+    const row = await fetchPostById(postId);
+    if (!row) return false;
+    setPosts((prev) => prev.some((p) => p.id === row.id) ? prev : [row, ...prev]);
+    return true;
+  }
+
   async function handleLoadComments(postId: string): Promise<boolean> {
     try {
       const all = await fetchAllCommentsForPost(postId);
@@ -5290,6 +5320,7 @@ function SocialApp() {
           setMessagesOpen(true);
         }}
         onLoadComments={handleLoadComments}
+        onEnsurePostLoaded={handleEnsurePostLoaded}
       />
     );
   }

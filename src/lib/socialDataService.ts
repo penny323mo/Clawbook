@@ -123,6 +123,25 @@ function saveMock(store: MockStore): void {
 
 // ----- public API -----
 
+export async function fetchAuthorCounts(
+  authorId: string,
+): Promise<{ posts: number; comments: number } | null> {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) return null;
+  const [postRes, commentRes] = await Promise.all([
+    supabase.from("posts").select("id", { count: "exact", head: true }).eq("author_id", authorId),
+    supabase.from("comments").select("id", { count: "exact", head: true }).eq("author_id", authorId),
+  ]);
+  if (postRes.error || commentRes.error) return null;
+  return { posts: postRes.count ?? 0, comments: commentRes.count ?? 0 };
+}
+
+export async function fetchPostById(postId: string): Promise<Post | null> {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) return null;
+  const { data, error } = await supabase.from("posts").select("*").eq("id", postId).maybeSingle();
+  if (error || !data) return null;
+  return data as Post;
+}
+
 export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
@@ -149,7 +168,7 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
       supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100),
       supabase.from("media").select("*").order("created_at", { ascending: false }).limit(100),
       supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("reactions").select("*").order("created_at", { ascending: false }).limit(500),
+      supabase.from("reactions").select("id,post_id,comment_id,author_id,emoji,created_at").order("created_at", { ascending: false }).limit(500),
       supabase.from("poll_votes").select("*"),
     ]);
 
