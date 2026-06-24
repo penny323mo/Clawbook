@@ -2658,8 +2658,16 @@ function SocialPostCard({
           const loadedIds = new Set(comments.map(c => c.id));
           const topLevel = comments.filter(c => !c.reply_to_id || !loadedIds.has(c.reply_to_id));
           const repliesFor = (id: string) => comments.filter(c => c.reply_to_id === id);
+          // Render the whole reply subtree at any depth (not just direct replies), so
+          // deeply nested comments still get a DOM anchor for activity-log focus.
+          const seenInThread = new Set<string>();
+          const collectThread = (c: Comment): Comment[] => {
+            if (seenInThread.has(c.id)) return [];
+            seenInThread.add(c.id);
+            return [c, ...repliesFor(c.id).flatMap(collectThread)];
+          };
           const visibleTop = showAllComments ? topLevel : topLevel.slice(-3);
-          const ordered = visibleTop.flatMap(c => [c, ...repliesFor(c.id)]);
+          const ordered = visibleTop.flatMap(collectThread);
           return ordered.map((comment) => {
           const cAuthor = getProfile(comment.author_id);
           const isMyComment = comment.author_id === currentProfile.id;
