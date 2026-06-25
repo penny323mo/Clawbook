@@ -4495,7 +4495,13 @@ function SocialApp() {
     setIsSyncing(true);
     let result: Awaited<ReturnType<typeof loadAllSocialData>>;
     try {
-      result = await loadAllSocialData();
+      // Render the member list / shell as soon as profiles arrive, without
+      // waiting for the heavy feed tables — avoids the 2-3s pop where newer
+      // members (only in Supabase, not the seed bundle) appear late.
+      result = await loadAllSocialData((core) => {
+        setProfilesList(core.profiles);
+        setPollVotes(core.pollVotes);
+      });
     } catch (err) {
       setIsSyncing(false);
       setSyncError(String(err));

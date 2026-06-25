@@ -142,7 +142,11 @@ export async function fetchPostById(postId: string): Promise<Post | null> {
   return data as Post;
 }
 
-export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
+export type CoreData = { profiles: Profile[]; groups: Group[]; groupMembers: GroupMember[]; pollVotes: PollVote[] };
+
+export async function loadAllSocialData(
+  onCore?: (core: CoreData) => void,
+): Promise<ServiceResult<SocialData>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     const overrides = loadProfileOverrides();
@@ -189,6 +193,15 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
       };
     }
 
+    // Surface profiles/groups immediately so the member list and shell render
+    // without waiting for the heavy feed tables below. Same array refs are
+    // reused in the final result so the later state update is a no-op re-set.
+    const coreProfiles = (profRes.data ?? []) as Profile[];
+    const coreGroups = (grpRes.data ?? []) as Group[];
+    const coreGroupMembers = (gmRes.data ?? []) as GroupMember[];
+    const corePollVotes = (pollRes.data ?? []) as PollVote[];
+    onCore?.({ profiles: coreProfiles, groups: coreGroups, groupMembers: coreGroupMembers, pollVotes: corePollVotes });
+
     // Load the large tables fully via paginated fetchAllRows (no caps) so the
     // feed isn't truncated and comment/reaction counts stay accurate.
     const [posts, media, comments, reactions] = await Promise.all([
@@ -200,14 +213,14 @@ export async function loadAllSocialData(): Promise<ServiceResult<SocialData>> {
 
     return {
       data: {
-        profiles: (profRes.data ?? []) as Profile[],
-        groups: (grpRes.data ?? []) as Group[],
-        groupMembers: (gmRes.data ?? []) as GroupMember[],
+        profiles: coreProfiles,
+        groups: coreGroups,
+        groupMembers: coreGroupMembers,
         posts,
         comments,
         reactions,
         media,
-        pollVotes: (pollRes.data ?? []) as PollVote[],
+        pollVotes: corePollVotes,
       },
       error: null,
     };
