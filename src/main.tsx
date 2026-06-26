@@ -61,6 +61,7 @@ const REACTION_OPTIONS = ["👍", "👎", "❤️", "🔥", "🤔", "😂", "�
 const PAGE_SIZE = 20;
 let pendingScrollPostId: string | null = null;
 let pendingScrollCommentId: string | null = null;
+let pendingScrollBlock: ScrollLogicalPosition | null = null;
 
 const COLOR_THEMES = [
   { id: "blue",   label: "Blue",   swatch: "#1877f2" },
@@ -2922,12 +2923,14 @@ function Feed({
       const targetId = pendingScrollPostId;
       if (!targetId) return;
       const commentId = pendingScrollCommentId;
+      const block = pendingScrollBlock ?? "center";
       pendingScrollPostId = null;
       pendingScrollCommentId = null;
+      pendingScrollBlock = null;
       const attempt = (tries: number) => {
         const el = document.getElementById(`post-card-${targetId}`);
         if (el) {
-          smoothScrollIntoView(el, { block: "center" });
+          smoothScrollIntoView(el, { block });
           el.classList.add("post-highlight");
           setTimeout(() => el.classList.remove("post-highlight"), 2200);
           if (commentId) {
@@ -4798,6 +4801,7 @@ function SocialApp() {
     if (route.name !== "post") { sharedScrollDoneRef.current = null; return; }
     if (sharedScrollDoneRef.current === route.id) return;
     pendingScrollPostId = route.id;
+    pendingScrollBlock = "start"; // shared link: align to post header, not center
     window.dispatchEvent(new CustomEvent("clawbook:focus-post"));
     if (visiblePosts.some((p) => p.id === route.id)) sharedScrollDoneRef.current = route.id;
   }, [route, visiblePosts]);
