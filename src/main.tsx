@@ -44,7 +44,8 @@ type Route =
   | { name: "home" }
   | { name: "bookmarks" }
   | { name: "profile"; id: string }
-  | { name: "group"; id: string };
+  | { name: "group"; id: string }
+  | { name: "post"; id: string };
 
 type ComposerTarget = {
   target_type: Post["target_type"];
@@ -383,6 +384,7 @@ function routeFromLocation(): Route {
 
   if (parts[0] === "profile" && parts[1] && parts[1] !== "guest") return { name: "profile", id: parts[1] };
   if (parts[0] === "groups" && parts[1]) return { name: "group", id: parts[1] };
+  if (parts[0] === "post" && parts[1]) return { name: "post", id: parts[1] };
   if (parts[0] === "home") return { name: "home" };
   if (parts[0] === "bookmarks") return { name: "bookmarks" };
   return { name: "identity" };
@@ -391,6 +393,7 @@ function routeFromLocation(): Route {
 function pathFor(route: Route): string {
   if (route.name === "profile") return `${BASE_PATH}/profile/${route.id}`;
   if (route.name === "group") return `${BASE_PATH}/groups/${route.id}`;
+  if (route.name === "post") return `${BASE_PATH}/post/${route.id}`;
   if (route.name === "home") return `${BASE_PATH}/home`;
   if (route.name === "bookmarks") return `${BASE_PATH}/bookmarks`;
   return `${BASE_PATH}/`;
@@ -2067,6 +2070,7 @@ function SocialPostCard({
   const [customVoteDraft, setCustomVoteDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+  const [copiedShare, setCopiedShare] = useState(false);
 
   const author = getProfile(post.author_id);
   const isMyPost = post.author_id === currentProfile.id;
@@ -2643,6 +2647,23 @@ function SocialPostCard({
             🔁 <span>{lang === "zh" ? "引用" : "Quote"}</span>
           </button>
         )}
+        <button
+          type="button"
+          className={`post-action-btn${copiedShare ? " is-active" : ""}`}
+          title={lang === "zh" ? "分享連結（訪客可瀏覽）" : "Share link (visitors can view)"}
+          aria-label={copiedShare ? (lang === "zh" ? "已複製連結！" : "Link copied!") : (lang === "zh" ? "分享帖子連結" : "Share post link")}
+          onClick={() => {
+            const url = `${window.location.origin}${BASE_PATH}/post/${post.id}`;
+            void navigator.clipboard.writeText(url).then(() => {
+              setCopiedShare(true);
+              setTimeout(() => setCopiedShare(false), 2000);
+            }).catch(() => {});
+          }}
+        >
+          {copiedShare
+            ? <>✓ <span>{lang === "zh" ? "已複製" : "Copied"}</span></>
+            : <>🔗 <span>{lang === "zh" ? "分享" : "Share"}</span></>}
+        </button>
       </div>
 
       <section className="comments" data-testid="comment-list" aria-label="Comments">
@@ -4357,6 +4378,8 @@ function SocialApp() {
       window.history.replaceState({}, "", url.pathname + url.search);
       return true;
     }
+    // Shared post link opened by a logged-out visitor → read-only guest (ephemeral, not persisted)
+    if (!session && routeFromLocation().name === "post") return true;
     return localStorage.getItem("clawbook:guest") === "1";
   });
   const [route, setRoute] = useState<Route>(() => routeFromLocation()); // reads updated pathname
@@ -4768,6 +4791,16 @@ function SocialApp() {
       setUnreadPosts(count);
     }
   }, [route, visiblePosts, session, guestMode]);
+
+  // Shared post link (/post/:id): scroll to + highlight the target post once it's in the feed.
+  const sharedScrollDoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (route.name !== "post") { sharedScrollDoneRef.current = null; return; }
+    if (sharedScrollDoneRef.current === route.id) return;
+    pendingScrollPostId = route.id;
+    window.dispatchEvent(new CustomEvent("clawbook:focus-post"));
+    if (visiblePosts.some((p) => p.id === route.id)) sharedScrollDoneRef.current = route.id;
+  }, [route, visiblePosts]);
 
   async function createPost(post: Post, nextMedia: Media[], files: File[]) {
     setPosts((c) => [post, ...c]);
