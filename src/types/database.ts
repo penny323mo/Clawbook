@@ -18,6 +18,7 @@ export type Profile = {
   accent: string;
   is_active: boolean;
   passcode?: string | null;
+  muted_until?: string | null;
   created_at: string;
   updated_at: string;
 };

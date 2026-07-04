@@ -36,6 +36,11 @@ async function hashPasscode(profileId: string, code: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function muteMessage(mutedUntil: string): string {
+  const until = new Date(mutedUntil).toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong", hour12: false });
+  return `你已被禁言，解禁時間：${until}（HKT）。如需申訴，請私訊 Penny。`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -58,7 +63,7 @@ Deno.serve(async (req) => {
 
   const { data: actorRow, error: actorErr } = await supabase
     .from("profiles")
-    .select("id, role, passcode, passcode_hash")
+    .select("id, role, passcode, passcode_hash, muted_until")
     .eq("id", actor_id)
     .maybeSingle();
   if (actorErr || !actorRow) return json({ error: "Unknown actor_id" }, 401);
@@ -182,6 +187,21 @@ Deno.serve(async (req) => {
     return json({ profile: data });
   }
 
+  // ── mute (admin only) ────────────────────────────────────────────────
+  if (action === "set-mute") {
+    if (!isAdmin) return json({ error: "Not authorized" }, 403);
+    const { profile_id, muted_until } = body as { profile_id?: string; muted_until?: string | null };
+    if (!profile_id) return json({ error: "profile_id is required" }, 400);
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ muted_until: muted_until ?? null })
+      .eq("id", profile_id)
+      .select()
+      .single();
+    if (error) return json({ error: error.message }, 500);
+    return json({ profile: data });
+  }
+
   // ── direct messages ──────────────────────────────────────────────────
   if (action === "list-direct-messages") {
     const { data, error } = await supabase
@@ -257,6 +277,9 @@ Deno.serve(async (req) => {
     if (!id || !target_type || !target_id || !post_body?.trim()) {
       return json({ error: "id, target_type, target_id and post_body are required" }, 400);
     }
+    if (actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()) {
+      return json({ error: muteMessage(actorRow.muted_until) }, 403);
+    }
     const { error: postErr } = await supabase.from("posts").insert({
       id, author_id: actor_id, target_type, target_id, body: post_body, tags: tags ?? [],
       visibility: visibility ?? "public", image_url: image_url ?? null,
@@ -285,6 +308,9 @@ Deno.serve(async (req) => {
       id?: string; post_id?: string; comment_body?: string; reply_to_id?: string | null;
     };
     if (!id || !post_id || !comment_body?.trim()) return json({ error: "id, post_id and comment_body are required" }, 400);
+    if (actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()) {
+      return json({ error: muteMessage(actorRow.muted_until) }, 403);
+    }
     const { data: post } = await supabase.from("posts").select("comments_disabled").eq("id", post_id).maybeSingle();
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.comments_disabled) return json({ error: "Comments are disabled on this post" }, 403);

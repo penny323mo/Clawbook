@@ -34,6 +34,7 @@ import {
   registerProfile,
   deleteRegisteredProfile,
   verifyLogin,
+  setMute,
 } from "./lib/socialDataService";
 import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges, type RealtimeDelta } from "./lib/supabase";
 import type { Comment, DirectMessage, Group, Media, Post, PollVote, Profile, Reaction } from "./types/database";
@@ -100,6 +101,12 @@ function useReadOnly() { return useContext(ReadOnlyContext); }
 
 const SyncingContext = createContext(false);
 function useSyncing() { return useContext(SyncingContext); }
+
+// Developer/admin mode — off by default, requires re-entering the penny
+// passcode via the Settings panel to enable. Only ever true for penny's own
+// session; other identities never see the toggle at all.
+const AdminModeContext = createContext(false);
+function useAdminMode() { return useContext(AdminModeContext); }
 
 // ----- bookmarks -----
 
@@ -1085,6 +1092,9 @@ function Topbar({
   unreadDms,
   unreadNotifs,
   notifications,
+  adminMode,
+  onEnableAdminMode,
+  onDisableAdminMode,
   onMenu,
   onLogout,
   onMessages,
@@ -1096,6 +1106,9 @@ function Topbar({
   unreadDms?: number;
   unreadNotifs?: number;
   notifications?: AppNotification[];
+  adminMode?: boolean;
+  onEnableAdminMode?: (code: string) => Promise<boolean>;
+  onDisableAdminMode?: () => void;
   onMenu: () => void;
   onLogout: () => void;
   onMessages?: () => void;
@@ -1116,6 +1129,10 @@ function Topbar({
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const [devPromptOpen, setDevPromptOpen] = useState(false);
+  const [devCodeInput, setDevCodeInput] = useState("");
+  const [devSubmitting, setDevSubmitting] = useState(false);
+  const [devError, setDevError] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.theme = darkMode ? "dark" : "";
@@ -1305,6 +1322,53 @@ function Topbar({
                   />
                 ))}
               </div>
+              {currentProfile.id === "penny" && (
+                <>
+                  <div className="settings-divider" />
+                  <div className="settings-row">
+                    <span className="settings-label">{lang === "zh" ? "開發者模式" : "Developer mode"}</span>
+                    <button
+                      className={`settings-toggle${adminMode ? " is-active" : ""}`}
+                      type="button"
+                      aria-pressed={!!adminMode}
+                      onClick={() => {
+                        if (adminMode) { onDisableAdminMode?.(); setDevPromptOpen(false); setDevError(""); }
+                        else { setDevPromptOpen((v) => !v); setDevError(""); }
+                      }}
+                    >
+                      {adminMode ? `🔓 ${lang === "zh" ? "已開啟" : "On"}` : `🔒 ${lang === "zh" ? "關閉" : "Off"}`}
+                    </button>
+                  </div>
+                  {devPromptOpen && !adminMode && (
+                    <form
+                      className="settings-row"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!devCodeInput || !onEnableAdminMode) return;
+                        setDevSubmitting(true);
+                        setDevError("");
+                        const ok = await onEnableAdminMode(devCodeInput);
+                        setDevSubmitting(false);
+                        if (ok) { setDevPromptOpen(false); setDevCodeInput(""); }
+                        else setDevError(lang === "zh" ? "Passcode 錯誤" : "Wrong passcode");
+                      }}
+                    >
+                      <input
+                        type="password"
+                        value={devCodeInput}
+                        onChange={(e) => setDevCodeInput(e.target.value)}
+                        placeholder={lang === "zh" ? "輸入 Passcode" : "Enter passcode"}
+                        aria-label={lang === "zh" ? "開發者模式 Passcode" : "Developer mode passcode"}
+                        autoFocus
+                      />
+                      <button type="submit" disabled={devSubmitting || !devCodeInput}>
+                        {lang === "zh" ? "確認" : "Confirm"}
+                      </button>
+                    </form>
+                  )}
+                  {devError && <p style={{ color: "var(--danger, #c0392b)", fontSize: "0.85em", margin: "4px 0 0" }}>{devError}</p>}
+                </>
+              )}
               <div className="settings-divider" />
               <button
                 className="settings-logout-btn"
@@ -2075,6 +2139,7 @@ function SocialPostCard({
 
   const author = getProfile(post.author_id);
   const isMyPost = post.author_id === currentProfile.id;
+  const adminActive = useAdminMode() && currentProfile.id === "penny";
   const targetLabel =
     post.target_type === "group"
       ? getGroup(post.target_id).name
@@ -2198,8 +2263,10 @@ function SocialPostCard({
               >📌</button>
             )}
             {isMyPost && (
+              <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title={lang === "zh" ? "編輯" : "Edit"} aria-label={lang === "zh" ? "編輯帖子" : "Edit post"}>✏️</button>
+            )}
+            {(isMyPost || adminActive) && (
               <>
-                <button type="button" className="post-action-btn" onClick={() => setEditingPost(true)} title={lang === "zh" ? "編輯" : "Edit"} aria-label={lang === "zh" ? "編輯帖子" : "Edit post"}>✏️</button>
                 {onToggleComments && (
                   <button
                     type="button"
@@ -2800,18 +2867,18 @@ function SocialPostCard({
                       </button>
                     )}
                     {isMyComment && !isEditingThis && (
-                      <>
-                        <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
-                        {confirmDeleteCommentId === comment.id ? (
-                          <span className="confirm-delete-inline">
-                            <span className="confirm-delete-label">{lang === "zh" ? "確定？" : "Sure?"}</span>
-                            <button type="button" aria-label={lang === "zh" ? "確認刪除" : "Confirm delete"} onClick={() => { onDeleteComment(comment.id); setConfirmDeleteCommentId(null); }}>✓</button>
-                            <button type="button" aria-label={lang === "zh" ? "取消" : "Cancel delete"} onClick={() => setConfirmDeleteCommentId(null)}>✕</button>
-                          </span>
-                        ) : (
-                          <button type="button" onClick={() => setConfirmDeleteCommentId(comment.id)}>{t.delete}</button>
-                        )}
-                      </>
+                      <button type="button" onClick={() => startEditComment(comment)}>{t.edit}</button>
+                    )}
+                    {(isMyComment || adminActive) && !isEditingThis && (
+                      confirmDeleteCommentId === comment.id ? (
+                        <span className="confirm-delete-inline">
+                          <span className="confirm-delete-label">{lang === "zh" ? "確定？" : "Sure?"}</span>
+                          <button type="button" aria-label={lang === "zh" ? "確認刪除" : "Confirm delete"} onClick={() => { onDeleteComment(comment.id); setConfirmDeleteCommentId(null); }}>✓</button>
+                          <button type="button" aria-label={lang === "zh" ? "取消" : "Cancel delete"} onClick={() => setConfirmDeleteCommentId(null)}>✕</button>
+                        </span>
+                      ) : (
+                        <button type="button" onClick={() => setConfirmDeleteCommentId(comment.id)}>{t.delete}</button>
+                      )
                     )}
                   </div>
                 </div>
@@ -3180,7 +3247,22 @@ function ProfilePage({
   const { t, lang } = useLang();
   const readOnly = useReadOnly();
   const now = useNow();
+  const adminMode = useAdminMode();
   const isOwnProfile = profile.id === currentProfile.id;
+  const canModerate = adminMode && currentProfile.id === "penny" && !isOwnProfile;
+  const [muteProfile, setMuteProfile] = useState<Profile>(profile);
+  const [muteSubmitting, setMuteSubmitting] = useState(false);
+  const [muteError, setMuteError] = useState("");
+  useEffect(() => { setMuteProfile(profile); }, [profile]);
+  const isMuted = Boolean(muteProfile.muted_until && new Date(muteProfile.muted_until).getTime() > now);
+  async function applyMute(mutedUntil: string | null) {
+    setMuteSubmitting(true);
+    setMuteError("");
+    const res = await setMute(profile.id, mutedUntil, currentProfile.id, code);
+    setMuteSubmitting(false);
+    if (res.data) setMuteProfile(res.data);
+    else setMuteError(res.error || (lang === "zh" ? "操作失敗" : "Failed"));
+  }
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -3412,6 +3494,42 @@ function ProfilePage({
           </span>
         </div>
       </section>
+
+      {canModerate && (
+        <div className="profile-mod-panel">
+          <strong>{lang === "zh" ? "🔒 管理員：禁言" : "🔒 Admin: Mute"}</strong>
+          {isMuted ? (
+            <>
+              <p>
+                {lang === "zh" ? "禁言中，解禁時間：" : "Muted until: "}
+                {new Date(muteProfile.muted_until as string).toLocaleString(lang === "zh" ? "zh-HK" : "en-US")}
+              </p>
+              <button type="button" disabled={muteSubmitting} onClick={() => void applyMute(null)}>
+                {lang === "zh" ? "解除禁言" : "Unmute"}
+              </button>
+            </>
+          ) : (
+            <div className="profile-mod-mute-actions">
+              {[
+                { label: lang === "zh" ? "1 小時" : "1h", ms: 60 * 60 * 1000 },
+                { label: lang === "zh" ? "1 天" : "1d", ms: 24 * 60 * 60 * 1000 },
+                { label: lang === "zh" ? "3 天" : "3d", ms: 3 * 24 * 60 * 60 * 1000 },
+                { label: lang === "zh" ? "7 天" : "7d", ms: 7 * 24 * 60 * 60 * 1000 },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  disabled={muteSubmitting}
+                  onClick={() => void applyMute(new Date(Date.now() + opt.ms).toISOString())}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {muteError && <p style={{ color: "var(--danger, #c0392b)", fontSize: "0.85em" }}>{muteError}</p>}
+        </div>
+      )}
 
       {isOwnProfile && !readOnly && (
         <div className="composer-toggle-bar">
@@ -4419,6 +4537,22 @@ function SocialApp() {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messagesInitWith, setMessagesInitWith] = useState<Profile | null>(null);
 
+  // Developer/admin mode — off by default even for penny's own session;
+  // re-verifies the real passcode via Settings before granting moderation
+  // powers over other people's posts/comments. Resets on tab close (sessionStorage).
+  const [adminMode, setAdminMode] = useState(() => sessionStorage.getItem("clawbook:admin_mode") === "1");
+  async function enableAdminMode(code: string): Promise<boolean> {
+    const result = await verifyLogin("penny", code);
+    if (!result.data) return false;
+    setAdminMode(true);
+    sessionStorage.setItem("clawbook:admin_mode", "1");
+    return true;
+  }
+  function disableAdminMode() {
+    setAdminMode(false);
+    sessionStorage.removeItem("clawbook:admin_mode");
+  }
+
   // Verify any ?as=&code= / short-path auto-login server-side before granting a session.
   useEffect(() => {
     if (!autoLoginCandidate) return;
@@ -4902,7 +5036,7 @@ function SocialApp() {
 
       const result = await persistPost(post, persistedMedia, session!.code);
       if (result.error) {
-        setSaveError(`Failed to save post: ${result.error}`);
+        setSaveError(result.error.includes("禁言") ? result.error : `Failed to save post: ${result.error}`);
         rollbackPost();
       }
     } catch (err) {
@@ -5050,7 +5184,7 @@ function SocialApp() {
     try {
       const result = await persistComment(comment, session!.code);
       if (result.error) {
-        setSaveError(`Failed to save comment: ${result.error}`);
+        setSaveError(result.error.includes("禁言") ? result.error : `Failed to save comment: ${result.error}`);
         rollbackComment();
       }
     } catch (err) {
@@ -5504,6 +5638,7 @@ function SocialApp() {
     <BookmarkContext.Provider value={bookmarkCtxValue}>
       <SyncingContext.Provider value={isSyncing}>
       <ReadOnlyContext.Provider value={guestMode}>
+      <AdminModeContext.Provider value={adminMode}>
       <div className="app-shell" data-testid="app">
         <a href="#main-content" className="skip-nav">{lang === "zh" ? "跳到主要內容" : "Skip to main content"}</a>
         <Topbar
@@ -5513,6 +5648,9 @@ function SocialApp() {
           unreadDms={unreadDms}
           unreadNotifs={unreadNotifs}
           notifications={notifications}
+          adminMode={adminMode}
+          onEnableAdminMode={enableAdminMode}
+          onDisableAdminMode={disableAdminMode}
           onMenu={() => setSidebarOpen(true)}
           onMessages={() => { setUnreadDms(0); setMessagesOpen(true); }}
           onNotifRead={markNotifsRead}
@@ -5565,6 +5703,7 @@ function SocialApp() {
           />
         )}
       </div>
+      </AdminModeContext.Provider>
       </ReadOnlyContext.Provider>
       </SyncingContext.Provider>
     </BookmarkContext.Provider>

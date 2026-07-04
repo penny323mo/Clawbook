@@ -1137,6 +1137,27 @@ p {
   font-size: 0.84rem;
 }
 
+.profile-mod-panel {
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--danger, #c0392b);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  display: grid;
+  gap: 8px;
+}
+
+.profile-mod-panel strong {
+  color: var(--danger, #c0392b);
+  font-size: 0.85rem;
+}
+
+.profile-mod-mute-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .home-intro {
   padding-top: 16px;
 }
