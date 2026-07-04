@@ -33,8 +33,8 @@ import {
   uploadMediaFile,
   registerProfile,
   deleteRegisteredProfile,
+  verifyLogin,
 } from "./lib/socialDataService";
-import { checkPasscode, requiresPasscode } from "./lib/passcodes";
 import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges, type RealtimeDelta } from "./lib/supabase";
 import type { Comment, DirectMessage, Group, Media, Post, PollVote, Profile, Reaction } from "./types/database";
 import "./styles.css";
@@ -319,7 +319,9 @@ function useLang(): { t: Translations; lang: Lang; setLang: (l: Lang) => void } 
 
 // ----- auto-login via URL -----
 
-function resolveAutoLogin(): Profile | null {
+// Matches a profile from the URL only — passcode is verified server-side
+// (async, see verifyLogin) since the client no longer holds real passcodes.
+function resolveAutoLoginCandidate(): { profile: Profile; code: string } | null {
   const params = new URLSearchParams(window.location.search);
   const asParam = params.get("as");
   const codeParam = params.get("code") ?? "";
@@ -327,28 +329,22 @@ function resolveAutoLogin(): Profile | null {
   if (asParam) {
     const slug = asParam.toLowerCase();
     const p = profiles.find((pr) => matchProfileSlug(pr, slug));
-    if (p && checkPasscode(p.id, codeParam)) {
-      window.history.replaceState({}, "", `${BASE_PATH}/home`);
-      return p;
-    }
-    // ?as= present but passcode wrong/missing — strip code from URL, let picker handle it
+    // Strip the code from the URL immediately so it doesn't linger in history,
+    // regardless of whether verification below ends up succeeding.
     const url = new URL(window.location.href);
     url.searchParams.delete("code");
     window.history.replaceState({}, "", url.toString());
-    return null;
+    return p ? { profile: p, code: codeParam } : null;
   }
 
-  // /penny  or  /Orion short path (passcode still required via picker)
+  // /penny  or  /Orion short path
   const pathname = window.location.pathname;
   const stripped = pathname.startsWith(BASE_PATH) ? pathname.slice(BASE_PATH.length) || "/" : pathname;
   const parts = stripped.split("/").filter(Boolean);
   if (parts.length === 1) {
     const slug = parts[0].toLowerCase();
     const p = profiles.find((pr) => matchProfileSlug(pr, slug));
-    if (p && checkPasscode(p.id, "")) {
-      window.history.replaceState({}, "", `${BASE_PATH}/home`);
-      return p;
-    }
+    if (p) return { profile: p, code: "" };
   }
 
   return null;
@@ -702,7 +698,7 @@ function IdentityEntry({
   liveProfiles,
   onRefresh,
 }: {
-  onEnter: (profile: Profile) => void;
+  onEnter: (profile: Profile, code: string) => void;
   onGuestEnter: () => void;
   liveProfiles: Profile[];
   onRefresh: () => void;
@@ -710,6 +706,7 @@ function IdentityEntry({
   const { t, lang } = useLang();
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({});
   const [showAll, setShowAll] = useState(false);
   const [activeInput, setActiveInput] = useState<string | null>(null);
 
@@ -737,11 +734,14 @@ function IdentityEntry({
     ? displayProfiles.find((pr) => matchProfileSlug(pr, asParam)) ?? null
     : null;
 
-  function attemptEnter(profile: Profile) {
+  async function attemptEnter(profile: Profile) {
     const input = codes[profile.id] ?? "";
-    if (checkPasscode(profile.id, input, profile.passcode)) {
+    setVerifying((v) => ({ ...v, [profile.id]: true }));
+    const result = await verifyLogin(profile.id, input);
+    setVerifying((v) => ({ ...v, [profile.id]: false }));
+    if (result.data) {
       setErrors((c) => ({ ...c, [profile.id]: false }));
-      onEnter(profile);
+      onEnter(result.data, input);
     } else {
       setErrors((c) => ({ ...c, [profile.id]: true }));
     }
@@ -828,7 +828,7 @@ function IdentityEntry({
               </div>
               <form
                 className="identity-body"
-                onSubmit={(e) => { e.preventDefault(); attemptEnter(profile); }}
+                onSubmit={(e) => { e.preventDefault(); void attemptEnter(profile); }}
               >
                 <h2>{profile.display_name}</h2>
                 <p className="identity-role">{profile.role}</p>
@@ -850,8 +850,8 @@ function IdentityEntry({
                   }}
                 />
                 {errors[profile.id] && <span className="passcode-error" role="alert">{lang === "zh" ? "密碼錯誤" : "Incorrect code"}</span>}
-                <button data-testid="identity-enter-button" type="submit">
-                  {t.enterAs(profile.display_name)}
+                <button data-testid="identity-enter-button" type="submit" disabled={!!verifying[profile.id]}>
+                  {verifying[profile.id] ? "..." : t.enterAs(profile.display_name)}
                 </button>
               </form>
             </article>
@@ -2696,7 +2696,31 @@ function SocialPostCard({
             seenInThread.add(c.id);
             return [c, ...repliesFor(c.id).flatMap(collectThread)];
           };
-          const visibleTop = showAllComments ? topLevel : topLevel.slice(-3);
+          // Pick visible threads by most recent activity (incl. nested replies),
+          // so a new reply to an old comment surfaces instead of being hidden by slice(-3).
+          const subtreeLatest = (id: string, ts: number, guard: Set<string>): number => {
+            if (guard.has(id)) return ts;
+            guard.add(id);
+            let max = ts;
+            for (const r of repliesFor(id)) {
+              max = Math.max(max, subtreeLatest(r.id, new Date(r.created_at).getTime(), guard));
+            }
+            return max;
+          };
+          let visibleTop: Comment[];
+          if (showAllComments) {
+            visibleTop = topLevel;
+          } else {
+            const top3Ids = new Set(
+              [...topLevel]
+                .sort((a, b) =>
+                  subtreeLatest(b.id, new Date(b.created_at).getTime(), new Set()) -
+                  subtreeLatest(a.id, new Date(a.created_at).getTime(), new Set()))
+                .slice(0, 3)
+                .map((c) => c.id),
+            );
+            visibleTop = topLevel.filter((c) => top3Ids.has(c.id));
+          }
           const ordered = visibleTop.flatMap(collectThread);
           return ordered.map((comment) => {
           const cAuthor = getProfile(comment.author_id);
@@ -2729,6 +2753,9 @@ function SocialPostCard({
                     {parentComment && (
                       <span className="reply-to-label">
                         ↩ {getProfile(parentComment.author_id).display_name}
+                        {parentComment.body ? (
+                          <span className="reply-to-quote">「{parentComment.body.slice(0, 40)}{parentComment.body.length > 40 ? "…" : ""}」</span>
+                        ) : null}
                       </span>
                     )}
                     <p><Linkified text={comment.body} /></p>
@@ -4000,11 +4027,13 @@ function BackToTop() {
 
 function MessagesPanel({
   currentProfile,
+  code,
   allProfiles,
   initialWith,
   onClose,
 }: {
   currentProfile: Profile;
+  code: string;
   allProfiles: Profile[];
   initialWith?: Profile | null;
   onClose: () => void;
@@ -4029,7 +4058,7 @@ function MessagesPanel({
 
   // Load from Supabase on mount and merge with localStorage
   useEffect(() => {
-    loadDirectMessages(currentProfile.id).then((result) => {
+    loadDirectMessages(currentProfile.id, code).then((result) => {
       if (result.data && result.data.length > 0) {
         setDms((local) => {
           const merged = [...result.data!];
@@ -4042,7 +4071,7 @@ function MessagesPanel({
         });
       }
     }).catch(() => {});
-  }, [currentProfile.id]);
+  }, [currentProfile.id, code]);
 
   // Realtime: read receipts — update read=true when recipient reads my sent DMs
   useEffect(() => {
@@ -4102,7 +4131,7 @@ function MessagesPanel({
       saveDMs(updated);
       return updated;
     });
-    void markMessagesRead(profile.id, currentProfile.id).catch(() => {});
+    void markMessagesRead(profile.id, currentProfile.id, code).catch(() => {});
   }
 
   const [dmSendError, setDmSendError] = useState<string | null>(null);
@@ -4127,7 +4156,7 @@ function MessagesPanel({
     if (composeRef.current) composeRef.current.style.height = "auto";
     setTimeout(() => { if (threadEndRef.current) smoothScrollIntoView(threadEndRef.current); }, 30);
     try {
-      const result = await persistDirectMessage(msg);
+      const result = await persistDirectMessage(msg, code);
       if (result?.error) {
         setDmSendError("Failed to send message");
         setDms((prev) => { const next = prev.filter((m) => m.id !== msg.id); saveDMs(next); return next; });
@@ -4161,7 +4190,7 @@ function MessagesPanel({
       return next;
     });
     try {
-      await Promise.all(newMsgs.map((m) => persistDirectMessage(m)));
+      await Promise.all(newMsgs.map((m) => persistDirectMessage(m, code)));
       setBroadcastSent(true);
       setBroadcastDraft("");
       setBroadcastRecipients(new Set());
@@ -4363,14 +4392,12 @@ function SocialApp() {
     document.documentElement.lang = lang === "zh" ? "zh-HK" : "en";
   }, [lang]);
 
-  const [session, setSession] = useState(() => {
-    const auto = resolveAutoLogin(); // side-effect: replaceState to /home if matched
-    if (auto) {
-      localStorage.removeItem("clawbook:guest");
-      return saveIdentitySession(auto);
-    }
-    return loadIdentitySession();
-  });
+  const [session, setSession] = useState(() => loadIdentitySession());
+  // Auto-login candidate from ?as=&code= or /<slug> — verified async below since
+  // the client no longer holds real passcodes to check against synchronously.
+  const [autoLoginCandidate] = useState(() =>
+    loadIdentitySession() ? null : resolveAutoLoginCandidate(), // side-effect: strips ?code= from URL
+  );
   const [guestMode, setGuestMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("guest") === "1" || params.get("as") === "guest") {
@@ -4389,6 +4416,21 @@ function SocialApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messagesInitWith, setMessagesInitWith] = useState<Profile | null>(null);
+
+  // Verify any ?as=&code= / short-path auto-login server-side before granting a session.
+  useEffect(() => {
+    if (!autoLoginCandidate) return;
+    let cancelled = false;
+    verifyLogin(autoLoginCandidate.profile.id, autoLoginCandidate.code).then((result) => {
+      if (cancelled || !result.data) return;
+      localStorage.removeItem("clawbook:guest");
+      setSession(saveIdentitySession(result.data, autoLoginCandidate.code));
+      window.history.replaceState({}, "", `${BASE_PATH}/home`);
+      setRoute({ name: "home" });
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const countUnreadDms = useCallback(() => {
     if (guestMode || !session) return 0;
@@ -4421,7 +4463,7 @@ function SocialApp() {
     if (!session || guestMode) return;
     const profileId = session.profileId;
     const sync = () =>
-      loadDirectMessages(profileId).then((result) => {
+      loadDirectMessages(profileId, session.code).then((result) => {
         if (!result.data) return;
         const existing = loadDMs();
         const merged = [...result.data];
@@ -5069,7 +5111,7 @@ function SocialApp() {
       }
     };
     try {
-      const result = await toggleReaction(reactionData);
+      const result = await toggleReaction(reactionData, session!.code);
       if (result.error) { setSaveError(`Failed to save reaction: ${result.error}`); rollbackReaction(); }
     } catch (err) {
       setSaveError(`Failed to save reaction: ${String(err)}`);
@@ -5128,7 +5170,7 @@ function SocialApp() {
       }
     };
     try {
-      const result = await toggleReaction(reactionData);
+      const result = await toggleReaction(reactionData, session!.code);
       if (result.error) { setSaveError(`Failed to save reaction: ${result.error}`); rollbackPostReaction(); }
     } catch (err) {
       setSaveError(`Failed to save reaction: ${String(err)}`);
@@ -5148,7 +5190,7 @@ function SocialApp() {
       setPollVotes((c) => [...c.filter((v) => !(v.post_id === postId && v.profile_id === currentProfile.id)), newVote]);
     }
     try {
-      const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx, customText);
+      const result = await castPollVote(postId, currentProfile.id, optionIdx, currentVoteIdx, customText, session!.code);
       if (result.error) {
         setSaveError(`Failed to record vote: ${result.error}`);
         setPollVotes(prevVotes);
@@ -5165,7 +5207,7 @@ function SocialApp() {
   async function togglePin(postId: string, pinned: boolean) {
     setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: pinned } : p)));
     try {
-      const result = await pinPost(postId, pinned);
+      const result = await pinPost(postId, pinned, currentProfile.id, session!.code);
       if (result.error) {
         setPosts((c) => c.map((p) => (p.id === postId ? { ...p, is_pinned: !pinned } : p)));
         setSaveError(`Failed to pin post: ${result.error}`);
@@ -5179,7 +5221,7 @@ function SocialApp() {
   async function toggleCommentsDisabled(postId: string, disabled: boolean) {
     setPosts((c) => c.map((p) => (p.id === postId ? { ...p, comments_disabled: disabled } : p)));
     try {
-      const result = await setCommentsDisabled(postId, disabled);
+      const result = await setCommentsDisabled(postId, disabled, currentProfile.id, session!.code);
       if (result.error) {
         setPosts((c) => c.map((p) => (p.id === postId ? { ...p, comments_disabled: !disabled } : p)));
         setSaveError(`Failed to update comments: ${result.error}`);
@@ -5197,7 +5239,7 @@ function SocialApp() {
     setPosts((c) => c.map((p) => (p.id === postId ? { ...p, body, tags, updated_at } : p)));
     setIsSaving(true);
     try {
-      const result = await updatePost(postId, { body, tags });
+      const result = await updatePost(postId, { body, tags }, currentProfile.id, session!.code);
       if (result.error) {
         setSaveError(`Failed to update post: ${result.error}`);
         setPosts((c) => c.map((p) => (p.id === postId ? prev : p)));
@@ -5220,7 +5262,7 @@ function SocialApp() {
     setReactions((r) => r.filter((rx) => rx.post_id !== postId));
     setIsSaving(true);
     try {
-      const result = await deletePost(postId);
+      const result = await deletePost(postId, currentProfile.id, session!.code);
       if (result.error) {
         setSaveError(`Failed to delete post: ${result.error}`);
         setPosts((c) => [prev, ...c]);
@@ -5244,7 +5286,7 @@ function SocialApp() {
     setComments((c) => c.map((cm) => (cm.id === commentId ? { ...cm, body, updated_at: comment_updated_at } : cm)));
     setIsSaving(true);
     try {
-      const result = await updateComment(commentId, body);
+      const result = await updateComment(commentId, body, currentProfile.id, session!.code);
       if (result.error) {
         setSaveError(`Failed to update comment: ${result.error}`);
         setComments((c) => c.map((cm) => (cm.id === commentId ? prev : cm)));
@@ -5265,7 +5307,7 @@ function SocialApp() {
     setReactions((r) => r.filter((rx) => rx.comment_id !== commentId));
     setIsSaving(true);
     try {
-      const result = await deleteComment(commentId);
+      const result = await deleteComment(commentId, currentProfile.id, session!.code);
       if (result.error) {
         setSaveError(`Failed to delete comment: ${result.error}`);
         setComments((c) => [...c, prev]);
@@ -5288,10 +5330,10 @@ function SocialApp() {
         <IdentityEntry
           liveProfiles={profilesList}
           onRefresh={() => void syncAllData()}
-          onEnter={(profile) => {
+          onEnter={(profile, code) => {
             localStorage.removeItem("clawbook:guest");
             setGuestMode(false);
-            setSession(saveIdentitySession(profile));
+            setSession(saveIdentitySession(profile, code));
             navigate({ name: "home" });
           }}
           onGuestEnter={() => {
@@ -5364,7 +5406,7 @@ function SocialApp() {
         allProfiles={profilesList}
         onEditProfile={async (bio, status, accent, role, avatarUrl) => {
           try {
-            const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl });
+            const result = await updateProfile(currentProfile.id, { bio, status, accent, role, avatar_url: avatarUrl }, session!.code);
             if (result.error) { setSaveError(`Failed to update profile: ${result.error}`); return; }
             setProfilesList((c) =>
               c.map((p) => p.id === currentProfile.id ? { ...p, bio, status, accent, role, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) } : p),
@@ -5513,6 +5555,7 @@ function SocialApp() {
         {messagesOpen && !guestMode && (
           <MessagesPanel
             currentProfile={currentProfile}
+            code={session!.code}
             allProfiles={profilesList.length > 0 ? profilesList : profiles}
             initialWith={messagesInitWith}
             onClose={() => { setMessagesOpen(false); setMessagesInitWith(null); setUnreadDms(countUnreadDms()); }}

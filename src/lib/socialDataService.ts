@@ -17,7 +17,46 @@ const SUPABASE_ANON = (
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
 )?.trim() ?? "";
 
+// Cap the initial comment download so per-entry payload stays bounded as the
+// comment table grows. Covers recent activity for bump-sort + active cards;
+// older threads lazy-load in full via fetchAllCommentsForPost when opened.
+const RECENT_COMMENT_LIMIT = 1500;
+
 let forceMockFallback = typeof window !== "undefined" && localStorage.getItem("clawbook:forceMock") === "true";
+
+async function callSecureMutate(
+  action: string,
+  payload: Record<string, unknown>,
+): Promise<{ data: Record<string, unknown> | null; error: string | null }> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/secure-mutate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON,
+        "Authorization": `Bearer ${SUPABASE_ANON}`,
+      },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const data = await res.json() as Record<string, unknown>;
+    if (!res.ok) return { data: null, error: (data.error as string) ?? "Request failed" };
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: String(err) };
+  }
+}
+
+export async function verifyLogin(profileId: string, code: string): Promise<ServiceResult<Profile>> {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) {
+    const seed = seedProfiles.find((p) => p.id === profileId);
+    if (!seed) return { data: null, error: "Unknown profile" };
+    if (!checkPasscode(profileId, code, seed.passcode)) return { data: null, error: "Invalid passcode" };
+    return { data: seed, error: null };
+  }
+  const { data, error } = await callSecureMutate("verify-login", { actor_id: profileId, code });
+  if (error) return { data: null, error };
+  return { data: data!.profile as Profile, error: null };
+}
 
 async function fetchAllRows<T>(
   queryBuilder: { range(from: number, to: number): Promise<{ data: T[] | null; error: unknown }> }
@@ -166,7 +205,7 @@ export async function loadAllSocialData(
 
   try {
     const [profRes, grpRes, gmRes, pollRes] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at"),
+      supabase.from("profiles").select("id, username, display_name, role, kind, avatar_url, avatar_initials, cover_url, bio, status, accent, is_active, created_at, updated_at").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
       supabase.from("poll_votes").select("*"),
@@ -202,14 +241,20 @@ export async function loadAllSocialData(
     const corePollVotes = (pollRes.data ?? []) as PollVote[];
     onCore?.({ profiles: coreProfiles, groups: coreGroups, groupMembers: coreGroupMembers, pollVotes: corePollVotes });
 
-    // Load the large tables fully via paginated fetchAllRows (no caps) so the
-    // feed isn't truncated and comment/reaction counts stay accurate.
-    const [posts, media, comments, reactions] = await Promise.all([
+    // Posts + reactions load fully (posts power scroll-back to old threads;
+    // reaction counts power the "top" sort). Comments are capped to the most
+    // recent RECENT_COMMENT_LIMIT — enough to drive activity-bump ordering and
+    // render active cards — while old threads lazy-load their full comments on
+    // demand via fetchAllCommentsForPost. Keeps per-entry payload bounded as the
+    // comment table grows, without truncating the post feed.
+    const [posts, media, recentComments, reactions] = await Promise.all([
       fetchAllRows<Post>(supabase.from("posts").select("*").order("created_at", { ascending: false }) as never),
       fetchAllRows<Media>(supabase.from("media").select("*").order("created_at", { ascending: false }) as never),
-      fetchAllRows<Comment>(supabase.from("comments").select("*").order("created_at") as never),
+      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(RECENT_COMMENT_LIMIT)
+        .then(({ data }) => ((data ?? []) as Comment[]).reverse()),
       fetchAllRows<Reaction>(supabase.from("reactions").select("id,post_id,comment_id,author_id,emoji,created_at").order("created_at") as never),
     ]);
+    const comments = recentComments;
 
     return {
       data: {
@@ -295,6 +340,8 @@ export async function persistPost(post: Post, newMedia: Media[]): Promise<Servic
 export async function updatePost(
   postId: string,
   updates: { body: string; tags: string[] },
+  actorId: string,
+  code: string,
 ): Promise<ServiceResult<Post>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
@@ -306,17 +353,14 @@ export async function updatePost(
     return updated ? { data: updated, error: null } : { data: null, error: "Post not found" };
   }
 
-  const { data, error } = await supabase
-    .from("posts")
-    .update({ body: updates.body, tags: updates.tags, updated_at: new Date().toISOString() })
-    .eq("id", postId)
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  return { data: data as Post, error: null };
+  const { data, error } = await callSecureMutate("update-post", {
+    actor_id: actorId, code, post_id: postId, post_body: updates.body, tags: updates.tags,
+  });
+  if (error) return { data: null, error };
+  return { data: data!.post as Post, error: null };
 }
 
-export async function pinPost(postId: string, pinned: boolean): Promise<ServiceResult<Post>> {
+export async function pinPost(postId: string, pinned: boolean, actorId: string, code: string): Promise<ServiceResult<Post>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.map((p) => p.id === postId ? { ...p, is_pinned: pinned } : p);
@@ -324,17 +368,12 @@ export async function pinPost(postId: string, pinned: boolean): Promise<ServiceR
     const updated = mock.posts.find((p) => p.id === postId);
     return updated ? { data: updated, error: null } : { data: null, error: "Post not found" };
   }
-  const { data, error } = await supabase
-    .from("posts")
-    .update({ is_pinned: pinned })
-    .eq("id", postId)
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  return { data: data as Post, error: null };
+  const { data, error } = await callSecureMutate("pin-post", { actor_id: actorId, code, post_id: postId, pinned });
+  if (error) return { data: null, error };
+  return { data: data!.post as Post, error: null };
 }
 
-export async function setCommentsDisabled(postId: string, disabled: boolean): Promise<ServiceResult<Post>> {
+export async function setCommentsDisabled(postId: string, disabled: boolean, actorId: string, code: string): Promise<ServiceResult<Post>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.map((p) => p.id === postId ? { ...p, comments_disabled: disabled } : p);
@@ -342,17 +381,12 @@ export async function setCommentsDisabled(postId: string, disabled: boolean): Pr
     const updated = mock.posts.find((p) => p.id === postId);
     return updated ? { data: updated, error: null } : { data: null, error: "Post not found" };
   }
-  const { data, error } = await supabase
-    .from("posts")
-    .update({ comments_disabled: disabled })
-    .eq("id", postId)
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  return { data: data as Post, error: null };
+  const { data, error } = await callSecureMutate("set-comments-disabled", { actor_id: actorId, code, post_id: postId, disabled });
+  if (error) return { data: null, error };
+  return { data: data!.post as Post, error: null };
 }
 
-export async function deletePost(postId: string): Promise<ServiceResult<{ deleted: true }>> {
+export async function deletePost(postId: string, actorId: string, code: string): Promise<ServiceResult<{ deleted: true }>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = mock.posts.filter((p) => p.id !== postId);
@@ -360,8 +394,8 @@ export async function deletePost(postId: string): Promise<ServiceResult<{ delete
     return { data: { deleted: true }, error: null };
   }
 
-  const { error } = await supabase.from("posts").delete().eq("id", postId);
-  if (error) return { data: null, error: error.message };
+  const { error } = await callSecureMutate("delete-post", { actor_id: actorId, code, post_id: postId });
+  if (error) return { data: null, error };
   return { data: { deleted: true }, error: null };
 }
 
@@ -396,6 +430,8 @@ export async function persistComment(comment: Comment): Promise<ServiceResult<Co
 export async function updateComment(
   commentId: string,
   body: string,
+  actorId: string,
+  code: string,
 ): Promise<ServiceResult<Comment>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
@@ -407,17 +443,14 @@ export async function updateComment(
     return updated ? { data: updated, error: null } : { data: null, error: "Comment not found" };
   }
 
-  const { data, error } = await supabase
-    .from("comments")
-    .update({ body, updated_at: new Date().toISOString() })
-    .eq("id", commentId)
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  return { data: data as Comment, error: null };
+  const { data, error } = await callSecureMutate("update-comment", {
+    actor_id: actorId, code, comment_id: commentId, comment_body: body,
+  });
+  if (error) return { data: null, error };
+  return { data: data!.comment as Comment, error: null };
 }
 
-export async function deleteComment(commentId: string): Promise<ServiceResult<{ deleted: true }>> {
+export async function deleteComment(commentId: string, actorId: string, code: string): Promise<ServiceResult<{ deleted: true }>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.comments = mock.comments.filter((c) => c.id !== commentId);
@@ -425,13 +458,14 @@ export async function deleteComment(commentId: string): Promise<ServiceResult<{ 
     return { data: { deleted: true }, error: null };
   }
 
-  const { error } = await supabase.from("comments").delete().eq("id", commentId);
-  if (error) return { data: null, error: error.message };
+  const { error } = await callSecureMutate("delete-comment", { actor_id: actorId, code, comment_id: commentId });
+  if (error) return { data: null, error };
   return { data: { deleted: true }, error: null };
 }
 
 export async function toggleReaction(
   reaction: Reaction,
+  code: string,
 ): Promise<ServiceResult<{ action: "added" | "removed" }>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
@@ -463,8 +497,10 @@ export async function toggleReaction(
   const { data: existing } = await lookupQuery.maybeSingle();
 
   if (existing) {
-    const { error } = await supabase.from("reactions").delete().eq("id", existing.id);
-    if (error) return { data: null, error: error.message };
+    const { error } = await callSecureMutate("delete-reaction", {
+      actor_id: reaction.author_id, code, reaction_id: existing.id,
+    });
+    if (error) return { data: null, error };
     return { data: { action: "removed" }, error: null };
   }
 
@@ -539,52 +575,40 @@ export async function uploadMediaFile(
 
 export async function loadDirectMessages(
   profileId: string,
+  code: string,
 ): Promise<ServiceResult<import("../types/database").DirectMessage[]>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return { data: [], error: null };
   }
-  const { data, error } = await supabase
-    .from("direct_messages")
-    .select("*")
-    .or(`from_id.eq.${profileId},to_id.eq.${profileId}`)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (error) return { data: null, error: error.message };
-  const sorted = ((data ?? []) as import("../types/database").DirectMessage[]).reverse();
-  return { data: sorted, error: null };
+  const { data, error } = await callSecureMutate("list-direct-messages", { actor_id: profileId, code });
+  if (error) return { data: null, error };
+  return { data: (data!.messages as import("../types/database").DirectMessage[]) ?? [], error: null };
 }
 
 export async function persistDirectMessage(
   msg: import("../types/database").DirectMessage,
+  code: string,
 ): Promise<ServiceResult<import("../types/database").DirectMessage>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return { data: msg, error: null };
   }
-  const { error } = await supabase.from("direct_messages").insert({
-    id: msg.id,
-    from_id: msg.from_id,
-    to_id: msg.to_id,
-    body: msg.body,
-    read: msg.read,
+  const { error } = await callSecureMutate("send-direct-message", {
+    actor_id: msg.from_id, code, id: msg.id, to_id: msg.to_id, body: msg.body,
   });
-  if (error) return { data: null, error: error.message };
+  if (error) return { data: null, error };
   return { data: msg, error: null };
 }
 
 export async function markMessagesRead(
   fromId: string,
   toId: string,
+  code: string,
 ): Promise<ServiceResult<{ updated: true }>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     return { data: { updated: true }, error: null };
   }
-  const { error } = await supabase
-    .from("direct_messages")
-    .update({ read: true })
-    .eq("from_id", fromId)
-    .eq("to_id", toId)
-    .eq("read", false);
-  if (error) return { data: null, error: error.message };
+  const { error } = await callSecureMutate("mark-messages-read", { actor_id: toId, code, from_id: fromId });
+  if (error) return { data: null, error };
   return { data: { updated: true }, error: null };
 }
 
@@ -661,6 +685,7 @@ export async function deleteRegisteredProfile(
 export async function updateProfile(
   profileId: string,
   updates: { bio: string; status: string; accent?: string; role?: string; avatar_url?: string },
+  code: string,
 ): Promise<ServiceResult<Profile>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     saveProfileOverride(profileId, updates);
@@ -671,19 +696,11 @@ export async function updateProfile(
     return { data: { ...base, ...updates }, error: null };
   }
 
-  const patch: Partial<Profile> = { bio: updates.bio, status: updates.status };
-  if (updates.accent) patch.accent = updates.accent;
-  if (updates.role) patch.role = updates.role;
-  if (updates.avatar_url) patch.avatar_url = updates.avatar_url;
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .update(patch)
-    .eq("id", profileId)
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  return { data: data as Profile, error: null };
+  const { data, error } = await callSecureMutate("update-profile", {
+    actor_id: profileId, code, profile_id: profileId, updates,
+  });
+  if (error) return { data: null, error };
+  return { data: data!.profile as Profile, error: null };
 }
 
 // ----- polls -----
@@ -700,7 +717,8 @@ export async function castPollVote(
   profileId: string,
   optionIdx: number,
   currentVoteIdx: number | null,
-  customText?: string,
+  customText: string | undefined,
+  code: string,
 ): Promise<ServiceResult<null>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
@@ -715,23 +733,9 @@ export async function castPollVote(
     saveMock(mock);
     return { data: null, error: null };
   }
-  if (currentVoteIdx === optionIdx && optionIdx !== -1) {
-    // Toggle off fixed option — remove vote
-    const { error } = await supabase
-      .from("poll_votes")
-      .delete()
-      .eq("post_id", postId)
-      .eq("profile_id", profileId);
-    if (error) return { data: null, error: error.message };
-    return { data: null, error: null };
-  }
-  // Insert or update to new option (custom always upserts even if already custom)
-  const { error } = await supabase
-    .from("poll_votes")
-    .upsert(
-      { post_id: postId, profile_id: profileId, option_idx: optionIdx, custom_text: customText ?? null },
-      { onConflict: "post_id,profile_id" },
-    );
-  if (error) return { data: null, error: error.message };
+  const { error } = await callSecureMutate("cast-poll-vote", {
+    actor_id: profileId, code, post_id: postId, option_idx: optionIdx, current_vote_idx: currentVoteIdx, custom_text: customText,
+  });
+  if (error) return { data: null, error };
   return { data: null, error: null };
 }

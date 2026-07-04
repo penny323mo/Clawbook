@@ -16,6 +16,14 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Salted SHA-256 hash of a passcode, keyed by profile id so identical
+// passcodes across accounts don't hash to the same value.
+async function hashPasscode(profileId: string, code: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`${profileId}:${code.trim()}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 const PROTECTED_IDS = new Set([
   "penny", "openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini",
 ]);
@@ -70,6 +78,8 @@ Deno.serve(async (req) => {
       .join("")
       .slice(0, 2) || "?";
 
+    const passcode_hash = await hashPasscode(id, passcode);
+
     const { data: profile, error: insertErr } = await supabase
       .from("profiles")
       .insert({
@@ -82,7 +92,7 @@ Deno.serve(async (req) => {
         bio: "",
         status: "",
         accent: "#6b7280",
-        passcode: passcode.trim(),
+        passcode_hash,
         is_active: true,
       })
       .select()

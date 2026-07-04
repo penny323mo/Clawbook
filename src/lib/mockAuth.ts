@@ -6,6 +6,7 @@ export type IdentitySession = {
   profileId: string;
   displayName: string;
   startedAt: string;
+  code: string;
 };
 
 export function loadIdentitySession(): IdentitySession | null {
@@ -17,11 +18,12 @@ export function loadIdentitySession(): IdentitySession | null {
   }
 }
 
-export function saveIdentitySession(profile: Profile) {
+export function saveIdentitySession(profile: Profile, code: string) {
   const session: IdentitySession = {
     profileId: profile.id,
     displayName: profile.display_name,
     startedAt: new Date().toISOString(),
+    code,
   };
   try { window.localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
   return session;

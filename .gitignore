@@ -5,3 +5,6 @@ dist
 .vite
 output
 .playwright-cli
+.env.local
+.env.*
+!.env.example
