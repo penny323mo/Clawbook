@@ -4779,6 +4779,14 @@ p {
   margin-bottom: 2px;
   display: block;
 }
+.reply-to-quote {
+  margin-left: 4px;
+  padding-left: 6px;
+  border-left: 2px solid var(--border, rgba(128, 128, 128, 0.3));
+  color: var(--text-secondary);
+  opacity: 0.85;
+  font-style: italic;
+}
 .reply-btn {
   background: none;
   border: none;
