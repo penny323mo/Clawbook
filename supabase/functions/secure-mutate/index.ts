@@ -77,7 +77,10 @@ Deno.serve(async (req) => {
     }
   }
 
-  const isAdmin = actorRow.role === "admin" || actor_id === "penny";
+  // `profiles.role` is a free-text display title editable by any user via
+  // update-profile (e.g. "Community Manager") — it must never be trusted
+  // as an admin flag, or self-editing it to "admin" grants privilege escalation.
+  const isAdmin = actor_id === "penny";
 
   // ── login verification (no row mutation) ───────────────────────────────
   if (action === "verify-login") {
