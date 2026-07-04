@@ -3147,9 +3147,11 @@ function ProfilePage({
   onLoadComments,
   onEnsurePostLoaded,
   allProfiles,
+  code,
 }: {
   profile: Profile;
   currentProfile: Profile;
+  code: string;
   posts: Post[];
   comments: Comment[];
   reactions: Reaction[];
@@ -3364,7 +3366,7 @@ function ProfilePage({
                   try {
                     let avatarUrl: string | undefined;
                     if (avatarFile) {
-                      const res = await uploadMediaFile(avatarFile, profile.id, "avatar");
+                      const res = await uploadMediaFile(avatarFile, currentProfile.id, "avatar", code);
                       if (!res.error && res.data) avatarUrl = res.data.public_url;
                     }
                     await onEditProfile?.(editBio, editStatus, editAccent, editRole, avatarUrl);
@@ -4884,7 +4886,7 @@ function SocialApp() {
       let persistedMedia = nextMedia;
       if (isSupabaseConfigured && files.length > 0) {
         const uploads = await Promise.all(
-          files.map((file) => uploadMediaFile(file, post.author_id, post.id)),
+          files.map((file) => uploadMediaFile(file, post.author_id, post.id, session!.code)),
         );
         const failed = uploads.find((r) => r.error);
         if (failed) {
@@ -4898,7 +4900,7 @@ function SocialApp() {
         }
       }
 
-      const result = await persistPost(post, persistedMedia);
+      const result = await persistPost(post, persistedMedia, session!.code);
       if (result.error) {
         setSaveError(`Failed to save post: ${result.error}`);
         rollbackPost();
@@ -4929,7 +4931,7 @@ function SocialApp() {
     setPosts((c) => [quotePost, ...c]);
     setIsSaving(true);
     try {
-      const result = await persistPost(quotePost, []);
+      const result = await persistPost(quotePost, [], session!.code);
       if (result.error) {
         setSaveError(`Failed to save quote post: ${result.error}`);
         setPosts((c) => c.filter((p) => p.id !== quotePost.id));
@@ -5046,7 +5048,7 @@ function SocialApp() {
       if (!guestMode) refreshNotifications();
     };
     try {
-      const result = await persistComment(comment);
+      const result = await persistComment(comment, session!.code);
       if (result.error) {
         setSaveError(`Failed to save comment: ${result.error}`);
         rollbackComment();
@@ -5422,6 +5424,7 @@ function SocialApp() {
         }}
         onLoadComments={handleLoadComments}
         onEnsurePostLoaded={handleEnsurePostLoaded}
+        code={session!.code}
       />
     );
   }

@@ -240,5 +240,83 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
+  // ── create post (+ optional media rows) ──────────────────────────────
+  if (action === "create-post") {
+    const {
+      id, target_type, target_id, post_body, tags, visibility, image_url,
+      poll_options, poll_ends_at, poll_allow_custom, comments_disabled, quote_post_id, media,
+    } = body as {
+      id?: string; target_type?: string; target_id?: string; post_body?: string; tags?: string[];
+      visibility?: string; image_url?: string | null; poll_options?: string[] | null; poll_ends_at?: string | null;
+      poll_allow_custom?: boolean; comments_disabled?: boolean; quote_post_id?: string | null;
+      media?: Array<Record<string, unknown>>;
+    };
+    if (!id || !target_type || !target_id || !post_body?.trim()) {
+      return json({ error: "id, target_type, target_id and post_body are required" }, 400);
+    }
+    const { error: postErr } = await supabase.from("posts").insert({
+      id, author_id: actor_id, target_type, target_id, body: post_body, tags: tags ?? [],
+      visibility: visibility ?? "public", image_url: image_url ?? null,
+      poll_options: poll_options ?? null, poll_ends_at: poll_ends_at ?? null,
+      poll_allow_custom: poll_allow_custom ?? false, comments_disabled: comments_disabled ?? false,
+      quote_post_id: quote_post_id ?? null,
+    });
+    if (postErr) return json({ error: postErr.message }, 500);
+
+    if (media?.length) {
+      const rows = media.map((m) => ({
+        id: m.id, owner_id: actor_id, post_id: id,
+        storage_bucket: m.storage_bucket, storage_path: m.storage_path,
+        public_url: m.public_url ?? "", media_type: m.media_type,
+        alt_text: m.alt_text ?? null, mime_type: m.mime_type ?? null, size_bytes: m.size_bytes ?? null,
+      }));
+      const { error: mediaErr } = await supabase.from("media").insert(rows);
+      if (mediaErr) return json({ error: mediaErr.message }, 500);
+    }
+    return json({ ok: true });
+  }
+
+  // ── create comment ───────────────────────────────────────────────────
+  if (action === "create-comment") {
+    const { id, post_id, comment_body, reply_to_id } = body as {
+      id?: string; post_id?: string; comment_body?: string; reply_to_id?: string | null;
+    };
+    if (!id || !post_id || !comment_body?.trim()) return json({ error: "id, post_id and comment_body are required" }, 400);
+    const { data: post } = await supabase.from("posts").select("comments_disabled").eq("id", post_id).maybeSingle();
+    if (!post) return json({ error: "Post not found" }, 404);
+    if (post.comments_disabled) return json({ error: "Comments are disabled on this post" }, 403);
+    const { error } = await supabase.from("comments").insert({
+      id, post_id, author_id: actor_id, body: comment_body, reply_to_id: reply_to_id ?? null,
+    });
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true });
+  }
+
+  // ── add reaction ──────────────────────────────────────────────────────
+  if (action === "add-reaction") {
+    const { id, post_id, comment_id, emoji } = body as {
+      id?: string; post_id?: string; comment_id?: string | null; emoji?: string;
+    };
+    if (!id || !post_id || !emoji) return json({ error: "id, post_id and emoji are required" }, 400);
+    const { error } = await supabase.from("reactions").insert({
+      id, post_id, comment_id: comment_id ?? null, author_id: actor_id, emoji,
+    });
+    if (error) return json({ error: error.message }, 500);
+    return json({ ok: true });
+  }
+
+  // ── media: mint a signed upload URL scoped to this actor ──────────────
+  if (action === "create-upload-url") {
+    const { post_id, file_name } = body as { post_id?: string; file_name?: string };
+    if (!post_id || !file_name) return json({ error: "post_id and file_name are required" }, 400);
+    const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const date = new Date().toISOString().slice(0, 10);
+    const storagePath = `${actor_id}/${date}/${post_id}/${safeName}`;
+    const bucket = Deno.env.get("SUPABASE_STORAGE_BUCKET") ?? "clawbook-media";
+    const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(storagePath);
+    if (error) return json({ error: error.message }, 500);
+    return json({ storage_path: storagePath, token: data.token, bucket });
+  }
+
   return json({ error: "Unknown action" }, 400);
 });

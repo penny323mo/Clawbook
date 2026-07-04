@@ -290,7 +290,7 @@ export async function loadAllSocialData(
   }
 }
 
-export async function persistPost(post: Post, newMedia: Media[]): Promise<ServiceResult<Post>> {
+export async function persistPost(post: Post, newMedia: Media[], code: string): Promise<ServiceResult<Post>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.posts = [post, ...mock.posts.filter((p) => p.id !== post.id)];
@@ -299,41 +299,20 @@ export async function persistPost(post: Post, newMedia: Media[]): Promise<Servic
     return { data: post, error: null };
   }
 
-  const { error: postErr } = await supabase.from("posts").insert({
-    id: post.id,
-    author_id: post.author_id,
-    target_type: post.target_type,
-    target_id: post.target_id,
-    body: post.body,
-    tags: post.tags,
-    visibility: post.visibility,
-    image_url: post.image_url ?? null,
-    poll_options: post.poll_options ?? null,
-    poll_ends_at: post.poll_ends_at ?? null,
-    poll_allow_custom: post.poll_allow_custom ?? false,
-    comments_disabled: post.comments_disabled ?? false,
+  const { error } = await callSecureMutate("create-post", {
+    actor_id: post.author_id, code,
+    id: post.id, target_type: post.target_type, target_id: post.target_id, post_body: post.body,
+    tags: post.tags, visibility: post.visibility, image_url: post.image_url ?? null,
+    poll_options: post.poll_options ?? null, poll_ends_at: post.poll_ends_at ?? null,
+    poll_allow_custom: post.poll_allow_custom ?? false, comments_disabled: post.comments_disabled ?? false,
     quote_post_id: post.quote_post_id ?? null,
+    media: newMedia.map((m) => ({
+      id: m.id, storage_bucket: m.storage_bucket, storage_path: m.storage_path,
+      public_url: m.public_url ?? "", media_type: m.media_type,
+      alt_text: m.alt_text ?? null, mime_type: m.mime_type ?? null, size_bytes: m.size_bytes ?? null,
+    })),
   });
-  if (postErr) return { data: null, error: postErr.message };
-
-  if (newMedia.length > 0) {
-    const { error: mediaErr } = await supabase.from("media").insert(
-      newMedia.map((m) => ({
-        id: m.id,
-        owner_id: m.owner_id,
-        post_id: post.id,
-        storage_bucket: m.storage_bucket,
-        storage_path: m.storage_path,
-        public_url: m.public_url ?? "",
-        media_type: m.media_type,
-        alt_text: m.alt_text ?? null,
-        mime_type: m.mime_type ?? null,
-        size_bytes: m.size_bytes ?? null,
-      })),
-    );
-    if (mediaErr) return { data: null, error: mediaErr.message };
-  }
-
+  if (error) return { data: null, error };
   return { data: post, error: null };
 }
 
@@ -408,7 +387,7 @@ export async function fetchAllCommentsForPost(postId: string): Promise<Comment[]
   );
 }
 
-export async function persistComment(comment: Comment): Promise<ServiceResult<Comment>> {
+export async function persistComment(comment: Comment, code: string): Promise<ServiceResult<Comment>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
     mock.comments = [...mock.comments, comment];
@@ -416,14 +395,12 @@ export async function persistComment(comment: Comment): Promise<ServiceResult<Co
     return { data: comment, error: null };
   }
 
-  const { error } = await supabase.from("comments").insert({
-    id: comment.id,
-    post_id: comment.post_id,
-    author_id: comment.author_id,
-    body: comment.body,
-    ...(comment.reply_to_id ? { reply_to_id: comment.reply_to_id } : {}),
+  const { error } = await callSecureMutate("create-comment", {
+    actor_id: comment.author_id, code,
+    id: comment.id, post_id: comment.post_id, comment_body: comment.body,
+    reply_to_id: comment.reply_to_id ?? null,
   });
-  if (error) return { data: null, error: error.message };
+  if (error) return { data: null, error };
   return { data: comment, error: null };
 }
 
@@ -504,14 +481,11 @@ export async function toggleReaction(
     return { data: { action: "removed" }, error: null };
   }
 
-  const { error } = await supabase.from("reactions").insert({
-    id: reaction.id,
-    post_id: reaction.post_id,
-    comment_id: reaction.comment_id ?? null,
-    author_id: reaction.author_id,
-    emoji: reaction.emoji,
+  const { error } = await callSecureMutate("add-reaction", {
+    actor_id: reaction.author_id, code,
+    id: reaction.id, post_id: reaction.post_id, comment_id: reaction.comment_id ?? null, emoji: reaction.emoji,
   });
-  if (error) return { data: null, error: error.message };
+  if (error) return { data: null, error };
   return { data: { action: "added" }, error: null };
 }
 
@@ -519,6 +493,7 @@ export async function uploadMediaFile(
   file: File,
   ownerId: string,
   postId: string,
+  code: string,
 ): Promise<ServiceResult<Media>> {
   const now = new Date().toISOString();
   const date = now.slice(0, 10);
@@ -546,20 +521,27 @@ export async function uploadMediaFile(
     };
   }
 
-  const { error: uploadErr } = await supabase.storage
-    .from(storageBucket)
-    .upload(storagePath, file, { cacheControl: "31536000", upsert: false });
+  // The signed upload URL is minted server-side (secure-mutate verifies actor_id
+  // + code and scopes the path to that actor) so anon never needs its own
+  // storage.objects INSERT/UPDATE grant.
+  const { data: urlData, error: urlErr } = await callSecureMutate("create-upload-url", {
+    actor_id: ownerId, code, post_id: postId, file_name: file.name,
+  });
+  if (urlErr) return { data: null, error: urlErr };
+  const { storage_path, token, bucket } = urlData as unknown as { storage_path: string; token: string; bucket: string };
+
+  const { error: uploadErr } = await supabase.storage.from(bucket).uploadToSignedUrl(storage_path, token, file);
   if (uploadErr) return { data: null, error: uploadErr.message };
 
-  const { data: urlData } = supabase.storage.from(storageBucket).getPublicUrl(storagePath);
+  const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(storage_path);
 
   const media: Media = {
     id: `media-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
     owner_id: ownerId,
     post_id: postId,
-    storage_bucket: storageBucket,
-    storage_path: storagePath,
-    public_url: urlData.publicUrl,
+    storage_bucket: bucket,
+    storage_path,
+    public_url: pubData.publicUrl,
     media_type: "image",
     alt_text: file.name,
     mime_type: file.type || null,
