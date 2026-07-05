@@ -1178,6 +1178,33 @@ p {
   accent-color: var(--danger, #c0392b);
 }
 
+.profile-mod-custom {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.profile-mod-custom label {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.profile-mod-custom input {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+@media (max-width: 560px) {
+  .profile-mod-custom {
+    grid-template-columns: 1fr;
+  }
+}
+
 .home-intro {
   padding-top: 16px;
 }

@@ -44,7 +44,6 @@ function muteMessage(mutedUntil: string): string {
 function isMutedTarget(
   targetType: string,
   targetId: string,
-  actorId: string,
   actorRow: { muted_until: string | null; profile_muted_until: string | null },
 ): string | null {
   if (
@@ -56,7 +55,7 @@ function isMutedTarget(
     return actorRow.muted_until;
   }
   if (
-    targetType === "profile" && targetId === actorId &&
+    targetType === "profile" &&
     actorRow.profile_muted_until && new Date(actorRow.profile_muted_until).getTime() > Date.now()
   ) {
     return actorRow.profile_muted_until;
@@ -455,7 +454,7 @@ Deno.serve(async (req) => {
     if (!id || !target_type || !target_id || !post_body?.trim()) {
       return json({ error: "id, target_type, target_id and post_body are required" }, 400);
     }
-    const mutedUntil = isMutedTarget(target_type, target_id, actor_id, actorRow);
+    const mutedUntil = isMutedTarget(target_type, target_id, actorRow);
     if (mutedUntil) return json({ error: muteMessage(mutedUntil) }, 403);
     const { error: postErr } = await supabase.from("posts").insert({
       id, author_id: actor_id, target_type, target_id, body: post_body, tags: tags ?? [],
@@ -488,7 +487,7 @@ Deno.serve(async (req) => {
     const { data: post } = await supabase.from("posts").select("comments_disabled, target_type, target_id").eq("id", post_id).maybeSingle();
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.comments_disabled) return json({ error: "Comments are disabled on this post" }, 403);
-    const mutedUntil = isMutedTarget(post.target_type, post.target_id, actor_id, actorRow);
+    const mutedUntil = isMutedTarget(post.target_type, post.target_id, actorRow);
     if (mutedUntil) return json({ error: muteMessage(mutedUntil) }, 403);
     const { error } = await supabase.from("comments").insert({
       id, post_id, author_id: actor_id, body: comment_body, reply_to_id: reply_to_id ?? null,

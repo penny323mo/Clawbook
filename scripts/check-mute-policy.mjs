@@ -22,12 +22,13 @@ assert(
   "secure-mutate must read and update profile_muted_until",
 );
 assert(
-  /function isMutedTarget\([^)]*targetType[^)]*targetId[^)]*actorId/.test(secureMutate),
-  "isMutedTarget must consider actorId so own profile-wall posts can be scoped",
+  /function isMutedTarget\([^)]*targetType[^)]*targetId[^)]*actorRow/.test(secureMutate),
+  "isMutedTarget must consider the target and the authenticated actor mute state",
 );
 assert(
-  /targetType === "profile" && targetId === actorId/.test(secureMutate),
-  "mute policy must detect the muted user's own profile wall",
+  /targetType === "profile"[\s\S]*actorRow\.profile_muted_until/.test(secureMutate) &&
+    !/targetType === "profile" && targetId === actorId/.test(secureMutate),
+  "profile-wall mute must cover every profile wall, not only the muted user's own wall",
 );
 assert(
   /profile_muted_until && new Date\(actorRow\.profile_muted_until\)/.test(secureMutate),
@@ -45,6 +46,12 @@ assert(
 assert(
   main.includes("muteProfileWall") && main.includes("profile_muted_until"),
   "moderation UI must expose a profile-wall mute option",
+);
+assert(
+  main.includes("customMuteUntil") &&
+    main.includes('type="datetime-local"') &&
+    main.includes("applyCustomMute"),
+  "moderation UI must allow a custom mute date/time",
 );
 
 console.log("Mute policy checks passed.");

@@ -135,6 +135,13 @@ function useBookmarks() { return useContext(BookmarkContext); }
 const NowContext = createContext(Date.now());
 function useNow() { return useContext(NowContext); }
 
+const CUSTOM_MUTE_DEFAULT_MS = 24 * 60 * 60 * 1000;
+
+function toDateTimeLocalValue(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 // ----- DM storage -----
 
 const DM_KEY = "clawbook:dms:v1";
@@ -3254,11 +3261,21 @@ function ProfilePage({
   const canModerate = adminMode && currentProfile.id === "penny" && !isOwnProfile;
   const [muteProfile, setMuteProfile] = useState<Profile>(profile);
   const [muteProfileWall, setMuteProfileWall] = useState(false);
+  const [customMuteUntil, setCustomMuteUntil] = useState(() => (
+    toDateTimeLocalValue(new Date(Date.now() + CUSTOM_MUTE_DEFAULT_MS))
+  ));
   const [muteSubmitting, setMuteSubmitting] = useState(false);
   const [muteError, setMuteError] = useState("");
   useEffect(() => {
     setMuteProfile(profile);
     setMuteProfileWall(Boolean(profile.profile_muted_until && new Date(profile.profile_muted_until).getTime() > Date.now()));
+    const activeUntil = Math.max(
+      profile.muted_until ? new Date(profile.muted_until).getTime() : 0,
+      profile.profile_muted_until ? new Date(profile.profile_muted_until).getTime() : 0,
+    );
+    setCustomMuteUntil(toDateTimeLocalValue(new Date(
+      activeUntil > Date.now() ? activeUntil : Date.now() + CUSTOM_MUTE_DEFAULT_MS,
+    )));
   }, [profile]);
   const isMuted = Boolean(muteProfile.muted_until && new Date(muteProfile.muted_until).getTime() > now);
   const isProfileWallMuted = Boolean(
@@ -3272,6 +3289,14 @@ function ProfilePage({
     setMuteSubmitting(false);
     if (res.data) setMuteProfile(res.data);
     else setMuteError(res.error || (lang === "zh" ? "操作失敗" : "Failed"));
+  }
+  async function applyCustomMute() {
+    const muteUntilMs = new Date(customMuteUntil).getTime();
+    if (!Number.isFinite(muteUntilMs) || muteUntilMs <= Date.now()) {
+      setMuteError(lang === "zh" ? "請選擇未來日期時間" : "Choose a future date/time");
+      return;
+    }
+    await applyMute(new Date(muteUntilMs).toISOString());
   }
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -3510,8 +3535,8 @@ function ProfilePage({
           <strong>{lang === "zh" ? "🔒 管理員：禁言" : "🔒 Admin: Mute"}</strong>
           <p className="profile-mod-hint">
             {lang === "zh"
-              ? "預設封鎖公開討論區發帖／留言；可選擇同時封鎖對方自己主頁／私人發帖區。唔影響私訊同 reaction。"
-              : "Blocks posting/commenting in Public Discussion by default; optionally also blocks the user's own profile wall. DMs and reactions are unaffected."}
+              ? "預設封鎖公開討論區發帖／留言；可選擇同時封鎖對方喺所有個人主頁／私人發帖區發帖同留言。唔影響私訊同 reaction。"
+              : "Blocks posting/commenting in Public Discussion by default; optionally also blocks posting/commenting on all profile walls. DMs and reactions are unaffected."}
           </p>
           <label className="profile-mod-checkbox">
             <input
@@ -3519,7 +3544,7 @@ function ProfilePage({
               checked={muteProfileWall}
               onChange={(e) => setMuteProfileWall(e.target.checked)}
             />
-            <span>{lang === "zh" ? "同時禁私人發帖區／自己主頁" : "Also mute own profile wall"}</span>
+            <span>{lang === "zh" ? "同時禁所有個人主頁／私人發帖區" : "Also mute all profile walls"}</span>
           </label>
           {(isMuted || isProfileWallMuted) ? (
             <>
@@ -3531,7 +3556,7 @@ function ProfilePage({
               )}
               {isProfileWallMuted && (
                 <p>
-                  {lang === "zh" ? "私人發帖區禁言至：" : "Profile wall muted until: "}
+                  {lang === "zh" ? "個人主頁／私人發帖區禁言至：" : "Profile walls muted until: "}
                   {new Date(muteProfile.profile_muted_until as string).toLocaleString(lang === "zh" ? "zh-HK" : "en-US")}
                 </p>
               )}
@@ -3565,6 +3590,22 @@ function ProfilePage({
               ))}
             </div>
           )}
+          <div className="profile-mod-custom">
+            <label htmlFor={`custom-mute-${profile.id}`}>
+              {lang === "zh" ? "自訂至" : "Custom until"}
+            </label>
+            <input
+              id={`custom-mute-${profile.id}`}
+              type="datetime-local"
+              value={customMuteUntil}
+              min={toDateTimeLocalValue(new Date(now + 60_000))}
+              disabled={muteSubmitting}
+              onChange={(e) => setCustomMuteUntil(e.target.value)}
+            />
+            <button type="button" disabled={muteSubmitting} onClick={() => void applyCustomMute()}>
+              {lang === "zh" ? "套用自訂時間" : "Apply custom time"}
+            </button>
+          </div>
           {muteError && <p style={{ color: "var(--danger, #c0392b)", fontSize: "0.85em" }}>{muteError}</p>}
         </div>
       )}
