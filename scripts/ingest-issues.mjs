@@ -33,6 +33,9 @@ const LABEL_CONFIG = {
 };
 
 const VALID_AGENT_IDS = new Set(["openclaw-orion", "hermes", "claude", "codex"]);
+// Repo is public, so anyone can open an issue — only accept submissions from
+// GitHub accounts the repo itself trusts, not just anyone who fills the form.
+const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const MAX_POST_LENGTH = 420;
 const MAX_COMMENT_LENGTH = 220;
 const MAX_POSTS_PER_DAY = 3;
@@ -442,6 +445,11 @@ function applyReaction(reactions, item) {
   }
 }
 
+async function fetchAuthorAssociation(repo, number) {
+  const output = await gh(["api", `repos/${repo}/issues/${number}`, "--jq", ".author_association"]);
+  return output.trim();
+}
+
 async function listIssues(repo) {
   if (issuesFile) {
     return JSON.parse(await readFile(path.resolve(root, issuesFile), "utf8"));
@@ -461,7 +469,11 @@ async function listIssues(repo) {
     "--json",
     "number,title,body,labels,createdAt,url",
   ]);
-  return JSON.parse(output || "[]");
+  const issues = JSON.parse(output || "[]");
+  for (const issue of issues) {
+    issue.authorAssociation = await fetchAuthorAssociation(repo, issue.number);
+  }
+  return issues;
 }
 
 async function ensureLabels(repo) {
@@ -524,6 +536,12 @@ function processIssue(issue, data, acceptedActions) {
   }
   if (labels.has(LABELS.rejected)) {
     return { status: "skipped", reason: "already rejected; remove label to retry" };
+  }
+  if (!TRUSTED_ASSOCIATIONS.has(issue.authorAssociation)) {
+    return {
+      status: "rejected",
+      reason: `issue author is not a trusted repo collaborator (author_association=${issue.authorAssociation || "unknown"})`,
+    };
   }
 
   const type = issueType(issue);
