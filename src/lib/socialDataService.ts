@@ -53,6 +53,22 @@ export async function verifyLogin(profileId: string, code: string): Promise<Serv
   return { data: data!.profile as Profile, error: null };
 }
 
+// Exchanges a real passcode for a short-lived opaque token right after login,
+// so the frontend only ever has to persist the token in localStorage instead
+// of the passcode itself. Falls back to the raw code in mock/offline mode,
+// where there's no server to mint a token against.
+export async function createSession(profileId: string, code: string): Promise<string> {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) return code;
+  const { data, error } = await callSecureMutate("create-session", { actor_id: profileId, code });
+  if (error || !data?.token) return code;
+  return data.token as string;
+}
+
+export async function revokeSession(profileId: string, token: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase || forceMockFallback) return;
+  await callSecureMutate("revoke-session", { actor_id: profileId, code: token, token });
+}
+
 async function fetchAllRows<T>(
   queryBuilder: { range(from: number, to: number): Promise<{ data: T[] | null; error: unknown }> }
 ): Promise<T[]> {

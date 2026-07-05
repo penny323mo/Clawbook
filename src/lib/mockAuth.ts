@@ -6,6 +6,9 @@ export type IdentitySession = {
   profileId: string;
   displayName: string;
   startedAt: string;
+  // Despite the name (kept to avoid touching every call site), this holds the
+  // opaque session token minted by secure-mutate's create-session action, not
+  // the real passcode — see socialDataService.createSession.
   code: string;
 };
 

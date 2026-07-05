@@ -35,6 +35,8 @@ import {
   deleteRegisteredProfile,
   verifyLogin,
   setMute,
+  createSession,
+  revokeSession,
 } from "./lib/socialDataService";
 import { connectionMode, isSupabaseConfigured, supabase, subscribeToSocialChanges, type RealtimeDelta } from "./lib/supabase";
 import type { Comment, DirectMessage, Group, Media, Post, PollVote, Profile, Reaction } from "./types/database";
@@ -4562,10 +4564,12 @@ function SocialApp() {
   useEffect(() => {
     if (!autoLoginCandidate) return;
     let cancelled = false;
-    verifyLogin(autoLoginCandidate.profile.id, autoLoginCandidate.code).then((result) => {
+    verifyLogin(autoLoginCandidate.profile.id, autoLoginCandidate.code).then(async (result) => {
       if (cancelled || !result.data) return;
+      const token = await createSession(autoLoginCandidate.profile.id, autoLoginCandidate.code);
+      if (cancelled) return;
       localStorage.removeItem("clawbook:guest");
-      setSession(saveIdentitySession(result.data, autoLoginCandidate.code));
+      setSession(saveIdentitySession(result.data, token));
       window.history.replaceState({}, "", `${BASE_PATH}/home`);
       setRoute({ name: "home" });
     });
@@ -5475,10 +5479,11 @@ function SocialApp() {
         <IdentityEntry
           liveProfiles={profilesList}
           onRefresh={() => void syncAllData()}
-          onEnter={(profile, code) => {
+          onEnter={async (profile, code) => {
+            const token = await createSession(profile.id, code);
             localStorage.removeItem("clawbook:guest");
             setGuestMode(false);
-            setSession(saveIdentitySession(profile, code));
+            setSession(saveIdentitySession(profile, token));
             navigate({ name: "home" });
           }}
           onGuestEnter={() => {
@@ -5669,6 +5674,7 @@ function SocialApp() {
               setGuestMode(false);
               navigate({ name: "identity" });
             } else {
+              if (session) void revokeSession(session.profileId, session.code);
               clearIdentitySession();
               setSession(null);
               navigate({ name: "identity" });

@@ -47,6 +47,56 @@ function isMutedTarget(targetType: string, targetId: string): boolean {
   return targetType === "group" && targetId === "public-discussion";
 }
 
+const SESSION_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Shared by every action's auth check (and by listFeed's separate guest-aware
+// path). Accepts either a still-valid session token (issued by create-session
+// so the frontend never has to keep replaying the real passcode) or the real
+// passcode/passcode_hash — scripts (agent-post etc.) keep working unchanged
+// since they only ever send the real passcode.
+async function authenticateActor(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  actorId: string,
+  code: string,
+  selectFields: string,
+): Promise<{ ok: true; actorRow: Record<string, unknown> } | { ok: false; error: string; status: number }> {
+  const { data: actorRow, error: actorErr } = await supabase
+    .from("profiles")
+    .select(selectFields)
+    .eq("id", actorId)
+    .maybeSingle();
+  if (actorErr || !actorRow) return { ok: false, error: "Unknown actor_id", status: 401 };
+
+  const { data: tokenRow } = await supabase
+    .from("session_tokens")
+    .select("expires_at")
+    .eq("token", code)
+    .eq("actor_id", actorId)
+    .maybeSingle();
+  if (tokenRow) {
+    if (new Date(tokenRow.expires_at as string).getTime() <= Date.now()) {
+      return { ok: false, error: "Session expired, please log in again", status: 401 };
+    }
+    return { ok: true, actorRow };
+  }
+
+  if (actorRow.passcode_hash) {
+    const gotHash = await hashPasscode(actorId, code);
+    if (gotHash !== actorRow.passcode_hash) return { ok: false, error: "Invalid passcode", status: 401 };
+  } else {
+    const expected = actorRow.passcode ? String(actorRow.passcode) : envPasscode(actorId);
+    if (code.trim() !== expected.trim()) return { ok: false, error: "Invalid passcode", status: 401 };
+    // Self-heal: migrate this account to a hashed passcode now that we've
+    // verified it, so the plaintext column empties out over time.
+    if (actorRow.passcode) {
+      const newHash = await hashPasscode(actorId, code);
+      await supabase.from("profiles").update({ passcode_hash: newHash, passcode: null }).eq("id", actorId);
+    }
+  }
+  return { ok: true, actorRow };
+}
+
 // Mirrors the frontend's canSeePost() in main.tsx exactly — kept in sync so
 // list-feed never returns a row the client wouldn't have rendered anyway.
 function canSeePost(
@@ -96,25 +146,12 @@ async function listFeed(supabase: any, actorId: string | undefined, code: string
   let isGuest = true;
 
   if (actorId && code) {
-    const { data: actorRow } = await supabase
-      .from("profiles")
-      .select("id, kind, role, passcode, passcode_hash")
-      .eq("id", actorId)
-      .maybeSingle();
-    if (!actorRow) return json({ error: "Unknown actor_id" }, 401);
-
-    let valid: boolean;
-    if (actorRow.passcode_hash) {
-      valid = (await hashPasscode(actorId, code)) === actorRow.passcode_hash;
-    } else {
-      const expected = actorRow.passcode ? String(actorRow.passcode) : envPasscode(actorId);
-      valid = code.trim() === expected.trim();
-    }
-    if (!valid) return json({ error: "Invalid passcode" }, 401);
+    const auth = await authenticateActor(supabase, actorId, code, "id, kind, role, passcode, passcode_hash");
+    if (!auth.ok) return json({ error: auth.error }, auth.status);
 
     viewerId = actorId;
-    viewerKind = actorRow.kind ?? "";
-    viewerRole = actorRow.role ?? "";
+    viewerKind = (auth.actorRow.kind as string) ?? "";
+    viewerRole = (auth.actorRow.role as string) ?? "";
     isGuest = false;
   }
 
@@ -165,26 +202,11 @@ Deno.serve(async (req) => {
 
   if (!actor_id || !code) return json({ error: "actor_id and code are required" }, 401);
 
-  const { data: actorRow, error: actorErr } = await supabase
-    .from("profiles")
-    .select("id, role, kind, passcode, passcode_hash, muted_until")
-    .eq("id", actor_id)
-    .maybeSingle();
-  if (actorErr || !actorRow) return json({ error: "Unknown actor_id" }, 401);
-
-  if (actorRow.passcode_hash) {
-    const gotHash = await hashPasscode(actor_id, code);
-    if (gotHash !== actorRow.passcode_hash) return json({ error: "Invalid passcode" }, 401);
-  } else {
-    const expected = actorRow.passcode ? String(actorRow.passcode) : envPasscode(actor_id);
-    if (code.trim() !== expected.trim()) return json({ error: "Invalid passcode" }, 401);
-    // Self-heal: migrate this account to a hashed passcode now that we've
-    // verified it, so the plaintext column empties out over time.
-    if (actorRow.passcode) {
-      const newHash = await hashPasscode(actor_id, code);
-      await supabase.from("profiles").update({ passcode_hash: newHash, passcode: null }).eq("id", actor_id);
-    }
-  }
+  const auth = await authenticateActor(supabase, actor_id, code, "id, role, kind, passcode, passcode_hash, muted_until");
+  if (!auth.ok) return json({ error: auth.error }, auth.status);
+  const actorRow = auth.actorRow as {
+    id: string; role: string; kind: string; passcode: string | null; passcode_hash: string | null; muted_until: string | null;
+  };
 
   // `profiles.role` is a free-text display title editable by any user via
   // update-profile (e.g. "Community Manager") — it must never be trusted
@@ -199,6 +221,21 @@ Deno.serve(async (req) => {
       .eq("id", actor_id)
       .single();
     return json({ ok: true, profile });
+  }
+
+  // ── mint/revoke an opaque session token so the frontend never has to keep
+  // the real passcode in localStorage — see session_tokens migration ──────
+  if (action === "create-session") {
+    const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+    const expiresAt = new Date(Date.now() + SESSION_TOKEN_TTL_MS).toISOString();
+    const { error } = await supabase.from("session_tokens").insert({ token, actor_id, expires_at: expiresAt });
+    if (error) return json({ error: error.message }, 500);
+    return json({ token, expires_at: expiresAt });
+  }
+  if (action === "revoke-session") {
+    const { token } = body as { token?: string };
+    if (token) await supabase.from("session_tokens").delete().eq("token", token).eq("actor_id", actor_id);
+    return json({ ok: true });
   }
 
   // ── get a single post, respecting visibility (used when a permalink or
