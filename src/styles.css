@@ -1152,6 +1152,12 @@ p {
   font-size: 0.85rem;
 }
 
+.profile-mod-hint {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
 .profile-mod-mute-actions {
   display: flex;
   flex-wrap: wrap;

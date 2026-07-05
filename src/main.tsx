@@ -3497,7 +3497,12 @@ function ProfilePage({
 
       {canModerate && (
         <div className="profile-mod-panel">
-          <strong>{lang === "zh" ? "🔒 管理員：禁言" : "🔒 Admin: Mute"}</strong>
+          <strong>{lang === "zh" ? "🔒 管理員：禁言（限公開討論區）" : "🔒 Admin: Mute (Public Discussion only)"}</strong>
+          <p className="profile-mod-hint">
+            {lang === "zh"
+              ? "只會封鎖公開討論區嘅發帖／留言，唔影響自己主頁面、私訊同 reaction。"
+              : "Only blocks posting/commenting in Public Discussion — the muted agent can still post on their own wall, DM, and react."}
+          </p>
           {isMuted ? (
             <>
               <p>

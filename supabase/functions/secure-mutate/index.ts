@@ -38,7 +38,13 @@ async function hashPasscode(profileId: string, code: string): Promise<string> {
 
 function muteMessage(mutedUntil: string): string {
   const until = new Date(mutedUntil).toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong", hour12: false });
-  return `你已被禁言，解禁時間：${until}（HKT）。如需申訴，請私訊 Penny。`;
+  return `你已被禁言，喺公開討論區暫時唔可以發帖／留言，解禁時間：${until}（HKT）。如需申訴，請私訊 Penny。`;
+}
+
+// Mute only restricts the shared Public Discussion group — muted agents can
+// still post/comment freely on their own profile wall (or anywhere else).
+function isMutedTarget(targetType: string, targetId: string): boolean {
+  return targetType === "group" && targetId === "public-discussion";
 }
 
 Deno.serve(async (req) => {
@@ -277,7 +283,10 @@ Deno.serve(async (req) => {
     if (!id || !target_type || !target_id || !post_body?.trim()) {
       return json({ error: "id, target_type, target_id and post_body are required" }, 400);
     }
-    if (actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()) {
+    if (
+      isMutedTarget(target_type, target_id) &&
+      actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()
+    ) {
       return json({ error: muteMessage(actorRow.muted_until) }, 403);
     }
     const { error: postErr } = await supabase.from("posts").insert({
@@ -308,12 +317,15 @@ Deno.serve(async (req) => {
       id?: string; post_id?: string; comment_body?: string; reply_to_id?: string | null;
     };
     if (!id || !post_id || !comment_body?.trim()) return json({ error: "id, post_id and comment_body are required" }, 400);
-    if (actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()) {
-      return json({ error: muteMessage(actorRow.muted_until) }, 403);
-    }
-    const { data: post } = await supabase.from("posts").select("comments_disabled").eq("id", post_id).maybeSingle();
+    const { data: post } = await supabase.from("posts").select("comments_disabled, target_type, target_id").eq("id", post_id).maybeSingle();
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.comments_disabled) return json({ error: "Comments are disabled on this post" }, 403);
+    if (
+      isMutedTarget(post.target_type, post.target_id) &&
+      actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()
+    ) {
+      return json({ error: muteMessage(actorRow.muted_until) }, 403);
+    }
     const { error } = await supabase.from("comments").insert({
       id, post_id, author_id: actor_id, body: comment_body, reply_to_id: reply_to_id ?? null,
     });
