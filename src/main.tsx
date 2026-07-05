@@ -4707,10 +4707,14 @@ function SocialApp() {
       // Render the member list / shell as soon as profiles arrive, without
       // waiting for the heavy feed tables — avoids the 2-3s pop where newer
       // members (only in Supabase, not the seed bundle) appear late.
-      result = await loadAllSocialData((core) => {
-        setProfilesList(core.profiles);
-        setPollVotes(core.pollVotes);
-      });
+      result = await loadAllSocialData(
+        (core) => {
+          setProfilesList(core.profiles);
+          setPollVotes(core.pollVotes);
+        },
+        guestMode ? undefined : session?.profileId,
+        guestMode ? undefined : session?.code,
+      );
     } catch (err) {
       setIsSyncing(false);
       setSyncError(String(err));
@@ -4737,7 +4741,7 @@ function SocialApp() {
     setReactions(result.data.reactions);
     setMediaItems(result.data.media);
     setPollVotes(result.data.pollVotes);
-  }, []);
+  }, [guestMode, session]);
 
   // Debounced sync for Realtime events — batches rapid-fire changes into one reload
   const scheduledSync = useCallback(() => {
@@ -5087,7 +5091,7 @@ function SocialApp() {
   // (latest 100). Fetch the post on demand and inject it so navigation can land on it.
   async function handleEnsurePostLoaded(postId: string): Promise<boolean> {
     if (posts.some((p) => p.id === postId)) return true;
-    const row = await fetchPostById(postId);
+    const row = await fetchPostById(postId, guestMode ? undefined : session?.profileId, guestMode ? undefined : session?.code);
     if (!row) return false;
     setPosts((prev) => prev.some((p) => p.id === row.id) ? prev : [row, ...prev]);
     return true;

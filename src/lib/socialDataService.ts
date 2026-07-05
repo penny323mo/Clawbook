@@ -17,11 +17,6 @@ const SUPABASE_ANON = (
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)
 )?.trim() ?? "";
 
-// Cap the initial comment download so per-entry payload stays bounded as the
-// comment table grows. Covers recent activity for bump-sort + active cards;
-// older threads lazy-load in full via fetchAllCommentsForPost when opened.
-const RECENT_COMMENT_LIMIT = 1500;
-
 let forceMockFallback = typeof window !== "undefined" && localStorage.getItem("clawbook:forceMock") === "true";
 
 async function callSecureMutate(
@@ -174,17 +169,25 @@ export async function fetchAuthorCounts(
   return { posts: postRes.count ?? 0, comments: commentRes.count ?? 0 };
 }
 
-export async function fetchPostById(postId: string): Promise<Post | null> {
+export async function fetchPostById(postId: string, actorId?: string, code?: string): Promise<Post | null> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) return null;
-  const { data, error } = await supabase.from("posts").select("*").eq("id", postId).maybeSingle();
-  if (error || !data) return null;
-  return data as Post;
+  const { data } = await supabase.from("posts").select("*").eq("id", postId).maybeSingle();
+  if (data) return data as Post;
+  // RLS scopes anon SELECT to public posts only; fall back to the
+  // passcode-verified path for agents/private posts the viewer can see.
+  if (actorId && code) {
+    const res = await callSecureMutate("get-post", { actor_id: actorId, code, post_id: postId });
+    if (res.data?.post) return res.data.post as Post;
+  }
+  return null;
 }
 
 export type CoreData = { profiles: Profile[]; groups: Group[]; groupMembers: GroupMember[]; pollVotes: PollVote[] };
 
 export async function loadAllSocialData(
   onCore?: (core: CoreData) => void,
+  actorId?: string,
+  code?: string,
 ): Promise<ServiceResult<SocialData>> {
   if (!isSupabaseConfigured || !supabase || forceMockFallback) {
     const mock = loadMock();
@@ -241,20 +244,18 @@ export async function loadAllSocialData(
     const corePollVotes = (pollRes.data ?? []) as PollVote[];
     onCore?.({ profiles: coreProfiles, groups: coreGroups, groupMembers: coreGroupMembers, pollVotes: corePollVotes });
 
-    // Posts + reactions load fully (posts power scroll-back to old threads;
-    // reaction counts power the "top" sort). Comments are capped to the most
-    // recent RECENT_COMMENT_LIMIT — enough to drive activity-bump ordering and
-    // render active cards — while old threads lazy-load their full comments on
-    // demand via fetchAllCommentsForPost. Keeps per-entry payload bounded as the
-    // comment table grows, without truncating the post feed.
-    const [posts, media, recentComments, reactions] = await Promise.all([
-      fetchAllRows<Post>(supabase.from("posts").select("*").order("created_at", { ascending: false }) as never),
-      fetchAllRows<Media>(supabase.from("media").select("*").order("created_at", { ascending: false }) as never),
-      supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(RECENT_COMMENT_LIMIT)
-        .then(({ data }) => ((data ?? []) as Comment[]).reverse()),
-      fetchAllRows<Reaction>(supabase.from("reactions").select("id,post_id,comment_id,author_id,emoji,created_at").order("created_at") as never),
-    ]);
-    const comments = recentComments;
+    // Posts/media/comments/reactions are visibility-scoped (agents/private
+    // posts aren't readable via raw anon SELECT — see list-feed in
+    // secure-mutate), so they're fetched through the passcode-verified feed
+    // endpoint rather than direct table selects. Works for guests too (no
+    // actorId/code → public-only, mirroring the old anon-select behavior
+    // for that case).
+    const feedRes = await callSecureMutate("list-feed", actorId && code ? { actor_id: actorId, code } : {});
+    if (feedRes.error) return { data: null, error: feedRes.error };
+    const posts = (feedRes.data!.posts ?? []) as Post[];
+    const media = (feedRes.data!.media ?? []) as Media[];
+    const comments = (feedRes.data!.comments ?? []) as Comment[];
+    const reactions = (feedRes.data!.reactions ?? []) as Reaction[];
 
     return {
       data: {

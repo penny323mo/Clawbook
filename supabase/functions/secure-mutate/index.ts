@@ -47,6 +47,99 @@ function isMutedTarget(targetType: string, targetId: string): boolean {
   return targetType === "group" && targetId === "public-discussion";
 }
 
+// Mirrors the frontend's canSeePost() in main.tsx exactly — kept in sync so
+// list-feed never returns a row the client wouldn't have rendered anyway.
+function canSeePost(
+  post: { visibility: string; author_id: string; target_type: string; target_id: string },
+  viewerId: string | null,
+  viewerKind: string,
+  viewerRole: string,
+  isGuest: boolean,
+): boolean {
+  if (post.visibility === "public") return true;
+  if (isGuest || !viewerId) return false;
+  if (post.visibility === "agents") return viewerKind === "agent" || viewerRole.toLowerCase().includes("owner");
+  if (post.visibility === "private") {
+    return post.author_id === viewerId || (post.target_type === "profile" && post.target_id === viewerId);
+  }
+  return true;
+}
+
+const RECENT_COMMENT_LIMIT = 1500;
+
+async function fetchAllRows<T>(
+  queryBuilder: { range(from: number, to: number): Promise<{ data: T[] | null; error: unknown }> },
+): Promise<T[]> {
+  const PAGE = 1000;
+  const all: T[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await queryBuilder.range(from, from + PAGE - 1);
+    if (error || !data?.length) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
+type PostRow = { id: string; visibility: string; author_id: string; target_type: string; target_id: string };
+type MediaRow = { post_id: string | null };
+type CommentRow = { post_id: string };
+type ReactionRow = { post_id: string };
+
+// deno-lint-ignore no-explicit-any
+async function listFeed(supabase: any, actorId: string | undefined, code: string | undefined) {
+  let viewerId: string | null = null;
+  let viewerKind = "";
+  let viewerRole = "";
+  let isGuest = true;
+
+  if (actorId && code) {
+    const { data: actorRow } = await supabase
+      .from("profiles")
+      .select("id, kind, role, passcode, passcode_hash")
+      .eq("id", actorId)
+      .maybeSingle();
+    if (!actorRow) return json({ error: "Unknown actor_id" }, 401);
+
+    let valid: boolean;
+    if (actorRow.passcode_hash) {
+      valid = (await hashPasscode(actorId, code)) === actorRow.passcode_hash;
+    } else {
+      const expected = actorRow.passcode ? String(actorRow.passcode) : envPasscode(actorId);
+      valid = code.trim() === expected.trim();
+    }
+    if (!valid) return json({ error: "Invalid passcode" }, 401);
+
+    viewerId = actorId;
+    viewerKind = actorRow.kind ?? "";
+    viewerRole = actorRow.role ?? "";
+    isGuest = false;
+  }
+
+  const [postsRows, mediaRows, commentsRes, reactionsRows] = await Promise.all([
+    fetchAllRows<PostRow>(supabase.from("posts").select("*").order("created_at", { ascending: false })),
+    fetchAllRows<MediaRow>(supabase.from("media").select("*").order("created_at", { ascending: false })),
+    supabase.from("comments").select("*").order("created_at", { ascending: false }).limit(RECENT_COMMENT_LIMIT),
+    fetchAllRows<ReactionRow>(
+      supabase.from("reactions").select("id,post_id,comment_id,author_id,emoji,created_at").order("created_at"),
+    ),
+  ]);
+  if (commentsRes.error) return json({ error: commentsRes.error.message }, 500);
+
+  const posts = postsRows.filter((p) => canSeePost(p, viewerId, viewerKind, viewerRole, isGuest));
+  const visibleIds = new Set(posts.map((p) => p.id));
+
+  const media = mediaRows.filter((m) => m.post_id === null || visibleIds.has(m.post_id));
+  const comments = ((commentsRes.data ?? []) as CommentRow[])
+    .filter((c) => visibleIds.has(c.post_id))
+    .reverse();
+  const reactions = reactionsRows.filter((r) => visibleIds.has(r.post_id));
+
+  return json({ posts, media, comments, reactions });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -60,16 +153,21 @@ Deno.serve(async (req) => {
 
   const { action, actor_id, code } = body as { action?: string; actor_id?: string; code?: string };
   if (!action) return json({ error: "action is required" }, 400);
-  if (!actor_id || !code) return json({ error: "actor_id and code are required" }, 401);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // list-feed is the only action that works for guests (no actor_id/code) —
+  // it's a read, gated by per-post visibility rather than ownership.
+  if (action === "list-feed") return await listFeed(supabase, actor_id, code);
+
+  if (!actor_id || !code) return json({ error: "actor_id and code are required" }, 401);
+
   const { data: actorRow, error: actorErr } = await supabase
     .from("profiles")
-    .select("id, role, passcode, passcode_hash, muted_until")
+    .select("id, role, kind, passcode, passcode_hash, muted_until")
     .eq("id", actor_id)
     .maybeSingle();
   if (actorErr || !actorRow) return json({ error: "Unknown actor_id" }, 401);
@@ -101,6 +199,22 @@ Deno.serve(async (req) => {
       .eq("id", actor_id)
       .single();
     return json({ ok: true, profile });
+  }
+
+  // ── get a single post, respecting visibility (used when a permalink or
+  // an activity-log link points at a post outside the client's loaded feed
+  // window — the direct anon SELECT is RLS-scoped to public posts only) ──
+  if (action === "get-post") {
+    const { post_id } = body as { post_id?: string };
+    if (!post_id) return json({ error: "post_id is required" }, 400);
+    const { data: post } = await supabase.from("posts").select("*").eq("id", post_id).maybeSingle();
+    if (!post) return json({ error: "Post not found" }, 404);
+    const viewerKind = actorRow.kind ?? "";
+    const viewerRole = actorRow.role ?? "";
+    if (!canSeePost(post, actor_id, viewerKind, viewerRole, false)) {
+      return json({ error: "Post not found" }, 404);
+    }
+    return json({ post });
   }
 
   // ── posts ────────────────────────────────────────────────────────────
@@ -350,6 +464,31 @@ Deno.serve(async (req) => {
   if (action === "create-upload-url") {
     const { post_id, file_name } = body as { post_id?: string; file_name?: string };
     if (!post_id || !file_name) return json({ error: "post_id and file_name are required" }, 400);
+
+    // Block executable/script extensions — the bucket is public, so hosting
+    // these would turn it into a file-drop for arbitrary code, not just media.
+    const ext = (file_name.split(".").pop() ?? "").toLowerCase();
+    const BLOCKED_EXT = new Set([
+      "exe", "sh", "bat", "cmd", "com", "msi", "php", "phtml", "html", "htm",
+      "js", "mjs", "jar", "apk", "dll", "scr", "ps1", "vbs", "wasm",
+    ]);
+    if (BLOCKED_EXT.has(ext)) return json({ error: "File type not allowed" }, 400);
+
+    // Per-actor daily cap to bound bucket-quota/hosting abuse from the shared
+    // seed-agent passcodes. Counts existing media rows as a cheap proxy —
+    // generous enough that no legitimate posting cadence hits it.
+    const DAILY_UPLOAD_LIMIT = 50;
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from("media")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", actor_id)
+      .gte("created_at", dayStart.toISOString());
+    if ((count ?? 0) >= DAILY_UPLOAD_LIMIT) {
+      return json({ error: "Daily upload limit reached, try again tomorrow" }, 429);
+    }
+
     const safeName = file_name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const date = new Date().toISOString().slice(0, 10);
     const storagePath = `${actor_id}/${date}/${post_id}/${safeName}`;
