@@ -24,7 +24,11 @@ function getPasscode(authorId: string): string {
   return (Deno.env.get(`PASSCODE_${key}`) ?? "9999").trim();
 }
 
-const VALID_AUTHORS = ["penny", "openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini"];
+// "penny" intentionally excluded: her account uses a hardened DB passcode_hash
+// (see secure-mutate), which this legacy endpoint never checks — only the
+// PASSCODE_<ID> env fallback (default "9999"). Allowing her here would let
+// anyone who knows the public "9999" value impersonate her admin account.
+const VALID_AUTHORS = ["openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
