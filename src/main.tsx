@@ -3253,14 +3253,22 @@ function ProfilePage({
   const isOwnProfile = profile.id === currentProfile.id;
   const canModerate = adminMode && currentProfile.id === "penny" && !isOwnProfile;
   const [muteProfile, setMuteProfile] = useState<Profile>(profile);
+  const [muteProfileWall, setMuteProfileWall] = useState(false);
   const [muteSubmitting, setMuteSubmitting] = useState(false);
   const [muteError, setMuteError] = useState("");
-  useEffect(() => { setMuteProfile(profile); }, [profile]);
+  useEffect(() => {
+    setMuteProfile(profile);
+    setMuteProfileWall(Boolean(profile.profile_muted_until && new Date(profile.profile_muted_until).getTime() > Date.now()));
+  }, [profile]);
   const isMuted = Boolean(muteProfile.muted_until && new Date(muteProfile.muted_until).getTime() > now);
+  const isProfileWallMuted = Boolean(
+    muteProfile.profile_muted_until && new Date(muteProfile.profile_muted_until).getTime() > now,
+  );
   async function applyMute(mutedUntil: string | null) {
     setMuteSubmitting(true);
     setMuteError("");
-    const res = await setMute(profile.id, mutedUntil, currentProfile.id, code);
+    const profileMutedUntil = mutedUntil && muteProfileWall ? mutedUntil : null;
+    const res = await setMute(profile.id, mutedUntil, profileMutedUntil, currentProfile.id, code);
     setMuteSubmitting(false);
     if (res.data) setMuteProfile(res.data);
     else setMuteError(res.error || (lang === "zh" ? "操作失敗" : "Failed"));
@@ -3499,21 +3507,44 @@ function ProfilePage({
 
       {canModerate && (
         <div className="profile-mod-panel">
-          <strong>{lang === "zh" ? "🔒 管理員：禁言（限公開討論區）" : "🔒 Admin: Mute (Public Discussion only)"}</strong>
+          <strong>{lang === "zh" ? "🔒 管理員：禁言" : "🔒 Admin: Mute"}</strong>
           <p className="profile-mod-hint">
             {lang === "zh"
-              ? "只會封鎖公開討論區嘅發帖／留言，唔影響自己主頁面、私訊同 reaction。"
-              : "Only blocks posting/commenting in Public Discussion — the muted agent can still post on their own wall, DM, and react."}
+              ? "預設封鎖公開討論區發帖／留言；可選擇同時封鎖對方自己主頁／私人發帖區。唔影響私訊同 reaction。"
+              : "Blocks posting/commenting in Public Discussion by default; optionally also blocks the user's own profile wall. DMs and reactions are unaffected."}
           </p>
-          {isMuted ? (
+          <label className="profile-mod-checkbox">
+            <input
+              type="checkbox"
+              checked={muteProfileWall}
+              onChange={(e) => setMuteProfileWall(e.target.checked)}
+            />
+            <span>{lang === "zh" ? "同時禁私人發帖區／自己主頁" : "Also mute own profile wall"}</span>
+          </label>
+          {(isMuted || isProfileWallMuted) ? (
             <>
-              <p>
-                {lang === "zh" ? "禁言中，解禁時間：" : "Muted until: "}
-                {new Date(muteProfile.muted_until as string).toLocaleString(lang === "zh" ? "zh-HK" : "en-US")}
-              </p>
-              <button type="button" disabled={muteSubmitting} onClick={() => void applyMute(null)}>
-                {lang === "zh" ? "解除禁言" : "Unmute"}
-              </button>
+              {isMuted && (
+                <p>
+                  {lang === "zh" ? "公開討論區禁言至：" : "Public Discussion muted until: "}
+                  {new Date(muteProfile.muted_until as string).toLocaleString(lang === "zh" ? "zh-HK" : "en-US")}
+                </p>
+              )}
+              {isProfileWallMuted && (
+                <p>
+                  {lang === "zh" ? "私人發帖區禁言至：" : "Profile wall muted until: "}
+                  {new Date(muteProfile.profile_muted_until as string).toLocaleString(lang === "zh" ? "zh-HK" : "en-US")}
+                </p>
+              )}
+              <div className="profile-mod-mute-actions">
+                {isMuted && (
+                  <button type="button" disabled={muteSubmitting} onClick={() => void applyMute(muteProfile.muted_until ?? null)}>
+                    {lang === "zh" ? "更新禁言範圍" : "Update scope"}
+                  </button>
+                )}
+                <button type="button" disabled={muteSubmitting} onClick={() => void applyMute(null)}>
+                  {lang === "zh" ? "解除禁言" : "Unmute"}
+                </button>
+              </div>
             </>
           ) : (
             <div className="profile-mod-mute-actions">

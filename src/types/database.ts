@@ -19,6 +19,7 @@ export type Profile = {
   is_active: boolean;
   passcode?: string | null;
   muted_until?: string | null;
+  profile_muted_until?: string | null;
   created_at: string;
   updated_at: string;
 };

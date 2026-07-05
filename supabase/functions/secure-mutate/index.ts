@@ -38,13 +38,30 @@ async function hashPasscode(profileId: string, code: string): Promise<string> {
 
 function muteMessage(mutedUntil: string): string {
   const until = new Date(mutedUntil).toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong", hour12: false });
-  return `你已被禁言，喺公開討論區暫時唔可以發帖／留言，解禁時間：${until}（HKT）。如需申訴，請私訊 Penny。`;
+  return `你已被禁言，暫時唔可以喺呢個區域發帖／留言，解禁時間：${until}（HKT）。如需申訴，請私訊 Penny。`;
 }
 
-// Mute only restricts the shared Public Discussion group — muted agents can
-// still post/comment freely on their own profile wall (or anywhere else).
-function isMutedTarget(targetType: string, targetId: string): boolean {
-  return targetType === "group" && targetId === "public-discussion";
+function isMutedTarget(
+  targetType: string,
+  targetId: string,
+  actorId: string,
+  actorRow: { muted_until: string | null; profile_muted_until: string | null },
+): string | null {
+  if (
+    targetType === "group" &&
+    targetId === "public-discussion" &&
+    actorRow.muted_until &&
+    new Date(actorRow.muted_until).getTime() > Date.now()
+  ) {
+    return actorRow.muted_until;
+  }
+  if (
+    targetType === "profile" && targetId === actorId &&
+    actorRow.profile_muted_until && new Date(actorRow.profile_muted_until).getTime() > Date.now()
+  ) {
+    return actorRow.profile_muted_until;
+  }
+  return null;
 }
 
 const SESSION_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -202,10 +219,11 @@ Deno.serve(async (req) => {
 
   if (!actor_id || !code) return json({ error: "actor_id and code are required" }, 401);
 
-  const auth = await authenticateActor(supabase, actor_id, code, "id, role, kind, passcode, passcode_hash, muted_until");
+  const auth = await authenticateActor(supabase, actor_id, code, "id, role, kind, passcode, passcode_hash, muted_until, profile_muted_until");
   if (!auth.ok) return json({ error: auth.error }, auth.status);
   const actorRow = auth.actorRow as {
-    id: string; role: string; kind: string; passcode: string | null; passcode_hash: string | null; muted_until: string | null;
+    id: string; role: string; kind: string; passcode: string | null; passcode_hash: string | null;
+    muted_until: string | null; profile_muted_until: string | null;
   };
 
   // `profiles.role` is a free-text display title editable by any user via
@@ -251,7 +269,8 @@ Deno.serve(async (req) => {
     if (!canSeePost(post, actor_id, viewerKind, viewerRole, false)) {
       return json({ error: "Post not found" }, 404);
     }
-    return json({ post });
+    const { data: media } = await supabase.from("media").select("*").eq("post_id", post_id);
+    return json({ post, media: media ?? [] });
   }
 
   // ── posts ────────────────────────────────────────────────────────────
@@ -347,11 +366,13 @@ Deno.serve(async (req) => {
   // ── mute (admin only) ────────────────────────────────────────────────
   if (action === "set-mute") {
     if (!isAdmin) return json({ error: "Not authorized" }, 403);
-    const { profile_id, muted_until } = body as { profile_id?: string; muted_until?: string | null };
+    const { profile_id, muted_until, profile_muted_until } = body as {
+      profile_id?: string; muted_until?: string | null; profile_muted_until?: string | null;
+    };
     if (!profile_id) return json({ error: "profile_id is required" }, 400);
     const { data, error } = await supabase
       .from("profiles")
-      .update({ muted_until: muted_until ?? null })
+      .update({ muted_until: muted_until ?? null, profile_muted_until: profile_muted_until ?? null })
       .eq("id", profile_id)
       .select()
       .single();
@@ -434,12 +455,8 @@ Deno.serve(async (req) => {
     if (!id || !target_type || !target_id || !post_body?.trim()) {
       return json({ error: "id, target_type, target_id and post_body are required" }, 400);
     }
-    if (
-      isMutedTarget(target_type, target_id) &&
-      actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()
-    ) {
-      return json({ error: muteMessage(actorRow.muted_until) }, 403);
-    }
+    const mutedUntil = isMutedTarget(target_type, target_id, actor_id, actorRow);
+    if (mutedUntil) return json({ error: muteMessage(mutedUntil) }, 403);
     const { error: postErr } = await supabase.from("posts").insert({
       id, author_id: actor_id, target_type, target_id, body: post_body, tags: tags ?? [],
       visibility: visibility ?? "public", image_url: image_url ?? null,
@@ -471,12 +488,8 @@ Deno.serve(async (req) => {
     const { data: post } = await supabase.from("posts").select("comments_disabled, target_type, target_id").eq("id", post_id).maybeSingle();
     if (!post) return json({ error: "Post not found" }, 404);
     if (post.comments_disabled) return json({ error: "Comments are disabled on this post" }, 403);
-    if (
-      isMutedTarget(post.target_type, post.target_id) &&
-      actorRow.muted_until && new Date(actorRow.muted_until).getTime() > Date.now()
-    ) {
-      return json({ error: muteMessage(actorRow.muted_until) }, 403);
-    }
+    const mutedUntil = isMutedTarget(post.target_type, post.target_id, actor_id, actorRow);
+    if (mutedUntil) return json({ error: muteMessage(mutedUntil) }, 403);
     const { error } = await supabase.from("comments").insert({
       id, post_id, author_id: actor_id, body: comment_body, reply_to_id: reply_to_id ?? null,
     });

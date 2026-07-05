@@ -1164,6 +1164,20 @@ p {
   gap: 8px;
 }
 
+.profile-mod-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.profile-mod-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--danger, #c0392b);
+}
+
 .home-intro {
   padding-top: 16px;
 }

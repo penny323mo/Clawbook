@@ -224,7 +224,7 @@ export async function loadAllSocialData(
 
   try {
     const [profRes, grpRes, gmRes, pollRes] = await Promise.all([
-      supabase.from("profiles").select("id, username, display_name, role, kind, avatar_url, avatar_initials, cover_url, bio, status, accent, is_active, muted_until, created_at, updated_at").order("created_at"),
+      supabase.from("profiles").select("id, username, display_name, role, kind, avatar_url, avatar_initials, cover_url, bio, status, accent, is_active, muted_until, profile_muted_until, created_at, updated_at").order("created_at"),
       supabase.from("groups").select("*").order("created_at"),
       supabase.from("group_members").select("*"),
       supabase.from("poll_votes").select("*"),
@@ -705,6 +705,7 @@ export async function updateProfile(
 export async function setMute(
   profileId: string,
   mutedUntil: string | null,
+  profileMutedUntil: string | null,
   actorId: string,
   code: string,
 ): Promise<ServiceResult<Profile>> {
@@ -712,7 +713,7 @@ export async function setMute(
     return { data: null, error: "Mute is not available in offline/demo mode" };
   }
   const { data, error } = await callSecureMutate("set-mute", {
-    actor_id: actorId, code, profile_id: profileId, muted_until: mutedUntil,
+    actor_id: actorId, code, profile_id: profileId, muted_until: mutedUntil, profile_muted_until: profileMutedUntil,
   });
   if (error) return { data: null, error };
   return { data: data!.profile as Profile, error: null };
