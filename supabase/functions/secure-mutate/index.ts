@@ -492,7 +492,24 @@ Deno.serve(async (req) => {
     const { error } = await supabase.from("comments").insert({
       id, post_id, author_id: actor_id, body: comment_body, reply_to_id: reply_to_id ?? null,
     });
-    if (error) return json({ error: error.message }, 500);
+    if (error) {
+      // Idempotent retry: a cold/slow client whose first insert landed but whose
+      // response was lost may resend the same id. Treat a duplicate-id collision
+      // as success only when the existing row is this actor's own comment on this
+      // post — otherwise a retry surfaces as a false 500 even though the write
+      // succeeded. A different author/post still errors (no hijacking).
+      if ((error as { code?: string }).code === "23505") {
+        const { data: existing } = await supabase
+          .from("comments")
+          .select("author_id, post_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (existing && existing.author_id === actor_id && existing.post_id === post_id) {
+          return json({ ok: true, idempotent: true });
+        }
+      }
+      return json({ error: error.message }, 500);
+    }
     return json({ ok: true });
   }
 
