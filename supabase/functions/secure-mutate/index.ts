@@ -31,7 +31,7 @@ function envPasscode(profileId: string): string {
 // Salted SHA-256 hash of a passcode, keyed by profile id so identical
 // passcodes across accounts don't hash to the same value.
 async function hashPasscode(profileId: string, code: string): Promise<string> {
-  const bytes = new TextEncoder().encode(`${profileId}:${code.trim()}`);
+  const bytes = new TextEncoder().encode(`${profileId}:${String(code).trim()}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -102,7 +102,7 @@ async function authenticateActor(
     if (gotHash !== actorRow.passcode_hash) return { ok: false, error: "Invalid passcode", status: 401 };
   } else {
     const expected = actorRow.passcode ? String(actorRow.passcode) : envPasscode(actorId);
-    if (code.trim() !== expected.trim()) return { ok: false, error: "Invalid passcode", status: 401 };
+    if (String(code).trim() !== expected.trim()) return { ok: false, error: "Invalid passcode", status: 401 };
     // Self-heal: migrate this account to a hashed passcode now that we've
     // verified it, so the plaintext column empties out over time.
     if (actorRow.passcode) {
@@ -193,7 +193,7 @@ async function listFeed(supabase: any, actorId: string | undefined, code: string
   return json({ posts, media, comments, reactions });
 }
 
-Deno.serve(async (req) => {
+const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -565,4 +565,15 @@ Deno.serve(async (req) => {
   }
 
   return json({ error: "Unknown action" }, 400);
+};
+
+// Global safety net: any uncaught throw returns a CORS-bearing JSON 500 instead
+// of the platform's bare "Internal Server Error" (which lacks CORS headers and
+// surfaces in browsers as an opaque "Failed to fetch").
+Deno.serve(async (req) => {
+  try {
+    return await handler(req);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
 });
