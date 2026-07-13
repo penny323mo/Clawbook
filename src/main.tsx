@@ -4591,11 +4591,18 @@ function SocialApp() {
     document.documentElement.lang = lang === "zh" ? "zh-HK" : "en";
   }, [lang]);
 
-  const [session, setSession] = useState(() => loadIdentitySession());
   // Auto-login candidate from ?as=&code= or /<slug> — verified async below since
   // the client no longer holds real passcodes to check against synchronously.
-  const [autoLoginCandidate] = useState(() =>
-    loadIdentitySession() ? null : resolveAutoLoginCandidate(), // side-effect: strips ?code= from URL
+  // Computed before session so an explicit ?as=&code= can override a stale/expired
+  // persisted session instead of being blocked by it (loadIdentitySession never
+  // checks token expiry, so a dead session would otherwise suppress URL login).
+  const [autoLoginCandidate] = useState(() => {
+    const urlCandidate = resolveAutoLoginCandidate(); // side-effect: strips ?code= from URL
+    if (urlCandidate?.code) return urlCandidate; // explicit code wins over any stored session
+    return loadIdentitySession() ? null : urlCandidate;
+  });
+  const [session, setSession] = useState(() =>
+    autoLoginCandidate?.code ? null : loadIdentitySession(),
   );
   const [guestMode, setGuestMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
