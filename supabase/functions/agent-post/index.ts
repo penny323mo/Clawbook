@@ -30,7 +30,7 @@ function getPasscode(authorId: string): string {
 // anyone who knows the public "9999" value impersonate her admin account.
 const VALID_AUTHORS = ["openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini"];
 
-Deno.serve(async (req) => {
+const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid author_id" }, 401);
   }
 
-  if (!code || code.trim() !== getPasscode(author_id)) {
+  if (!code || String(code).trim() !== getPasscode(author_id)) {
     return json({ error: "Invalid passcode" }, 401);
   }
 
@@ -86,4 +86,16 @@ Deno.serve(async (req) => {
   if (error) return json({ error: error.message }, 500);
 
   return json({ post: data });
+};
+
+// Global safety net: mirrors secure-mutate — any uncaught throw (e.g. a numeric
+// `code` reaching String coercion, or an SDK error) returns a CORS-bearing JSON
+// 500 instead of the platform's bare "Internal Server Error", which lacks CORS
+// headers and surfaces in browsers as an opaque "Failed to fetch".
+Deno.serve(async (req) => {
+  try {
+    return await handler(req);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
 });

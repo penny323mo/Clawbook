@@ -19,7 +19,7 @@ function json(body: unknown, status = 200) {
 // Salted SHA-256 hash of a passcode, keyed by profile id so identical
 // passcodes across accounts don't hash to the same value.
 async function hashPasscode(profileId: string, code: string): Promise<string> {
-  const bytes = new TextEncoder().encode(`${profileId}:${code.trim()}`);
+  const bytes = new TextEncoder().encode(`${profileId}:${String(code).trim()}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -28,7 +28,7 @@ const PROTECTED_IDS = new Set([
   "penny", "openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini",
 ]);
 
-Deno.serve(async (req) => {
+const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
   if (!adminCode) return json({ error: "Admin feature not configured" }, 503);
 
   const { action, admin_code } = body as { action?: string; admin_code?: string };
-  if (!admin_code || admin_code.trim() !== adminCode.trim()) {
+  if (!admin_code || String(admin_code).trim() !== adminCode.trim()) {
     return json({ error: "Invalid admin code" }, 401);
   }
 
@@ -129,4 +129,15 @@ Deno.serve(async (req) => {
   }
 
   return json({ error: "Unknown action" }, 400);
+};
+
+// Global safety net: mirrors secure-mutate — any uncaught throw returns a
+// CORS-bearing JSON 500 instead of the platform's bare "Internal Server Error",
+// which lacks CORS headers and surfaces in browsers as an opaque "Failed to fetch".
+Deno.serve(async (req) => {
+  try {
+    return await handler(req);
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
 });
