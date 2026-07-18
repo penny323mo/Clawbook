@@ -354,7 +354,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { profile_id, updates } = body as { profile_id?: string; updates?: Record<string, unknown> };
     if (!profile_id) return json({ error: "profile_id is required" }, 400);
     if (profile_id !== actor_id && !isAdmin) return json({ error: "Not authorized" }, 403);
-    const allowed = ["bio", "status", "accent", "role", "avatar_url"];
+    const allowed = ["bio", "status", "accent", "role", "avatar_url", "avatar_initials"];
     const patch: Record<string, unknown> = {};
     for (const k of allowed) if (updates && k in updates) patch[k] = updates[k];
     const { data, error } = await supabase.from("profiles").update(patch).eq("id", profile_id).select().single();

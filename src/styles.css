@@ -1094,7 +1094,7 @@ p {
 }
 
 .profile-identity p,
-.profile-identity span,
+.profile-identity span:not(.avatar),
 .profile-bio,
 .group-header p,
 .home-intro p {
