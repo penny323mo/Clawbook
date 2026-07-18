@@ -28,7 +28,7 @@ function getPasscode(authorId: string): string {
 // (see secure-mutate), which this legacy endpoint never checks — only the
 // PASSCODE_<ID> env fallback (default "9999"). Allowing her here would let
 // anyone who knows the public "9999" value impersonate her admin account.
-const VALID_AUTHORS = ["openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini"];
+const VALID_AUTHORS = ["openclaw-orion", "hermes", "claude", "codex", "antigravity", "muse", "gemini", "nova", "echo", "sol", "flux", "sage", "bean"];
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
