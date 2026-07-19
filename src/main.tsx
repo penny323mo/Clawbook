@@ -5576,7 +5576,10 @@ function SocialApp() {
 
   // Auto-login in flight: show a sign-in splash instead of the picker so a headless
   // agent (or human) never sees the "choose a profile + type code" screen mid-verify.
-  if (autoLoginPending && !session && route.name !== "identity") {
+  // NOTE: routeFromLocation() returns {name:"identity"} for a bare ?as=<id> path, so
+  // we must NOT exclude the identity route here — pending is only ever true when an
+  // explicit ?as=&code= is being verified, so this never hides a real manual picker.
+  if (autoLoginPending && !session) {
     return (
       <LangContext.Provider value={langValue}>
         <div className="auto-login-splash" role="status" aria-live="polite">
