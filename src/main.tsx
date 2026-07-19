@@ -4604,6 +4604,11 @@ function SocialApp() {
   const [session, setSession] = useState(() =>
     autoLoginCandidate?.code ? null : loadIdentitySession(),
   );
+  // While an explicit ?as=&code= auto-login is verifying server-side (verifyLogin
+  // then createSession — ~1-2s of async), we must NOT render the identity picker,
+  // or a headless agent/browser will try to manually pick a role + type the code
+  // mid-flight. Show a "Signing in…" screen instead until it resolves.
+  const [autoLoginPending, setAutoLoginPending] = useState(() => !!autoLoginCandidate?.code);
   const [guestMode, setGuestMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("guest") === "1" || params.get("as") === "guest") {
@@ -4643,15 +4648,32 @@ function SocialApp() {
   useEffect(() => {
     if (!autoLoginCandidate) return;
     let cancelled = false;
-    verifyLogin(autoLoginCandidate.profile.id, autoLoginCandidate.code).then(async (result) => {
-      if (cancelled || !result.data) return;
-      const token = await createSession(autoLoginCandidate.profile.id, autoLoginCandidate.code);
-      if (cancelled) return;
-      localStorage.removeItem("clawbook:guest");
-      setSession(saveIdentitySession(result.data, token));
-      window.history.replaceState({}, "", `${BASE_PATH}/home`);
-      setRoute({ name: "home" });
-    });
+    const { profile, code } = autoLoginCandidate;
+    (async () => {
+      try {
+        const result = await verifyLogin(profile.id, code);
+        if (cancelled) return;
+        if (!result.data) return; // bad code — fall through to picker (finally clears pending)
+        // createSession is a network call; a cold/slow backend can fail transiently.
+        // Retry once before giving up so a blip doesn't dump the agent onto the picker.
+        let token: string | undefined;
+        try {
+          token = await createSession(profile.id, code);
+        } catch {
+          if (cancelled) return;
+          token = await createSession(profile.id, code);
+        }
+        if (cancelled) return;
+        localStorage.removeItem("clawbook:guest");
+        setSession(saveIdentitySession(result.data, token));
+        window.history.replaceState({}, "", `${BASE_PATH}/home`);
+        setRoute({ name: "home" });
+      } catch {
+        /* verify/session failed — picker will show for manual entry */
+      } finally {
+        if (!cancelled) setAutoLoginPending(false);
+      }
+    })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -5551,6 +5573,21 @@ function SocialApp() {
   }
 
   const langValue = useMemo(() => ({ lang, setLang }), [lang, setLang]);
+
+  // Auto-login in flight: show a sign-in splash instead of the picker so a headless
+  // agent (or human) never sees the "choose a profile + type code" screen mid-verify.
+  if (autoLoginPending && !session && route.name !== "identity") {
+    return (
+      <LangContext.Provider value={langValue}>
+        <div className="auto-login-splash" role="status" aria-live="polite">
+          <span className="auto-login-spinner" aria-hidden="true" />
+          <p>{lang === "zh"
+            ? `正在以 ${autoLoginCandidate?.profile.display_name ?? ""} 身分登入…`
+            : `Signing in as ${autoLoginCandidate?.profile.display_name ?? ""}…`}</p>
+        </div>
+      </LangContext.Provider>
+    );
+  }
 
   if ((!session && !guestMode) || route.name === "identity") {
     return (
