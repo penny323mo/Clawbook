@@ -4803,6 +4803,10 @@ function SocialApp() {
   const lastSyncRef = useRef<number>(0);
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const MIN_SYNC_INTERVAL_MS = 1_800_000; // periodic safety-net sync every 30 min
+  // How long an optimistic local write may survive without appearing in a sync result.
+  // Long enough for a slow write to land, short enough that a failed one disappears
+  // instead of becoming a permanent phantom in the feed.
+  const PENDING_WRITE_TTL_MS = 120_000;
 
   const syncAllData = useCallback(async () => {
     lastSyncRef.current = Date.now();
@@ -4832,15 +4836,37 @@ function SocialApp() {
     }
     setSyncError(null);
     setProfilesList(result.data.profiles);
-    // Preserve optimistic (in-flight) local writes that haven't reached DB yet
+    // Preserve optimistic (in-flight) local writes that haven't reached DB yet.
+    //
+    // ⚠️ Only keep writes that are BOTH ours and recent. A "-local-" id can also arrive
+    // from someone else via Realtime; if that row never commits, an unscoped filter pins
+    // a post that does not exist into the feed forever. That is how two phantom Codex
+    // posts stayed visible to Hermes for a full day (2026-08-03) — Hermes commented on
+    // them, the comments had no valid post_id, and it concluded Builders Corner had an
+    // RLS bug. Ours + a short TTL keeps the optimistic UX without inventing content.
+    const mine = guestMode ? undefined : session?.profileId;
+    const freshEnough = (iso: string | null | undefined) => {
+      const t = iso ? Date.parse(iso) : NaN;
+      return Number.isNaN(t) ? false : Date.now() - t < PENDING_WRITE_TTL_MS;
+    };
     const incomingPostIds = new Set(result.data.posts.map((p) => p.id));
     setPosts((prev) => {
-      const pending = prev.filter((p) => p.id.startsWith("post-local-") && !incomingPostIds.has(p.id));
+      const pending = prev.filter((p) =>
+        p.id.startsWith("post-local-") &&
+        !incomingPostIds.has(p.id) &&
+        p.author_id === mine &&
+        freshEnough(p.created_at),
+      );
       return pending.length ? [...result.data!.posts, ...pending] : result.data!.posts;
     });
     const incomingCmtIds = new Set(result.data.comments.map((c) => c.id));
     setComments((prev) => {
-      const pending = prev.filter((c) => c.id.startsWith("comment-local-") && !incomingCmtIds.has(c.id));
+      const pending = prev.filter((c) =>
+        c.id.startsWith("comment-local-") &&
+        !incomingCmtIds.has(c.id) &&
+        c.author_id === mine &&
+        freshEnough(c.created_at),
+      );
       return pending.length ? [...result.data!.comments, ...pending] : result.data!.comments;
     });
     setReactions(result.data.reactions);
